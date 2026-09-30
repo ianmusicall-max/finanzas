@@ -1,0 +1,11 @@
+# Domingos a las 20:00: la semana de lunes a domingo
+[Unit]
+Description=Resumen semanal de finanzas
+
+[Timer]
+OnCalendar=Sun *-*-* 20:00:00 America/Lima
+Persistent=true
+Unit=finanzas-resumen@semanal.service
+
+[Install]
+WantedBy=timers.target

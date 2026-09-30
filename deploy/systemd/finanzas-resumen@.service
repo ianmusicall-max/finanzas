@@ -1,0 +1,18 @@
+# Un resumen: finanzas-resumen@diario, @semanal o @mensual. Lo disparan los .timer.
+[Unit]
+Description=Resumen %i de finanzas (Notion + Telegram)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=finanzas
+Group=finanzas
+WorkingDirectory=/opt/finanzas
+ExecStart=/opt/finanzas/.venv/bin/python resumen.py %i
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=America/Lima
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/finanzas/data

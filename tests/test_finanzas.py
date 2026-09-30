@@ -1,0 +1,157 @@
+import sys
+import tempfile
+import unittest
+from datetime import date
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import finanzas as F  # noqa: E402
+from informes import Informe  # noqa: E402
+from lector import interpretar  # noqa: E402
+from tests.fakes import BASES, FakeNotion  # noqa: E402
+
+
+def cargar(n, textos, base):
+    for t in textos:
+        F.guardar_movimiento(n, BASES, interpretar(t, base=base))
+
+
+class ConTC(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self._aj = F.AJUSTES
+        F.AJUSTES = Path(self._tmp.name) / "ajustes.json"
+
+    def tearDown(self):
+        F.AJUSTES = self._aj
+        self._tmp.cleanup()
+
+
+class Periodos(unittest.TestCase):
+    def test_semana_lunes_a_domingo(self):
+        p = F.semana(date(2026, 9, 30))   # miercoles
+        self.assertEqual((p.desde, p.hasta), (date(2026, 9, 28), date(2026, 10, 4)))
+        self.assertEqual(p.clave, "Semana 2026-S40")
+
+    def test_mes(self):
+        p = F.mes(date(2026, 2, 10))
+        self.assertEqual((p.desde, p.hasta, p.clave), (date(2026, 2, 1), date(2026, 2, 28), "Mes 2026-02"))
+        self.assertEqual(F.mes(date(2026, 3, 5)).anterior().desde, date(2026, 2, 1))
+
+
+class Resumenes(ConTC):
+    def test_suma_por_tipo_y_grupo(self):
+        n = FakeNotion()
+        d = date(2026, 9, 30)
+        cargar(n, ["+3000 sueldo", "45 almuerzo", "1200 alquiler", "15 taxi", "ahorro 500 emergencia",
+                   "inversion 300 fondo", "10 chocolate"], d)
+        r = F.resumir(F.movimientos(n, BASES, d, d), F.dia(d))
+        self.assertEqual((r.ingresos, r.gastos, r.ahorro, r.inversion), (3000, 1270, 500, 300))
+        self.assertEqual(r.balance, 1730)
+        self.assertAlmostEqual(r.tasa_ahorro, 1730 / 3000)
+        self.assertEqual(r.necesidades, 1215)
+        self.assertEqual(r.deseos, 55)
+        self.assertEqual((r.hormiga_n, r.hormiga), (2, 25))
+
+    def test_dolares_se_convierten(self):
+        n = FakeNotion()
+        F.fijar_tipo_de_cambio("USD", 3.70)
+        F.guardar_movimiento(n, BASES, interpretar("+100 usd facebook", base=date(2026, 9, 1)))
+        f = n.dbs["db-mov"][0]
+        self.assertEqual((f["Monto"], f["Moneda"], f["Tipo de cambio"], f["Monto S/"]), (100, "USD", 3.7, 370))
+
+    def test_filtra_por_fechas(self):
+        n = FakeNotion()
+        cargar(n, ["10 taxi"], date(2026, 9, 29))
+        cargar(n, ["20 taxi"], date(2026, 9, 30))
+        self.assertEqual(len(F.movimientos(n, BASES, date(2026, 9, 30), date(2026, 9, 30))), 1)
+
+
+class Presupuesto(ConTC):
+    def test_fijar_reescribe(self):
+        n = FakeNotion()
+        F.fijar_presupuesto(n, BASES, "Transporte", 300)
+        F.fijar_presupuesto(n, BASES, "Transporte", 250)
+        self.assertEqual(F.presupuesto(n, BASES), {"Transporte": 250})
+
+    def test_estado_ordena_lo_pasado_primero(self):
+        est = F.estado_presupuesto({"A": 120, "B": 10, "C": 5}, {"A": 100, "B": 100}, 0.5)
+        self.assertEqual([e[0] for e in est], ["A", "B", "C"])
+        self.assertIsNone(est[2][3])
+
+
+class Patrimonio(ConTC):
+    def test_neto_y_liquidez(self):
+        n = FakeNotion()
+        F.fijar_tipo_de_cambio("USD", 4.0)
+        F.fijar_patrimonio(n, BASES, "Interbank", "Activo", "Efectivo y bancos", 5000)
+        F.fijar_patrimonio(n, BASES, "Binance", "Activo", "Cripto", 100, "USD")
+        _, antes = F.fijar_patrimonio(n, BASES, "Interbank", "Activo", "Efectivo y bancos", 6000)
+        F.fijar_patrimonio(n, BASES, "Ripley", "Pasivo", "Tarjeta de crédito", 1000)
+        self.assertEqual(antes, 5000)
+        self.assertEqual(F.neto(F.patrimonio(n, BASES)), (6400, 1000, 5400, 6000))
+
+
+class Metas(ConTC):
+    def test_crear_y_sumar(self):
+        n = FakeNotion()
+        F.fijar_meta(n, BASES, "Fondo de emergencia", 20000)
+        m = F.buscar_meta(F.metas(n, BASES), "emergencia")
+        self.assertEqual(F.sumar_a_meta(n, m, 500), 500)
+        self.assertEqual(F.metas(n, BASES)[0]["ahorrado"], 500)
+
+
+class Consejos(unittest.TestCase):
+    def _r(self, ingresos, movs):
+        r = F.Resumen(F.mes(date(2026, 9, 1)), ingresos=ingresos)
+        for cat, v in movs:
+            r.gastos += v
+            r.por_categoria[cat] = r.por_categoria.get(cat, 0) + v
+            if F.C.grupo(cat) == "Necesidad":
+                r.necesidades += v
+            else:
+                r.deseos += v
+        return r
+
+    def test_gasta_mas_de_lo_que_gana(self):
+        c = F.consejos(self._r(1000, [("Vivienda", 1200)]))
+        self.assertTrue(c[0].startswith("🔴"))
+
+    def test_deseos_sobre_30(self):
+        c = F.consejos(self._r(1000, [("Comida y restaurantes", 400)]))
+        self.assertTrue(any("30%" in x for x in c))
+
+    def test_presupuesto_pasado_va_primero(self):
+        c = F.consejos(self._r(5000, [("Transporte", 400)]), {"Transporte": 300})
+        self.assertIn("Pasaste el presupuesto", c[0])
+
+    def test_fondo_de_emergencia_y_tarjeta(self):
+        items = [{"clase": "Activo", "tipo": "Efectivo y bancos", "valor_s": 2000},
+                 {"clase": "Pasivo", "tipo": "Tarjeta de crédito", "valor_s": 800}]
+        c = F.consejos(self._r(5000, [("Vivienda", 1000)]), {}, items, gasto_mensual=2000)
+        self.assertTrue(any("1.0 meses" in x for x in c))
+        self.assertTrue(any("tarjetas" in x for x in c))
+
+
+class InformeCompleto(ConTC):
+    def test_semanal_texto_y_notion(self):
+        n = FakeNotion()
+        d = date(2026, 9, 30)
+        cargar(n, ["+4000 sueldo", "60 almuerzo", "25 taxi"], d)
+        cargar(n, ["50 almuerzo"], date(2026, 9, 22))   # semana anterior
+        F.fijar_presupuesto(n, BASES, "Comida y restaurantes", 100)
+        inf = Informe(n, BASES, F.semana(d), dia_de_corte=d)
+        t = inf.texto()
+        self.assertIn("S/ 85.00", t)
+        self.assertIn("▲ 70%", t)          # 85 contra 50
+        self.assertIn("Pasaste el presupuesto", t)   # comida del mes: 110 de 100
+        inf.guardar()
+        inf.guardar()                      # la segunda vez reescribe, no duplica
+        filas = n.dbs["db-res"]
+        self.assertEqual(len(filas), 1)
+        self.assertEqual((filas[0]["Periodo"], filas[0]["Gastos S/"], filas[0]["Ingresos S/"]), ("Semana 2026-S40", 85, 4000))
+
+
+if __name__ == "__main__":
+    unittest.main()

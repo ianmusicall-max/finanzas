@@ -1,0 +1,11 @@
+# Todos los días a las 21:30 (hora de Lima): el resumen del día
+[Unit]
+Description=Resumen diario de finanzas
+
+[Timer]
+OnCalendar=*-*-* 21:30:00 America/Lima
+Persistent=true
+Unit=finanzas-resumen@diario.service
+
+[Install]
+WantedBy=timers.target

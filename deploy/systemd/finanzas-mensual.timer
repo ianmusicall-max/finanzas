@@ -1,0 +1,11 @@
+# El día 1 de cada mes a las 08:00: el mes que terminó
+[Unit]
+Description=Resumen mensual de finanzas
+
+[Timer]
+OnCalendar=*-*-01 08:00:00 America/Lima
+Persistent=true
+Unit=finanzas-resumen@mensual.service
+
+[Install]
+WantedBy=timers.target

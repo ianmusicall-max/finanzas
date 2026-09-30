@@ -1,0 +1,25 @@
+# Bot de Telegram de finanzas. Copiar a /etc/systemd/system/ (lo hace deploy/instalar.sh)
+[Unit]
+Description=Bot de Telegram de finanzas personales (registro en Notion)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=finanzas
+Group=finanzas
+WorkingDirectory=/opt/finanzas
+ExecStart=/opt/finanzas/.venv/bin/python bot.py
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=America/Lima
+Restart=on-failure
+RestartSec=15
+RestartPreventExitStatus=2 3
+MemoryMax=200M
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/finanzas/data
+
+[Install]
+WantedBy=multi-user.target
