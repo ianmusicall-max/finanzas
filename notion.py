@@ -266,6 +266,7 @@ def esquemas() -> dict:
             "Categoría": _sel(C.nombres("Gasto")),
             "Deuda": {"rich_text": {}},
             "Último": {"date": {}},
+            "Próxima fecha": {"date": {}},
             "Estado": _sel(["Activo", "Pausado"]),
         },
         SUSCRIPCIONES: {

@@ -948,6 +948,17 @@ class RecordatoriosYPlan(Base):
         self.assertIn("¿De qué cuenta salió el pago?", self.tg.ultimo)
         self.assertIn("✅ Cuota Banco Falabella", self.di("/pagos"))
 
+    def test_proxima_fecha_para_el_calendario(self):
+        hoy = F.hoy()
+        self.rec("Retirar dinero de PayPal", 23, "Retiro")
+        F.recordatorios(self.n, self.bot.bases)
+        fila = self.n.dbs["db-rec"][0]
+        self.assertEqual(fila["Próxima fecha"], hoy.replace(day=F.dia_del_mes(23, hoy)).isoformat())
+        F.marcar_hecho(self.n, F.recordatorios(self.n, self.bot.bases)[0])
+        siguiente = F.sumar_meses(hoy.replace(day=1), 1)
+        self.assertEqual(fila["Próxima fecha"], siguiente.replace(day=F.dia_del_mes(23, siguiente)).isoformat())
+        self.assertEqual(F.proxima_fecha(31, "", F.date(2027, 2, 10)), F.date(2027, 2, 28))
+
     def test_proyeccion(self):
         F.fijar_tipo_de_cambio("RUB", 0.05)
         self.rec("Apartamento", 28, "Pago", 2000, "PEN", "Vivienda")

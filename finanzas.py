@@ -539,6 +539,15 @@ def dia_del_mes(dia: int, d: date) -> int:
     return min(int(dia), monthrange(d.year, d.month)[1])
 
 
+def proxima_fecha(dia: Optional[int], ultimo: str, d: Optional[date] = None) -> Optional[date]:
+    """La fecha que va en el calendario de Notion: este mes, o el que viene si ya se hizo este mes."""
+    if not dia:
+        return None
+    d = d or hoy()
+    base = d if not (ultimo and ultimo[:7] == d.isoformat()[:7]) else sumar_meses(d.replace(day=1), 1)
+    return base.replace(day=dia_del_mes(dia, base))
+
+
 def recordatorios(notion, bases: dict) -> list:
     if RECORDATORIOS not in bases:
         return []
@@ -546,6 +555,12 @@ def recordatorios(notion, bases: dict) -> list:
     for f in notion.consultar(bases[RECORDATORIOS], limite=200):
         if (f.get("Estado") or "Activo") != "Activo":
             continue
+        prox = proxima_fecha(int(f["Día"]) if f.get("Día") else None, (f.get("Último") or "")[:10])
+        if prox and (f.get("Próxima fecha") or "")[:10] != prox.isoformat():
+            try:
+                notion.editar_pagina(f["_id"], {"Próxima fecha": p_date(prox)})   # el calendario de Notion al dia
+            except NotionError:
+                pass
         out.append({"id": f["_id"], "nombre": f.get("Recordatorio") or "?", "dia": int(f["Día"]) if f.get("Día") else None,
                     "tipo": f.get("Tipo") or "Otro", "monto": float(f["Monto"]) if f.get("Monto") else None,
                     "moneda": f.get("Moneda") or "PEN", "categoria": f.get("Categoría"), "deuda": f.get("Deuda") or "",
@@ -579,7 +594,12 @@ def avisos_de_hoy(notion, bases: dict, d: Optional[date] = None) -> list:
 
 
 def marcar_hecho(notion, r: dict, d: Optional[date] = None) -> None:
-    notion.editar_pagina(r["id"], {"Último": p_date(d or hoy())})
+    d = d or hoy()
+    props = {"Último": p_date(d)}
+    prox = proxima_fecha(r["dia"], d.isoformat(), d)
+    if prox:
+        props["Próxima fecha"] = p_date(prox)                  # pasa al mes que viene en el calendario
+    notion.editar_pagina(r["id"], props)
 
 
 def posponer(rid: str, d: Optional[date] = None) -> date:
