@@ -80,6 +80,7 @@ MEDIOS = ["T-Bank", "Falabella", "Interbank", "Binance", "PayPal", "Sberbank", "
 TARJETAS = ["T-Bank", "Falabella", "Interbank", "Sberbank", "SIP", "Tarjeta OH", "BBVA", "BCP"]
 # Nombre de la deuda (base Deudas) donde se acumula lo que se compra a credito con cada tarjeta.
 BILLETERA_BANCO = {"Plin": "Interbank", "Yape": "BCP"}   # pagar con Plin/Yape sale de esa cuenta del banco
+BILLETERA_OTROS = {"Yape": ["Interbank"]}                 # ... a veces de otra: el bot ofrece un boton para cambiarla
 DEUDA_TARJETA = {"Tarjeta OH": "Tarjeta OH", "Falabella": "Banco Falabella"}   # Falabella: tarjeta y préstamo juntos
 BANCO_TARJETA = {"Falabella": "Banco Falabella", "T-Bank": "T-Bank (Tinkoff)", "Tarjeta OH": "Financiera OH",
                  "SIP": "Banco SIP"}

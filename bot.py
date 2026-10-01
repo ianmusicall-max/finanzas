@@ -340,6 +340,12 @@ class Bot:
             else:
                 l.append("<i>💡 Para que siga el saldo de %s en %s: <code>/activo %s 1000 %s</code> con lo que tengas hoy.</i>" % (
                     esc(mov.medio), mov.moneda, esc(mov.medio), mov.moneda.lower()))
+        otra_cuenta = []
+        if pid in self._cuenta_de:
+            for banco in C.BILLETERA_OTROS.get(mov.medio, []):
+                alt = F.buscar_cuenta(self.notion, self.bases, banco, mov.moneda)
+                if alt and _pid(alt["id"]) != _pid(self._cuenta_de[pid][0]):
+                    otra_cuenta.append(("🔁 Salió de %s" % alt["nombre"], "cb:%s:%s" % (pid, banco)))
         if meta:
             nuevo = F.sumar_a_meta(self.notion, meta, F.soles(mov.monto, mov.moneda))
             self._metas_de[pid] = (meta, F.soles(mov.monto, mov.moneda))
@@ -354,9 +360,9 @@ class Bot:
         ti = C.TIPOS.index(mov.tipo)
         if not mov.adivinada:
             l.append("\n¿De qué categoría es?")
-            self.decir(chat, "\n".join(l), self._botones_categoria(pid, ti) + [[("↩️ Deshacer", "x:" + pid)]])
+            self.decir(chat, "\n".join(l), self._botones_categoria(pid, ti) + [otra_cuenta, [("↩️ Deshacer", "x:" + pid)]])
         else:
-            self.decir(chat, "\n".join(l), [[("🏷 Cambiar categoría", "k:%s:%d" % (pid, ti)), ("↩️ Deshacer", "x:" + pid)]])
+            self.decir(chat, "\n".join(l), [otra_cuenta, [("🏷 Cambiar categoría", "k:%s:%d" % (pid, ti)), ("↩️ Deshacer", "x:" + pid)]])
         if mov.tipo == "Ingreso" and mov.categoria != "Retiro de ahorro":
             self._ofrecer_ahorro(chat, mov)
         if sus:
@@ -585,6 +591,9 @@ class Bot:
             elif partes[0] in ("pg", "pm", "pc"):
                 self.tg.quitar_botones(chat, message_id)
                 self._boton_pago(chat, partes[0], ":".join(partes[1:]))
+            elif partes[0] == "cb" and len(partes) == 3:
+                self.tg.quitar_botones(chat, message_id)
+                self._cambiar_cuenta(chat, partes[1], partes[2])
             elif partes[0] == "rt":
                 self.tg.quitar_botones(chat, message_id)
                 self._boton_retiro(chat, partes[1])
@@ -598,6 +607,26 @@ class Bot:
             self.decir(chat, "Ese botón ya no sirve. Escribe /ayuda.")
         except NotionError as exc:
             self.decir(chat, "⚠️ Notion no respondió: %s" % esc(str(exc)[:200]))
+
+    def _cambiar_cuenta(self, chat, pid: str, banco: str) -> None:
+        """Yape salio de Interbank y no de BCP: devuelve la plata a la primera cuenta y la saca de la otra."""
+        if pid not in self._cuenta_de:
+            self.decir(chat, "Ese botón ya no sirve. Corrige el saldo con <code>/activo</code>.")
+            return
+        cuenta_id, delta = self._cuenta_de[pid]
+        todas = {_pid(c["id"]): c for c in F.cuentas(self.notion, self.bases)}
+        antes = todas.get(_pid(cuenta_id))
+        alt = F.buscar_cuenta(self.notion, self.bases, banco, antes["moneda"] if antes else "PEN")
+        if not alt:
+            self.decir(chat, "No encuentro la cuenta de %s. Créala con <code>/activo %s 1000</code>." % (esc(banco), esc(banco)))
+            return
+        l = []
+        if antes:
+            l.append("🏦 %s vuelve a %s" % (esc(antes["nombre"]), F.s3(F.soles(F.mover_cuenta(self.notion, antes, -delta), antes["moneda"]))))
+        nuevo = F.mover_cuenta(self.notion, alt, delta)
+        self._cuenta_de[pid] = (alt["id"], delta)
+        l.append("🏦 %s ahora tiene %s" % (esc(alt["nombre"]), F.s3(F.soles(nuevo, alt["moneda"]))))
+        self.decir(chat, "🔁 Listo, salió de %s.\n%s" % (esc(alt["nombre"]), "\n".join(l)))
 
     def _deshacer(self, chat, pid: str) -> None:
         self.notion.archivar(pid)

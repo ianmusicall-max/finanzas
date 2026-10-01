@@ -566,6 +566,20 @@ class CuentasYAhorro(Base):
         self.assertIn("BCP ahora tiene S/ 285.00", self.di("15 menu yape"))
         self.assertEqual(self.movs[-1]["Medio de pago"], "Yape")                # el medio queda como Yape
 
+    def test_yape_que_salio_de_interbank(self):
+        self.di("/activo Interbank soles 463")
+        self.di("/activo BCP 300")
+        self.di("15 menu yape")
+        self.assertEqual(self.cuenta("BCP")["Valor"], 285)
+        t = self.toca("Salió de Interbank soles")
+        self.assertIn("BCP vuelve a S/ 300.00", t)
+        self.assertEqual(self.cuenta("BCP")["Valor"], 300)
+        self.assertEqual(self.cuenta("Interbank soles")["Valor"], 448)
+        self.di("/deshacer")                                                   # deshacer devuelve a Interbank
+        self.assertEqual(self.cuenta("Interbank soles")["Valor"], 463)
+        self.di("20 taxi plin")
+        self.assertFalse(any("Salió de" in t for t, _ in self.tg.botones()))  # Plin siempre es Interbank
+
     def test_retirar_sin_cuentas_y_cancelar(self):
         self.assertIn("/activo", self.di("/retirar"))
         self.di("/activo BCP 100")
