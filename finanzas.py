@@ -11,7 +11,7 @@ from datetime import date, timedelta
 from typing import Optional
 
 import categorias as C
-from config import AJUSTES, DATA, TC_EUR, TC_USD, hoy
+from config import AJUSTES, DATA, TC_EUR, TC_RUB, TC_USD, hoy
 from notion import (METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, p_date, p_number, p_select, p_text, p_title)
 
 MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre",
@@ -36,6 +36,8 @@ def tipo_de_cambio(moneda: str) -> float:
         return float(a.get("USD") or TC_USD)
     if moneda == "EUR":
         return float(a.get("EUR") or TC_EUR)
+    if moneda == "RUB":
+        return float(a.get("RUB") or TC_RUB)
     return 1.0
 
 
@@ -124,6 +126,7 @@ def propiedades_movimiento(mov, origen: str = "Telegram") -> dict:
         "Tipo": p_select(mov.tipo),
         "Categoría": p_select(mov.categoria),
         "Grupo": p_select(C.grupo(mov.categoria) if mov.tipo == "Gasto" else "—"),
+        "Cuenta": p_select(getattr(mov, "cuenta", None)),
         "Monto": p_number(mov.monto),
         "Moneda": p_select(mov.moneda),
         "Tipo de cambio": p_number(tc),
@@ -157,7 +160,7 @@ def movimientos(notion, bases: dict, desde: date, hasta: date) -> list:
         out.append({"id": f["_id"], "url": f.get("_url"), "tipo": f.get("Tipo") or "Gasto",
                     "categoria": f.get("Categoría") or "Otros", "monto_s": float(monto_s or 0),
                     "fecha": (f.get("Fecha") or "")[:10], "descripcion": f.get("Descripción") or "",
-                    "medio": f.get("Medio de pago")})
+                    "medio": f.get("Medio de pago"), "cuenta": f.get("Cuenta")})
     return out
 
 
@@ -215,7 +218,8 @@ def resumir(movs: list, periodo: Periodo) -> Resumen:
             r.ingresos_por_categoria[m["categoria"]] = r.ingresos_por_categoria.get(m["categoria"], 0) + v
         elif m["tipo"] == "Ahorro":
             r.ahorro += v
-        elif m["tipo"] == "Inversión":
+        elif m["tipo"] == "Inversión" or m.get("cuenta") == "Inversión":
+            # en el formulario de gastos, la cuenta "Inversion" era plata para el depa: no es gasto
             r.inversion += v
         else:
             r.gastos += v

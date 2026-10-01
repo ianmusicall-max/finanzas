@@ -75,8 +75,8 @@ class Anotar(Base):
 
     def test_categoria_desconocida_pregunta(self):
         self.di("80 cosas raras")
-        self.toca("Transporte")
-        self.assertEqual(self.movs[0]["Categoría"], "Transporte")
+        self.toca("Movilidad")
+        self.assertEqual(self.movs[0]["Categoría"], "Movilidad")
         self.assertEqual(self.movs[0]["Grupo"], "Necesidad")
 
     def test_cambiar_categoria(self):
@@ -181,3 +181,117 @@ class Salida(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Formularios(Base):
+    def setUp(self):
+        super().setUp()
+        import formularios
+        self._fa = formularios.AJUSTES
+        formularios.AJUSTES = F.AJUSTES
+
+    def tearDown(self):
+        import formularios
+        formularios.AJUSTES = self._fa
+        super().tearDown()
+
+    def test_gasto_completo_como_el_google_form(self):
+        self.di("/gasto")
+        self.assertIn("Nuevo gasto", self.tg.enviados[-2][1])
+        self.assertIn("¿Qué fecha?", self.tg.ultimo)
+        self.toca("Ayer")
+        self.assertIn("cuenta", self.tg.ultimo)
+        self.toca("Salud")
+        self.toca("Tinkoff")
+        self.toca("Medicina")
+        self.toca("RUB")
+        self.assertIn("descripción", self.tg.ultimo)
+        self.di("pastillas para la gripe")
+        self.assertIn("¿Cuánto fue?", self.tg.ultimo)
+        self.assertIn("número", self.di("mucho"))
+        t = self.di("1.250,50")
+        self.assertIn("revisa antes de guardar", t)
+        self.assertIn("RUB 1,250.50", t)
+        self.assertEqual(self.movs, [])          # nada se guarda sin tocar Guardar
+        self.toca("Guardar")
+        f = self.movs[0]
+        self.assertEqual((f["Tipo"], f["Cuenta"], f["Medio de pago"], f["Categoría"], f["Moneda"], f["Monto"], f["Descripción"]),
+                         ("Gasto", "Salud", "Tinkoff", "Medicina", "RUB", 1250.5, "Pastillas para la gripe"))
+        self.assertEqual(f["Fecha"], (F.hoy() - F.timedelta(days=1)).isoformat())
+        self.assertAlmostEqual(f["Monto S/"], round(1250.5 * F.tipo_de_cambio("RUB"), 2))
+        self.assertIn("cuenta Salud", self.tg.ultimo)
+
+    def test_corregir_antes_de_guardar(self):
+        self.di("/gasto")
+        for b in ("Hoy", "Gastos", "Interbank", "Supermercado", "PEN"):
+            self.toca(b)
+        self.toca("Omitir")
+        self.di("80")
+        self.toca("Corregir")
+        self.toca("Importe")
+        t = self.di("85")
+        self.assertIn("PEN 85.00", t)            # vuelve directo al resumen
+        self.toca("Guardar")
+        self.assertEqual((self.movs[0]["Monto"], self.movs[0]["Descripción"]), (85, "Supermercado"))
+
+    def test_lo_ultimo_elegido_sale_primero(self):
+        self.di("/gasto")
+        self.toca("Hoy")
+        self.toca("Gastos")
+        self.toca("Ripley")
+        self.toca("Cancelar")
+        self.di("/gasto")
+        self.toca("Hoy")
+        self.toca("Gastos")
+        self.assertTrue(self.tg.botones()[0][0].startswith("Ripley"))
+
+    def test_ingreso_y_fecha_escrita(self):
+        self.di("/ingreso")
+        self.di("15/09")
+        self.toca("PayPal")
+        self.toca("Facebook")
+        self.toca("USD")
+        self.di("pago de septiembre")
+        self.di("1943")
+        self.toca("Guardar")
+        f = self.movs[0]
+        self.assertEqual((f["Tipo"], f["Categoría"], f["Medio de pago"], f["Moneda"], f["Fecha"][5:]),
+                         ("Ingreso", "Facebook", "PayPal", "USD", "09-15"))
+
+    def test_ahorro_a_una_meta(self):
+        self.di("/meta Fondo de emergencia 20000")
+        self.di("/ahorro")
+        self.toca("Hoy")
+        self.toca("Fondo de emergencia")
+        self.toca("Interbank")
+        self.toca("PEN")
+        self.di("500")
+        self.toca("Guardar")
+        self.assertEqual(self.n.dbs["db-met"][0]["Ahorrado S/"], 500)
+        self.assertEqual(self.movs[0]["Categoría"], "Fondo de emergencia")
+
+    def test_cancelar_y_boton_viejo(self):
+        self.di("/gasto")
+        viejo = self.tg.data_de("Hoy")
+        self.toca("Hoy")
+        self.bot.procesar(boton(viejo))
+        self.assertIn("pregunta anterior", self.tg.enviados[-2][1])
+        self.di("/cancelar")
+        self.assertIn("Cancelado", self.tg.ultimo)
+        self.assertEqual(self.movs, [])
+
+    def test_cuenta_inversion_no_es_gasto(self):
+        self.di("/gasto")
+        for b in ("Hoy", "Inversión", "Interbank", "Vivienda", "PEN"):
+            self.toca(b)
+        self.di("autovaluo depa")
+        self.di("2174")
+        self.toca("Guardar")
+        m = F.mes()
+        r = F.resumir(F.movimientos(self.n, BASES, m.desde, m.hasta), m)
+        self.assertEqual((r.gastos, r.inversion), (0, 2174))
+
+    def test_menu_tiene_los_formularios(self):
+        self.di("/start")
+        self.bot.procesar(boton(self.tg.data_de("Gasto")))
+        self.assertIn("¿Qué fecha?", self.tg.ultimo)

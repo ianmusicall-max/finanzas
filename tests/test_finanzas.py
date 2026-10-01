@@ -71,9 +71,9 @@ class Resumenes(ConTC):
 class Presupuesto(ConTC):
     def test_fijar_reescribe(self):
         n = FakeNotion()
-        F.fijar_presupuesto(n, BASES, "Transporte", 300)
-        F.fijar_presupuesto(n, BASES, "Transporte", 250)
-        self.assertEqual(F.presupuesto(n, BASES), {"Transporte": 250})
+        F.fijar_presupuesto(n, BASES, "Movilidad", 300)
+        F.fijar_presupuesto(n, BASES, "Movilidad", 250)
+        self.assertEqual(F.presupuesto(n, BASES), {"Movilidad": 250})
 
     def test_estado_ordena_lo_pasado_primero(self):
         est = F.estado_presupuesto({"A": 120, "B": 10, "C": 5}, {"A": 100, "B": 100}, 0.5)
@@ -123,7 +123,7 @@ class Consejos(unittest.TestCase):
         self.assertTrue(any("30%" in x for x in c))
 
     def test_presupuesto_pasado_va_primero(self):
-        c = F.consejos(self._r(5000, [("Transporte", 400)]), {"Transporte": 300})
+        c = F.consejos(self._r(5000, [("Movilidad", 400)]), {"Movilidad": 300})
         self.assertIn("Pasaste el presupuesto", c[0])
 
     def test_fondo_de_emergencia_y_tarjeta(self):

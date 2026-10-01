@@ -27,10 +27,11 @@ PREFIJOS = {
 
 MONEDAS = {"usd": "USD", "$": "USD", "dolar": "USD", "dolares": "USD", "us$": "USD",
            "eur": "EUR", "€": "EUR", "euro": "EUR", "euros": "EUR",
-           "pen": "PEN", "s/": "PEN", "s/.": "PEN", "soles": "PEN", "sol": "PEN", "lucas": "PEN"}
+           "pen": "PEN", "s/": "PEN", "s/.": "PEN", "soles": "PEN", "sol": "PEN", "lucas": "PEN",
+           "rub": "RUB", "₽": "RUB", "rublo": "RUB", "rublos": "RUB", "rur": "RUB"}
 
 # 1,234.50 · 1234,50 · 45 · .5 ; con moneda pegada antes o despues
-NUM = re.compile(r"(?<![\w/])(?P<pre>s/\.?|us\$|\$|€)?\s?(?P<n>\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)\s?(?P<suf>usd|eur|pen|\$|€|k)?(?![\w/])", re.I)
+NUM = re.compile(r"(?<![\w/])(?P<pre>s/\.?|us\$|\$|€|₽)?\s?(?P<n>\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)\s?(?P<suf>usd|eur|pen|rub|\$|€|₽|k)?(?![\w/])", re.I)
 FECHA = re.compile(r"(?<!\d)(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?(?!\d)")
 
 
@@ -43,7 +44,8 @@ class Movimiento:
     categoria: str = ""
     medio: Optional[str] = None
     fecha: date = field(default_factory=hoy)
-    adivinada: bool = True   # False si la categoria cayo en "otros"
+    adivinada: bool = True
+    cuenta: Optional[str] = None   # Gastos, Salud, Inversion... (formulario de gastos)   # False si la categoria cayo en "otros"
 
 
 class NoEntendi(ValueError):
@@ -144,7 +146,8 @@ def interpretar(texto: str, tipo: Optional[str] = None, base: Optional[date] = N
     adivinada = cat is not None
     desc = desc.strip(" -,.") or (cat or tipo)
     return Movimiento(tipo=tipo, monto=round(monto, 2), moneda=moneda, descripcion=desc[:1].upper() + desc[1:],
-                      categoria=cat or C.otros(tipo), medio=medio, fecha=fecha, adivinada=adivinada)
+                      categoria=cat or C.otros(tipo), medio=medio, fecha=fecha, adivinada=adivinada,
+                      cuenta="Gastos" if tipo == "Gasto" else None)
 
 
 def _suena_a_ingreso(desc: str) -> bool:

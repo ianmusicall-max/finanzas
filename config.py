@@ -29,10 +29,11 @@ def _num(texto: str, defecto: float) -> float:
 # les llegan los resumenes diarios y semanales.
 TELEGRAM_USUARIOS = _ids(os.environ.get("TELEGRAM_USUARIOS", ""))
 
-# Moneda base: todo se suma en soles. Lo que entra en dolares o euros se
+# Moneda base: todo se suma en soles. Lo que entra en dolares, euros o rublos se
 # convierte con este tipo de cambio (se cambia con /tc en el bot).
 TC_USD = _num(os.environ.get("TC_USD", ""), 3.75)
 TC_EUR = _num(os.environ.get("TC_EUR", ""), 4.10)
+TC_RUB = _num(os.environ.get("TC_RUB", ""), 0.045)
 
 # Hora de Lima sin depender de tzdata: Peru no tiene horario de verano.
 LIMA = timezone(timedelta(hours=-5), "America/Lima")

@@ -18,12 +18,15 @@ import finanzas as F
 import informes as I
 from config import DATA, TELEGRAM_USUARIOS
 from notion import METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, Notion, NotionError, cargar_bases
+from formularios import Formularios
 from lector import MONEDAS, NoEntendi, _numero, interpretar
 from telegram import Telegram, TelegramError, esc, guardar_offset, leer_offset, turno_del_bot
 
 AYUDA = (
     "💰 <b>Finanzas</b> · todo queda en Notion\n\n"
-    "<b>Anotar</b> (escribe como hablas):\n"
+    "<b>Anotar con formulario</b> (botones, como tus Google Forms):\n"
+    "/gasto · /ingreso · /ahorro · /inversion\n\n"
+    "<b>O rápido</b>, escribiendo como hablas:\n"
     "<code>45 almuerzo</code> · gasto\n"
     "<code>12.50 taxi yape ayer</code> · con medio de pago y fecha\n"
     "<code>+3500 sueldo</code> · ingreso\n"
@@ -42,11 +45,12 @@ AYUDA = (
     "<code>/presupuesto comida 800</code>\n"
     "<code>/activo Interbank 5200</code> · <code>/deuda Tarjeta Ripley 1200</code>\n"
     "<code>/meta Auto 100000</code>\n"
-    "<code>/tc 3.72</code> · tipo de cambio del dólar\n"
+    "<code>/tc 3.72</code> · <code>/tc rub 0.046</code> · tipo de cambio\n"
     "/deshacer · borra lo último que anotaste"
 )
 
-MENU = [[("📅 Hoy", "m:hoy"), ("🗓 Semana", "m:semana"), ("📆 Mes", "m:mes")],
+MENU = [[("➖ Gasto", "m:gasto"), ("➕ Ingreso", "m:ingreso"), ("🐷 Ahorro", "m:ahorro")],
+        [("📅 Hoy", "m:hoy"), ("🗓 Semana", "m:semana"), ("📆 Mes", "m:mes")],
         [("🧾 Presupuesto", "m:presupuesto"), ("🏦 Patrimonio", "m:patrimonio"), ("🎯 Metas", "m:metas")],
         [("💡 Consejos", "m:consejos")]]
 
@@ -153,6 +157,19 @@ class Bot:
         self._avisados = set()     # chats desconocidos a los que ya se les dijo que no
         self._ultimo = {}          # chat -> page_id del ultimo movimiento anotado
         self._metas_de = {}        # page_id de un ahorro -> (meta_id, monto) para poder deshacer
+        self.form = Formularios(metas=self._nombres_metas)
+
+    def _nombres_metas(self) -> list:
+        if METAS not in self.bases:
+            return []
+        try:
+            return [m["meta"] for m in F.metas(self.notion, self.bases)]
+        except NotionError:
+            return []
+
+    def _responder(self, chat, respuestas: list) -> None:
+        for r in respuestas:
+            self.decir(chat, r["texto"], r.get("botones"))
 
     # ---- envio
     def decir(self, chat, texto: str, botones=None) -> None:
@@ -186,6 +203,8 @@ class Bot:
         try:
             if texto.startswith("/"):
                 self._comando(chat, texto)
+            elif self.form.activo(chat):
+                self._responder(chat, self.form.texto(chat, texto))
             else:
                 self._anotar(chat, texto)
         except NotionError as exc:
@@ -209,11 +228,15 @@ class Bot:
         try:
             mov = interpretar(texto, tipo)
         except NoEntendi as exc:
-            self.decir(chat, "🤔 %s\n\nEjemplos: <code>45 almuerzo</code> · <code>+3500 sueldo</code> · <code>ahorro 500 emergencia</code>" % esc(exc))
+            self.decir(chat, "🤔 %s\n\nUsa el formulario o escribe por ejemplo <code>45 almuerzo</code>." % esc(exc), MENU)
             return
+        self._guardar(chat, mov, mov.descripcion if mov.tipo == "Ahorro" else None)
+
+    def _guardar(self, chat, mov, nombre_meta=None) -> None:
+        """Guarda en Notion y contesta con el resumen y los botones de corregir o deshacer."""
         meta = None
-        if mov.tipo == "Ahorro" and METAS in self.bases:
-            meta = F.buscar_meta(F.metas(self.notion, self.bases), mov.descripcion)
+        if mov.tipo == "Ahorro" and nombre_meta and METAS in self.bases:
+            meta = F.buscar_meta(F.metas(self.notion, self.bases), nombre_meta)
             if meta:
                 mov.categoria = "Fondo de emergencia" if "emergencia" in C.normal(meta["meta"]) else "Metas"
                 mov.adivinada = True
@@ -226,6 +249,8 @@ class Bot:
             monto = "%s %s = %s (TC %s)" % (mov.moneda, "{:,.2f}".format(mov.monto), monto, F.tipo_de_cambio(mov.moneda))
         l.append("%s · %s" % (monto, esc(mov.descripcion)))
         extra = []
+        if getattr(mov, "cuenta", None) and mov.cuenta != "Gastos":
+            extra.append("cuenta " + mov.cuenta)
         if mov.medio:
             extra.append(mov.medio)
         if mov.fecha != F.hoy():
@@ -274,7 +299,18 @@ class Bot:
     def _boton(self, chat, message_id, data: str) -> None:
         partes = data.split(":")
         try:
-            if partes[0] == "m":
+            if partes[0] == "f":
+                if data == "f:ok":
+                    if not self.form.listo(chat):
+                        self.decir(chat, "Ese formulario ya terminó.")
+                        return
+                    self.tg.quitar_botones(chat, message_id)
+                    mov, meta = self.form.terminar(chat)
+                    self._guardar(chat, mov, meta)
+                else:
+                    self.tg.quitar_botones(chat, message_id)
+                    self._responder(chat, self.form.boton(chat, data[2:]))
+            elif partes[0] == "m":
                 self._comando(chat, "/" + partes[1])
             elif partes[0] == "k" and len(partes) == 3:
                 self.decir(chat, "Elige la categoría:", self._botones_categoria(partes[1], int(partes[2])))
@@ -315,7 +351,7 @@ class Bot:
             self.decir(chat, "Tu chat es <code>%s</code>." % esc(chat))
         elif cmd in forzar:
             if not arg:
-                self.decir(chat, "Escribe el monto y en qué, por ejemplo: <code>%s 45 almuerzo</code>" % cmd)
+                self._responder(chat, self.form.iniciar(chat, cmd[1:]))
             else:
                 self._anotar(chat, arg, forzar[cmd])
         elif cmd in ("/hoy", "/ayer", "/semana", "/mes"):
@@ -350,7 +386,10 @@ class Bot:
             else:
                 self._deshacer(chat, pid)
         elif cmd == "/cancelar":
-            self.decir(chat, "No hay nada en curso. 🙂")
+            if self.form.activo(chat):
+                self._responder(chat, self.form.cancelar(chat))
+            else:
+                self.decir(chat, "No hay nada en curso. 🙂")
         else:
             self.decir(chat, "No conozco ese comando.", MENU)
 
@@ -403,17 +442,20 @@ class Bot:
 
     def _tc(self, chat, arg: str) -> None:
         if not arg:
-            self.decir(chat, "💱 Tipo de cambio: USD %s · EUR %s\nPara cambiarlo: <code>/tc 3.72</code> o <code>/tc eur 4.05</code>" % (
-                F.tipo_de_cambio("USD"), F.tipo_de_cambio("EUR")))
+            self.decir(chat, "💱 Tipo de cambio: USD %s · EUR %s · RUB %s\nPara cambiarlo: <code>/tc 3.72</code> · "
+                             "<code>/tc eur 4.05</code> · <code>/tc rub 0.046</code>" % (
+                F.tipo_de_cambio("USD"), F.tipo_de_cambio("EUR"), F.tipo_de_cambio("RUB")))
             return
-        moneda = "EUR" if "eur" in C.normal(arg) else "USD"
-        m = re.search(r"\d+(?:[.,]\d+)?", arg)
+        n = C.normal(arg)
+        moneda = "EUR" if "eur" in n else "RUB" if ("rub" in n or "rublo" in n) else "USD"
+        m = re.search(r"\d*[.,]?\d+", arg)
         if not m:
             self.decir(chat, "Ejemplo: <code>/tc 3.72</code>")
             return
         valor = float(m.group(0).replace(",", "."))
-        if not 0.1 < valor < 20:
-            self.decir(chat, "Ese tipo de cambio no parece real (%s)." % esc(valor))
+        rango = (0.001, 1.0) if moneda == "RUB" else (0.1, 20.0)
+        if not rango[0] < valor < rango[1]:
+            self.decir(chat, "Ese tipo de cambio no parece real para %s (%s)." % (moneda, esc(valor)))
             return
         F.fijar_tipo_de_cambio(moneda, valor)
         self.decir(chat, "💱 Listo: 1 %s = S/ %s desde ahora. Lo anotado antes no cambia." % (moneda, valor))

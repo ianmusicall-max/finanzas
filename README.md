@@ -33,22 +33,36 @@ Notion, el siguiente resumen ya lo toma.
 
 ## Cómo se usa (Telegram)
 
-Escribe como hablas. El bot adivina tipo, categoría, medio de pago, moneda y fecha:
+### Con formulario, como los Google Forms "Gastos 2025" e "Ingresos 2025"
+
+Toca **➖ Gasto**, **➕ Ingreso** o **🐷 Ahorro** en el menú (o escribe `/gasto`, `/ingreso`, `/ahorro`,
+`/inversion`). El bot pregunta una cosa por mensaje, con botones:
+
+| Formulario | Preguntas |
+|---|---|
+| Gasto | fecha · cuenta (Gastos, Salud, Inversión, Educación, Export Latam, Facebook) · medio de pago · categoría · moneda · descripción · importe |
+| Ingreso | fecha · dónde entró · categoría (Facebook, Freshtunes, Routenote, Criptomonedas, Ventas…) · moneda · descripción · importe |
+| Ahorro | fecha · meta (de la base Metas) · medio de pago · moneda · importe |
+| Inversión | fecha · categoría · medio de pago · moneda · descripción · importe |
+
+Al final muestra el resumen con **Guardar**, **Corregir** (vuelves a cualquier pregunta) y **Cancelar**. Nada se
+guarda hasta tocar Guardar. Lo último que elegiste en cada pregunta sale primero la próxima vez (si siempre pagas
+con Tinkoff, Tinkoff queda arriba). Las monedas son PEN, RUB, USD y EUR; todo se suma en soles con el tipo de
+cambio de `/tc`. Un gasto con cuenta **Inversión** se cuenta como inversión en los resúmenes, no como gasto.
+
+### O rápido, escribiendo como hablas
 
 | Mensaje | Queda como |
 |---|---|
 | `45 almuerzo` | gasto · Comida y restaurantes · S/ 45 |
-| `12.50 taxi yape ayer` | gasto · Transporte · Yape · fecha de ayer |
+| `1200 rub pyaterochka tinkoff` | gasto en rublos · Supermercado · Tinkoff |
+| `12.50 taxi yape ayer` | gasto · Movilidad · Yape · fecha de ayer |
 | `netflix 44.90` | gasto · Suscripciones |
-| `20 usd chatgpt` | gasto en dólares, convertido a soles con el tipo de cambio |
-| `300 plaza vea 15/09` | gasto · Alimentación · con fecha 15/09 |
-| `+3500 sueldo` · `+1943 usd facebook` | ingreso |
+| `+1943 usd facebook` | ingreso en dólares · Facebook |
 | `ahorro 500 emergencia` | ahorro, y suma S/ 500 a la meta "Fondo de emergencia" |
-| `inversion 1000 fondo mutuo` | inversión |
 
-Después de guardar aparecen dos botones: **Cambiar categoría** y **Deshacer**. Si no reconoce la categoría,
-te muestra los botones para elegirla. Si el gasto hace que una categoría pase del 80% o del 100% de su
-presupuesto, te avisa en ese mismo momento.
+Después de guardar (por formulario o rápido) aparecen dos botones: **Cambiar categoría** y **Deshacer**. Si el
+gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avisa en ese mismo momento.
 
 | Comando | Qué hace |
 |---|---|
@@ -61,9 +75,9 @@ presupuesto, te avisa en ese mismo momento.
 | `/metas` · `/meta Auto 100000` | ver metas / crear o cambiar el objetivo |
 | `/consejos` | qué mejorar según tus números del mes |
 | `/metodos` | formas de manejar tu dinero (50/30/20, págate primero, sobres, base cero, deudas) |
-| `/tc 3.72` · `/tc eur 4.05` | tipo de cambio para lo que anotes en dólares o euros |
+| `/tc 3.72` · `/tc eur 4.05` · `/tc rub 0.046` | tipo de cambio para lo que anotes en dólares, euros o rublos |
 | `/ultimos` · `/deshacer` | últimos 10 movimientos / borra el último |
-| `/gasto` `/ingreso` `/ahorro` `/inversion` + texto | fuerza el tipo |
+| `/gasto` `/ingreso` `/ahorro` `/inversion` | abre el formulario; con texto después (`/gasto 45 almuerzo`) anota directo |
 
 ## Cálculos
 

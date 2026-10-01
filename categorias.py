@@ -7,37 +7,46 @@ import unicodedata
 
 TIPOS = ["Gasto", "Ingreso", "Ahorro", "Inversión"]
 
-# categoria -> (grupo 50/30/20, emoji, palabras clave)
+# Las categorias del formulario "Gastos 2025", en el orden en que mas se usaron.
+# categoria -> (grupo 50/30/20, emoji, palabras clave para el modo rapido)
 GASTOS = {
-    "Vivienda": ("Necesidad", "🏠", ["alquiler", "renta", "hipoteca", "departamento", "depa", "mantenimiento", "autovaluo", "arbitrios", "condominio"]),
-    "Servicios del hogar": ("Necesidad", "💡", ["luz", "agua", "gas", "internet", "cable", "telefono", "celular", "plan", "enel", "sedapal", "calidda", "claro", "movistar", "entel", "bitel"]),
-    "Alimentación": ("Necesidad", "🛒", ["mercado", "supermercado", "super", "plaza vea", "wong", "metro", "tottus", "vivanda", "makro", "bodega", "verduras", "fruta", "pan", "abarrotes"]),
-    "Transporte": ("Necesidad", "🚕", ["taxi", "uber", "cabify", "didi", "indrive", "bus", "combi", "metropolitano", "gasolina", "combustible", "grifo", "peaje", "estacionamiento", "cochera", "pasaje"]),
-    "Salud": ("Necesidad", "🩺", ["farmacia", "inkafarma", "mifarma", "medicina", "pastillas", "doctor", "clinica", "cita", "dentista", "analisis", "seguro medico", "eps"]),
-    "Educación": ("Necesidad", "📚", ["matricula", "curso", "universidad", "colegio", "clase", "libro", "pension", "academia", "idioma"]),
-    "Gastos financieros": ("Necesidad", "🏦", ["comision", "interes", "intereses", "desgravamen", "mantenimiento de cuenta", "itf", "cuota", "membresia tarjeta"]),
-    "Comida y restaurantes": ("Deseo", "🍽", ["almuerzo", "cena", "desayuno", "restaurante", "menu", "pollo", "chifa", "ceviche", "pizza", "hamburguesa", "sushi", "rappi", "pedidosya", "delivery", "cafe", "starbucks", "lomo", "aji de gallina"]),
+    "Comida y restaurantes": ("Deseo", "🍽", ["almuerzo", "cena", "desayuno", "restaurante", "menu", "pollo", "chifa", "ceviche", "pizza", "hamburguesa", "sushi", "rappi", "pedidosya", "delivery", "cafe", "starbucks", "lomo", "aji de gallina", "shawarma"]),
+    "Supermercado": ("Necesidad", "🛒", ["mercado", "supermercado", "super", "plaza vea", "wong", "metro", "tottus", "vivanda", "makro", "bodega", "verduras", "fruta", "pan", "abarrotes", "pyaterochka", "perekrestok", "magnit", "lenta", "vkusvill"]),
     "Chatarra y golosinas": ("Deseo", "🍫", ["golosina", "chocolate", "snack", "gaseosa", "helado", "dulce", "galleta", "papitas", "chatarra"]),
-    "Bares y discotecas": ("Deseo", "🍻", ["bar", "discoteca", "cerveza", "trago", "chela", "pisco", "vino", "fiesta", "after"]),
+    "Movilidad": ("Necesidad", "🚕", ["taxi", "uber", "cabify", "didi", "indrive", "yandex", "bus", "combi", "metropolitano", "metro de", "pasaje", "peaje", "estacionamiento", "cochera", "tren"]),
+    "Viajes": ("Deseo", "✈️", ["vuelo", "pasaje aereo", "avianca", "latam", "sky", "aeroflot", "pegasus", "hotel", "airbnb", "hostal", "viaje", "tour"]),
+    "Comisiones Banco": ("Necesidad", "🏧", ["comision", "itf", "mantenimiento de cuenta", "transferencia"]),
     "Entretenimiento": ("Deseo", "🎬", ["cine", "concierto", "entrada", "teatro", "juego", "videojuego", "playstation", "steam", "evento", "tickets"]),
+    "Accesorios y tecnología": ("Deseo", "💻", ["celular nuevo", "laptop", "audifonos", "cargador", "cable usb", "mouse", "teclado", "accesorio", "tecnologia", "gadget", "amazon", "aliexpress", "temu", "ozon", "wildberries"]),
+    "Ropa y calzado": ("Deseo", "👕", ["ropa", "zapatillas", "zapatos", "polo", "camisa", "pantalon", "casaca", "medias"]),
+    "Cuidado Personal": ("Deseo", "🧴", ["corte", "peluqueria", "barberia", "perfume", "crema", "shampoo", "desodorante"]),
+    "Vivienda": ("Necesidad", "🏠", ["alquiler", "renta", "hipoteca", "departamento", "depa", "autovaluo", "arbitrios", "condominio"]),
+    "Gastos financieros": ("Necesidad", "🏦", ["interes", "intereses", "desgravamen", "cuota", "membresia tarjeta", "seguro"]),
     "Suscripciones": ("Deseo", "📺", ["netflix", "spotify", "youtube", "disney", "hbo", "max", "prime", "icloud", "google one", "chatgpt", "claude", "suscripcion", "canva", "adobe"]),
-    "Membresías": ("Deseo", "🏋", ["gimnasio", "gym", "smart fit", "membresia", "club"]),
-    "Ropa y cuidado personal": ("Deseo", "👕", ["ropa", "zapatillas", "zapatos", "polo", "camisa", "pantalon", "corte", "peluqueria", "barberia", "perfume", "crema"]),
-    "Accesorios y tecnología": ("Deseo", "💻", ["celular nuevo", "laptop", "audifonos", "cargador", "cable usb", "mouse", "teclado", "accesorio", "tecnologia", "gadget", "amazon", "aliexpress", "temu"]),
-    "Viajes": ("Deseo", "✈️", ["vuelo", "pasaje aereo", "avianca", "latam", "sky", "hotel", "airbnb", "hostal", "viaje", "tour"]),
-    "Regalos": ("Deseo", "🎁", ["regalo", "cumpleanos", "detalle", "flores"]),
-    "Mascotas": ("Necesidad", "🐾", ["veterinario", "mascota", "perro", "gato", "comida de perro"]),
-    "Negocio": ("Necesidad", "💼", ["anuncio", "publicidad", "ads", "facebook ads", "meta ads", "hosting", "dominio", "servidor", "api", "distribucion", "freshtunes", "ditto"]),
+    "Padres": ("Necesidad", "👪", ["papa", "mama", "padres", "papas"]),
+    "Hogar y decoración": ("Deseo", "🛋", ["mueble", "decoracion", "cocina", "sabanas", "toallas", "hogar"]),
+    "Salud y Bienestar": ("Necesidad", "🧘", ["gimnasio", "gym", "yoga", "vitaminas", "suplementos", "proteina"]),
+    "Medicina": ("Necesidad", "💊", ["farmacia", "inkafarma", "mifarma", "medicina", "pastillas", "remedio"]),
+    "Servicios Rusia": ("Necesidad", "🇷🇺", ["zhkh", "kvartplata", "mts", "beeline", "megafon"]),
+    "Cursos y aprendizaje": ("Necesidad", "📚", ["curso", "clase", "libro", "academia", "idioma", "udemy"]),
+    "Servicios": ("Necesidad", "💡", ["luz", "agua", "gas", "internet", "cable", "telefono", "celular", "plan", "enel", "sedapal", "calidda", "claro", "movistar", "entel", "bitel"]),
+    "Citas médicas": ("Necesidad", "🩺", ["doctor", "clinica", "cita", "dentista", "analisis", "consulta"]),
+    "Combustible": ("Necesidad", "⛽", ["gasolina", "combustible", "grifo", "diesel"]),
+    "Bares y discotecas": ("Deseo", "🍻", ["bar", "discoteca", "cerveza", "trago", "chela", "pisco", "vino", "fiesta", "after"]),
+    "Universidad": ("Necesidad", "🎓", ["universidad", "matricula", "pension", "maestria"]),
+    "Perros": ("Necesidad", "🐶", ["veterinario", "perro", "perros", "comida de perro", "mascota"]),
     "Otros": ("Deseo", "📦", []),
 }
 
+# Las del formulario "Ingresos 2025".
 INGRESOS = {
-    "Sueldo": ("💼", ["sueldo", "salario", "planilla", "quincena", "gratificacion", "cts"]),
     "Facebook": ("📘", ["facebook", "meta", "fb", "monetizacion", "estrellas", "reels"]),
-    "Música y distribución": ("🎵", ["freshtunes", "ditto", "distrokid", "regalias", "royalties", "spotify pago", "agregadora"]),
+    "Freshtunes": ("🎵", ["freshtunes"]),
+    "Routenote": ("🎶", ["routenote"]),
+    "Criptomonedas": ("🪙", ["usdt", "binance", "cripto", "bitcoin", "btc", "earn", "paxful"]),
     "Ventas": ("🛍", ["venta", "vendi", "cliente", "plantilla"]),
-    "Criptomonedas": ("🪙", ["usdt", "binance", "cripto", "bitcoin", "btc", "earn"]),
-    "Inversiones": ("📈", ["dividendo", "intereses ganados", "rendimiento", "plazo fijo", "fondo mutuo"]),
+    "Sueldo": ("💼", ["sueldo", "salario", "planilla", "quincena", "gratificacion", "cts"]),
+    "Retiro de ahorro": ("🐷", ["retiro de ahorro", "saque del ahorro"]),
     "Otros ingresos": ("💰", []),
 }
 
@@ -48,15 +57,23 @@ AHORROS = {
 }
 
 INVERSIONES = {
+    "Inmueble": ("🏢", ["inmueble", "terreno", "departamento", "depa", "autovaluo", "abogado"]),
     "Fondos y acciones": ("📈", ["fondo", "accion", "acciones", "etf", "bolsa"]),
     "Cripto": ("🪙", ["usdt", "btc", "bitcoin", "cripto", "binance"]),
-    "Inmueble": ("🏢", ["inmueble", "terreno", "departamento", "depa"]),
     "Negocio propio": ("💼", ["negocio", "emprendimiento", "equipo"]),
     "Otras inversiones": ("💹", []),
 }
 
-MEDIOS = ["Efectivo", "Yape", "Plin", "Interbank", "BCP", "BBVA", "Scotiabank", "Ripley", "CMR", "Oh",
-          "PayPal", "Payoneer", "Binance"]
+# Las cuentas del formulario de gastos: a que bolsillo se carga el gasto.
+CUENTAS = ["Gastos", "Salud", "Inversión", "Educación", "Export Latam", "Facebook"]
+MONEDAS = ["PEN", "RUB", "USD", "EUR"]
+
+# Medios de pago, en el orden en que mas se usaron en 2025.
+MEDIOS = ["Tinkoff", "CMR", "Interbank", "Ripley", "Scotiabank", "Binance", "PayPal", "Sberbank", "Payoneer",
+          "Paxful", "Efectivo", "Tarjeta OH", "BBVA", "BCP", "Yape", "Plin"]
+# Como estaban escritos en la hoja y como se llaman aca.
+ALIAS_MEDIOS = {"tinkoft": "Tinkoff", "tinkof": "Tinkoff", "tbank": "Tinkoff", "t-bank": "Tinkoff",
+                "oh": "Tarjeta OH", "sber": "Sberbank"}
 
 # Clases de patrimonio: (clase, tipo)
 ACTIVOS = ["Efectivo y bancos", "Inversiones", "Cripto", "Inmueble", "Vehículo", "Por cobrar", "Otro activo"]
@@ -129,6 +146,9 @@ def buscar_categoria(tipo: str, texto: str):
 
 def buscar_medio(texto: str):
     t = " %s " % normal(texto)
+    for alias, m in ALIAS_MEDIOS.items():
+        if " %s " % alias in t:
+            return m
     for m in MEDIOS:
         if " %s " % normal(m) in t:
             return m

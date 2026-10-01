@@ -21,15 +21,11 @@ from config import DATA, IMPORTADOS
 from notion import METAS, MOVIMIENTOS, Notion, NotionError, cargar_bases, p_date, p_number, p_select, p_title
 
 # categorias de la hoja que no se llaman igual aca
+# Las categorias del bot son las mismas del formulario; esto solo cubre variantes.
 EQUIVALENCIAS = {
-    "citas medicas": "Salud", "medicinas": "Salud", "salud": "Salud",
-    "gastos financieros": "Gastos financieros", "comida y restaurantes": "Comida y restaurantes",
-    "supermercado": "Alimentación", "alimentacion": "Alimentación", "mercado": "Alimentación",
-    "servicios del hogar": "Servicios del hogar", "servicios": "Servicios del hogar",
-    "matricula": "Educación", "educacion": "Educación", "cursos": "Educación",
-    "ropa": "Ropa y cuidado personal", "cuidado personal": "Ropa y cuidado personal",
-    "taxi": "Transporte", "movilidad": "Transporte", "transporte": "Transporte",
-    "freshtunes": "Música y distribución", "agregadoras": "Música y distribución",
+    "medicinas": "Medicina", "salud": "Salud y Bienestar", "transporte": "Movilidad", "taxi": "Movilidad",
+    "alimentacion": "Supermercado", "mercado": "Supermercado", "ropa": "Ropa y calzado",
+    "matricula": "Universidad", "cursos": "Cursos y aprendizaje", "mascotas": "Perros",
 }
 PRIORIDADES = {"muy importante": "Muy importante", "importante": "Importante", "no importante": "Puede esperar"}
 
@@ -100,26 +96,28 @@ def movimientos(libro) -> list:
             mn = mn if mn is not None else imp
             desc = str(f.get("Descripción") or "").strip()
             cat_hoja = str(f.get("Categoría") or "").strip()
-            cuenta = C.normal(str(f.get("Cuenta") or ""))
+            cuenta_hoja = str(f.get("Cuenta") or "").strip()
+            cuenta = next((c for c in C.CUENTAS if C.normal(c) == C.normal(cuenta_hoja)), None)
             if es_ingreso:
                 tipo = "Ingreso"
             elif C.normal(cat_hoja) == "ahorro":
                 tipo = "Ahorro"
-            elif "inversion" in cuenta:
-                tipo = "Inversión"
             else:
-                tipo = "Gasto"
-            if tipo == "Inversión":
-                cat = "Inmueble" if C.normal(cat_hoja).startswith("vivienda") else (C.adivinar("Inversión", desc) or "Otras inversiones")
+                tipo = "Gasto"   # la cuenta "Inversion" se respeta como cuenta, igual que en el formulario
+            if tipo == "Ahorro":
+                cat = "Ahorro general"
+            elif es_ingreso and C.normal(cat_hoja) == "ahorro":
+                cat = "Retiro de ahorro"
             else:
                 cat = categoria(tipo, cat_hoja, desc)
             moneda = str(f.get("Moneda") or "PEN").strip().upper() or "PEN"
-            if moneda not in ("PEN", "USD", "EUR"):
+            if moneda not in C.MONEDAS:
                 moneda, imp = "PEN", mn
             medio = C.buscar_medio(str(f.get("Medio de Pago") or ""))
             clave = hashlib.sha1(("%s|%d|%s|%s|%s" % (pestaña, k, d, desc, imp)).encode()).hexdigest()[:16]
             out.append({"clave": clave, "tipo": tipo, "categoria": cat, "cat_hoja": cat_hoja, "desc": desc or cat_hoja or tipo,
-                        "monto": imp, "moneda": moneda, "soles": mn, "medio": medio, "fecha": d})
+                        "monto": imp, "moneda": moneda, "soles": mn, "medio": medio, "fecha": d,
+                        "cuenta": cuenta if tipo == "Gasto" else None})
     return out
 
 
@@ -189,6 +187,7 @@ def main(argv=None) -> int:
             n.crear_pagina(bases[MOVIMIENTOS], {
                 "Descripción": p_title(m["desc"]), "Tipo": p_select(m["tipo"]), "Categoría": p_select(m["categoria"]),
                 "Grupo": p_select(C.grupo(m["categoria"]) if m["tipo"] == "Gasto" else "—"),
+                "Cuenta": p_select(m["cuenta"]),
                 "Monto": p_number(m["monto"]), "Moneda": p_select(m["moneda"]), "Tipo de cambio": p_number(tc),
                 "Monto S/": p_number(m["soles"]), "Medio de pago": p_select(m["medio"]), "Fecha": p_date(m["fecha"]),
                 "Origen": p_select("Hoja 2025"),

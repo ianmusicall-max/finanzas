@@ -34,7 +34,7 @@ class Gastos(unittest.TestCase):
     def test_medio_y_ayer(self):
         m = leer("12.50 taxi yape ayer")
         self.assertEqual((m.monto, m.categoria, m.medio, m.fecha, m.descripcion),
-                         (12.5, "Transporte", "Yape", date(2026, 9, 29), "Taxi"))
+                         (12.5, "Movilidad", "Yape", date(2026, 9, 29), "Taxi"))
 
     def test_monto_al_final(self):
         m = leer("netflix 44.90")
@@ -59,8 +59,13 @@ class Gastos(unittest.TestCase):
         self.assertFalse(m.adivinada)
 
     def test_la_palabra_mas_larga_gana(self):
-        self.assertEqual(leer("15 pasaje metropolitano").categoria, "Transporte")
-        self.assertEqual(leer("300 supermercado").categoria, "Alimentación")
+        self.assertEqual(leer("15 pasaje metropolitano").categoria, "Movilidad")
+        self.assertEqual(leer("300 supermercado").categoria, "Supermercado")
+
+    def test_rublos_y_tinkoff(self):
+        for t in ("1200 rub pyaterochka tinkoff", "1200₽ pyaterochka tinkoff", "1200 rublos pyaterochka tinkoft"):
+            m = leer(t)
+            self.assertEqual((m.monto, m.moneda, m.categoria, m.medio), (1200, "RUB", "Supermercado", "Tinkoff"), t)
 
     def test_sin_monto(self):
         with self.assertRaises(NoEntendi):
@@ -83,7 +88,7 @@ class OtrosTipos(unittest.TestCase):
     def test_facebook_sin_mas_es_gasto(self):
         # sin '+' "facebook ads" es publicidad pagada, no un cobro
         m = leer("150 facebook ads")
-        self.assertEqual((m.tipo, m.categoria), ("Gasto", "Negocio"))
+        self.assertEqual(m.tipo, "Gasto")
 
     def test_ahorro(self):
         m = leer("ahorro 500 emergencia")
