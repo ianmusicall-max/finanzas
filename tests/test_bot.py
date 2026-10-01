@@ -559,6 +559,13 @@ class CuentasYAhorro(Base):
         t = self.di("30 almuerzo efectivo")
         self.assertIn("Efectivo ahora tiene S/ 220.00", t)
 
+    def test_plin_sale_de_interbank_y_yape_de_bcp(self):
+        self.di("/activo Interbank soles 463")
+        self.di("/activo BCP 300")
+        self.assertIn("Interbank soles ahora tiene S/ 443.00", self.di("20 taxi plin"))
+        self.assertIn("BCP ahora tiene S/ 285.00", self.di("15 menu yape"))
+        self.assertEqual(self.movs[-1]["Medio de pago"], "Yape")                # el medio queda como Yape
+
     def test_retirar_sin_cuentas_y_cancelar(self):
         self.assertIn("/activo", self.di("/retirar"))
         self.di("/activo BCP 100")

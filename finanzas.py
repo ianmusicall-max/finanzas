@@ -514,10 +514,10 @@ def cuentas(notion, bases: dict) -> list:
 
 
 def buscar_cuenta(notion, bases: dict, medio: Optional[str], moneda: str) -> Optional[dict]:
-    """La cuenta de ese banco en esa moneda: medio Interbank + USD -> "Interbank dólares"."""
+    """La cuenta de ese banco en esa moneda: medio Interbank + USD -> "Interbank dólares". Plin y Yape van a su banco."""
     if not medio:
         return None
-    m = C.normal(medio)
+    m = C.normal(C.BILLETERA_BANCO.get(medio, medio))   # Plin -> Interbank, Yape -> BCP
     for c in cuentas(notion, bases):
         if c["moneda"] == moneda and (C.normal(c["nombre"]) == m or m in C.normal(c["nombre"]).split()):
             return c
