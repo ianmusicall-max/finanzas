@@ -255,6 +255,13 @@ class Deudas(Base):
         self.assertIn("vuelve a ser automático", t)
         self.assertNotIn("fijado por ti", t)
 
+    def test_cuenta_en_dolares_sigue_al_cambio(self):
+        F.fijar_tipo_de_cambio("USD", 3.38)
+        self.di("/activo Interbank dólares 1497 usd")
+        F.fijar_tipo_de_cambio("USD", 3.50)
+        self.assertIn("S/ 5,239.50", self.di("/patrimonio"))
+        self.assertEqual(self.n.dbs["db-pat"][0]["Valor S/"], 5239.5)
+
     def test_menu_tiene_deudas(self):
         self.di("/start")
         self.assertIn("No tienes deudas activas", self.toca("Deudas"))

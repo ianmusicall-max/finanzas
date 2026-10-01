@@ -363,9 +363,14 @@ def patrimonio(notion, bases: dict) -> list:
     if PATRIMONIO not in bases:
         return out
     for f in notion.consultar(bases[PATRIMONIO], limite=300):
-        valor_s = f.get("Valor S/")
-        if valor_s is None:
-            valor_s = soles(f.get("Valor") or 0, f.get("Moneda") or "PEN")
+        # como en Deudas: lo que vale es Valor y Moneda (se pueden editar a mano en Notion);
+        # Valor S/ se recalcula con el cambio del dia y se corrige en Notion si quedo distinto
+        valor_s = soles(f.get("Valor") or 0, f.get("Moneda") or "PEN")
+        if f.get("Valor S/") is None or abs(float(f["Valor S/"]) - valor_s) > 0.01:
+            try:
+                notion.editar_pagina(f["_id"], {"Valor S/": p_number(valor_s)})
+            except NotionError:
+                pass
         out.append({"id": f["_id"], "nombre": f.get("Nombre") or "?", "clase": f.get("Clase") or "Activo",
                     "tipo": f.get("Tipo") or "", "valor": f.get("Valor") or 0, "moneda": f.get("Moneda") or "PEN",
                     "valor_s": float(valor_s or 0), "actualizado": f.get("Actualizado")})
