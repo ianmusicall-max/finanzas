@@ -102,7 +102,7 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
    ve la página y `setup_notion.py` no puede crear las bases.
 3. **En el servidor** (el de Core Forever):
    ```bash
-   ssh root@67.205.160.34
+   ssh root@TU-SERVIDOR
    git clone https://github.com/ianmusicall-max/finanzas /opt/finanzas
    bash /opt/finanzas/deploy/instalar.sh        # la primera vez crea el .env y se detiene
    nano /opt/finanzas/.env                      # pega los tokens (ver abajo)
@@ -141,7 +141,7 @@ journalctl -u finanzas-bot -n 50
 ## Actualizar
 
 ```bash
-ssh root@67.205.160.34 'bash /opt/finanzas/deploy/actualizar.sh'
+ssh root@TU-SERVIDOR 'bash /opt/finanzas/deploy/actualizar.sh'
 ```
 
 ## Tests

@@ -1,6 +1,6 @@
 #!/bin/bash
 # En el servidor: trae lo ultimo de GitHub, instala dependencias, corre los tests y reinicia.
-#   ssh root@67.205.160.34 'bash /opt/finanzas/deploy/actualizar.sh'
+#   ssh root@TU-SERVIDOR 'bash /opt/finanzas/deploy/actualizar.sh'
 set -e
 cd /opt/finanzas && git pull -q origin main
 .venv/bin/pip install -q -r requirements.txt
