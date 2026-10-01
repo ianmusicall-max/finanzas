@@ -14,6 +14,7 @@ import time
 from datetime import timedelta
 
 import categorias as C
+import excel as X
 import finanzas as F
 import informes as I
 from config import DATA, TELEGRAM_USUARIOS
@@ -40,6 +41,7 @@ AYUDA = (
     "/patrimonio · lo que tienes menos lo que debes\n"
     "/metas · avance de tus metas de ahorro\n"
     "/deudas · cuánto debes y a quién\n"
+    "/excel · todo en un Excel con gráficos\n"
     "/consejos · qué mejorar según tus números\n"
     "/metodos · formas de manejar tu dinero\n"
     "/ultimos · lo último que anotaste\n\n"
@@ -55,7 +57,7 @@ AYUDA = (
 MENU = [[("➖ Gasto", "m:gasto"), ("➕ Ingreso", "m:ingreso"), ("🐷 Ahorro", "m:ahorro")],
         [("📅 Hoy", "m:hoy"), ("🗓 Semana", "m:semana"), ("📆 Mes", "m:mes")],
         [("🧾 Presupuesto", "m:presupuesto"), ("🏦 Patrimonio", "m:patrimonio"), ("🎯 Metas", "m:metas")],
-        [("💳 Deudas", "m:deudas"), ("💡 Consejos", "m:consejos")]]
+        [("💳 Deudas", "m:deudas"), ("💡 Consejos", "m:consejos"), ("📊 Excel", "m:excel")]]
 
 METODOS = (
     "🧭 <b>Formas de manejar tu dinero</b>\n\n"
@@ -486,6 +488,8 @@ class Bot:
             lista = inf.consejos or ["🟢 No veo nada preocupante este mes. Sigue anotando todo."]
             self.decir(chat, "💡 <b>Qué mejorar</b> (con lo que va de %s)\n\n%s\n\nMás ideas: /metodos" % (
                 F.MESES[F.hoy().month - 1], "\n\n".join(esc(c) for c in lista)))
+        elif cmd in ("/excel", "/graficos"):
+            self._excel(chat)
         elif cmd in ("/metodos", "/opciones"):
             self.decir(chat, METODOS)
         elif cmd == "/tc":
@@ -544,6 +548,16 @@ class Bot:
         _, _, net, _ = F.neto(F.patrimonio(self.notion, self.bases))
         self.decir(chat, "%s %s · %s: %s%s\n🏦 Patrimonio neto: <b>%s</b>" % (
             "🟢" if clase == "Activo" else "🔻", esc(nombre), esc(tipo), F.s3(ahora), cambio, F.s3(net)))
+
+    def _excel(self, chat) -> None:
+        self.decir(chat, "📊 Preparando tu Excel…")
+        try:
+            contenido = X.libro(self.notion, self.bases)
+            self.tg.enviar_documento(chat, X.nombre_archivo(), contenido,
+                                     "📊 Tus finanzas al %s, con gráficos en cada hoja: Resumen, Deudas, Cuentas, "
+                                     "Metas, Presupuesto, Por mes, Categorías y Movimientos." % F.hoy().strftime("%d/%m/%Y"))
+        except TelegramError as exc:
+            self.decir(chat, "⚠️ No pude mandar el archivo: %s" % esc(str(exc)[:200]))
 
     def _deuda(self, chat, arg: str) -> None:
         if not arg:

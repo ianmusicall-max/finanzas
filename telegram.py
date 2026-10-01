@@ -100,6 +100,20 @@ class Telegram:
             res = self._req("sendMessage", **params)
         return res or {}
 
+    def enviar_documento(self, chat_id: int, nombre: str, contenido: bytes, texto: str = "") -> dict:
+        """Manda un archivo (por ejemplo el Excel de /excel)."""
+        try:
+            r = self.s.post(self.base + "sendDocument", data={"chat_id": chat_id, "caption": texto[:1000], "parse_mode": "HTML"},
+                            files={"document": (nombre, contenido)}, timeout=60)
+            data = r.json()
+        except requests.RequestException as exc:
+            raise TelegramError("sendDocument: red: %s" % type(exc).__name__)
+        except ValueError:
+            raise TelegramError("sendDocument: respuesta no es JSON (%s)" % r.status_code, r.status_code)
+        if not data.get("ok"):
+            raise TelegramError("sendDocument: %s" % str(data.get("description", ""))[:200], data.get("error_code"))
+        return data.get("result") or {}
+
     def quitar_botones(self, chat_id: int, message_id: int) -> None:
         """Apaga los botones de un mensaje que ya no espera respuesta."""
         try:

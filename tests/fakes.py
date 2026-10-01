@@ -88,9 +88,14 @@ class FakeTelegram:
     def __init__(self):
         self.enviados = []
         self.apagados = []
+        self.documentos = []
 
     def enviar(self, chat, texto, botones=None):
         self.enviados.append((chat, texto, botones))
+        return {"message_id": len(self.enviados)}
+
+    def enviar_documento(self, chat, nombre, contenido, texto=""):
+        self.documentos.append((chat, nombre, contenido, texto))
         return {"message_id": len(self.enviados)}
 
     def quitar_botones(self, chat, message_id):

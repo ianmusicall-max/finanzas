@@ -120,6 +120,13 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
   10% · 20% · otro monto · no esta vez, y luego la meta (o ahorro general). El ahorro no sale de la
   cuenta: es una parte del dinero que queda marcada para esa meta.
 
+## Excel con gráficos
+
+`/excel` (o el botón 📊 Excel) manda por Telegram un Excel con los datos del momento y un gráfico en cada hoja:
+Resumen (tienes vs debes, patrimonio neto, mes y año), Deudas, Cuentas, Metas, Presupuesto del mes, Por mes
+(ingresos vs gastos y balance), Categorías (y necesidad vs deseo) y Movimientos del año. Todo en S/, $ y ₽.
+Sirve en vez de los gráficos de Notion, que en el plan gratis permite uno solo.
+
 ## Gráficos en Notion
 
 Abre la página **Finanzas** en Notion. Cada base tiene pestañas arriba con los gráficos:

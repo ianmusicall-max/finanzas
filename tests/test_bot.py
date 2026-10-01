@@ -558,3 +558,41 @@ class CuentasYAhorro(Base):
         self.di("+500 sueldo")
         self.di("/cancelar")
         self.assertIn("No separo nada", self.tg.ultimo)
+
+
+class Excel(Base):
+    def test_excel_con_graficos(self):
+        from io import BytesIO
+        from openpyxl import load_workbook
+        F.fijar_tipo_de_cambio("USD", 3.38)
+        F.fijar_tipo_de_cambio("RUB", 0.0428)
+        self.di("/deuda Banco SIP 16224")
+        self.di("/deuda Tarjeta T-Bank 21756 rub")
+        self.di("/activo Interbank dólares 1497 usd")
+        self.di("/meta Fondo de emergencia 17240")
+        self.di("/presupuesto supermercado 855")
+        self.di("+3000 sueldo")
+        self.di("120 supermercado")
+        self.di("45 almuerzo")
+        self.di("/excel")
+        chat, nombre, contenido, texto = self.tg.documentos[-1]
+        self.assertTrue(nombre.startswith("Finanzas ") and nombre.endswith(".xlsx"))
+        wb = load_workbook(BytesIO(contenido))
+        self.assertEqual(wb.sheetnames, ["Resumen", "Deudas", "Cuentas", "Metas", "Presupuesto", "Por mes", "Categorías", "Movimientos"])
+        self.assertEqual(wb["Deudas"]["A2"].value, "Banco SIP")
+        self.assertEqual(wb["Deudas"]["G3"].value, 21756)                 # T-Bank en rublos
+        self.assertEqual(wb["Cuentas"]["F2"].value, F.en_rublos(1497 * 3.38))
+        self.assertEqual(wb["Movimientos"].max_row, 4)                    # cabecera + 3 movimientos
+        resumen = {wb["Resumen"].cell(row=k, column=1).value: wb["Resumen"].cell(row=k, column=2).value for k in range(5, 17)}
+        self.assertEqual(resumen["📊 Patrimonio neto"], round(1497 * 3.38 - 16224 - 21756 * 0.0428, 2))
+        for hoja in ("Resumen", "Deudas", "Cuentas", "Metas", "Presupuesto", "Por mes", "Categorías"):
+            self.assertTrue(wb[hoja]._charts, hoja)
+
+    def test_excel_vacio_no_falla(self):
+        self.di("/excel")
+        self.assertEqual(len(self.tg.documentos), 1)
+
+    def test_boton_excel(self):
+        self.di("/start")
+        self.toca("Excel")
+        self.assertEqual(len(self.tg.documentos), 1)
