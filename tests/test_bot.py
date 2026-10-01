@@ -425,9 +425,9 @@ class Formularios(Base):
         return self.toca("Guardar")
 
     def test_credito_suma_a_la_deuda_de_la_tarjeta(self):
-        self.di("/deuda Tarjeta Falabella 10900")
+        self.di("/deuda Banco Falabella 10900")
         t = self._gasto("Falabella", "Crédito")
-        self.assertIn("se sumó a Tarjeta Falabella. Ahora debes S/ 11,000.00", t)
+        self.assertIn("se sumó a Banco Falabella. Ahora debes S/ 11,000.00", t)
         self.assertEqual(self.movs[0]["Tarjeta"], "Crédito")
         self.assertEqual(len(self.n.dbs["db-deu"]), 1)
         self.assertEqual(self.n.dbs["db-deu"][0]["Saldo"], 11000)
@@ -480,7 +480,7 @@ class Formularios(Base):
 
     def test_rapido_con_la_palabra_credito(self):
         t = self.di("45 almuerzo cmr credito")
-        self.assertIn("Tarjeta Falabella", t)
+        self.assertIn("Banco Falabella", t)
         self.assertEqual(self.movs[0]["Descripción"], "Almuerzo")
         self.di("30 taxi credito")                          # sin tarjeta: no hay a que deuda sumarlo
         self.assertEqual(len(self.n.dbs["db-deu"]), 1)

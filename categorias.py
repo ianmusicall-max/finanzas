@@ -74,7 +74,7 @@ MEDIOS = ["T-Bank", "Falabella", "Interbank", "Binance", "PayPal", "Sberbank", "
 # Medios que pueden ser tarjeta de credito o de debito: el formulario de gasto pregunta cual.
 TARJETAS = ["T-Bank", "Falabella", "Interbank", "Sberbank", "SIP", "Tarjeta OH", "BBVA", "BCP"]
 # Nombre de la deuda (base Deudas) donde se acumula lo que se compra a credito con cada tarjeta.
-DEUDA_TARJETA = {"Tarjeta OH": "Tarjeta OH"}
+DEUDA_TARJETA = {"Tarjeta OH": "Tarjeta OH", "Falabella": "Banco Falabella"}   # Falabella: tarjeta y préstamo juntos
 BANCO_TARJETA = {"Falabella": "Banco Falabella", "T-Bank": "T-Bank (Tinkoff)", "Tarjeta OH": "Financiera OH",
                  "SIP": "Banco SIP"}
 

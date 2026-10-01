@@ -60,7 +60,7 @@ cambio de `/tc`. Un gasto con cuenta **Inversión** se cuenta como inversión en
 | `netflix 44.90` | gasto · Suscripciones |
 | `+1943 usd facebook` | ingreso en dólares · Facebook |
 | `ahorro 500 emergencia` | ahorro, y suma S/ 500 a la meta "Fondo de emergencia" |
-| `120 zapatillas falabella credito` | gasto a crédito: además suma S/ 120 a la deuda "Tarjeta Falabella" |
+| `120 zapatillas falabella credito` | gasto a crédito: además suma S/ 120 a la deuda "Banco Falabella" (tarjeta y préstamo juntos) |
 
 En el formulario de gasto, si eliges un banco o tarjeta (Falabella, T-Bank, OH, Interbank, BBVA, BCP,
 SIP, Sberbank) el bot pregunta **¿Crédito o débito?**. Si es crédito, el gasto cuenta como gasto
