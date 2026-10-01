@@ -312,7 +312,7 @@ class Bot:
             if aviso:
                 l.append(aviso)
             if mov.categoria not in C.CATEGORIAS_FIJAS:
-                l.extend(I.lineas_limite(F.estado_limite(self.notion, self.bases)))
+                l.extend(I.limite_corto(F.estado_limite(self.notion, self.bases)))
         ti = C.TIPOS.index(mov.tipo)
         if not mov.adivinada:
             l.append("\n¿De qué categoría es?")

@@ -679,20 +679,24 @@ class LimiteDiaADia(Base):
         self.assertNotIn("📏", self.di("45 almuerzo"))
 
     def test_hoy_semana_mes(self):
-        self.assertIn("₽ 1,500 por día", self.di("/limite 1500 rub"))
+        F.fijar_tipo_de_cambio("USD", 4.0)
+        self.assertIn("S/ 75.00 · $ 18.75 · ₽ 1,500 por día", self.di("/limite 1500 rub"))
         t = self.di("1200 rub supermercado")
-        self.assertIn("🟡 Hoy: ₽ 1,200 de ₽ 1,500 · quedan ₽ 300", t)   # 80%: amarillo
-        self.assertIn("Semana: ₽ 1,200 de ₽ 10,500", t)
+        self.assertIn("🟡 Quedan hoy: S/ 15.00 · $ 3.75 · ₽ 300", t)      # 80%: amarillo
+        self.assertIn("🟢 Quedan en la semana: S/ 465.00 · $ 116.25 · ₽ 9,300", t)
         dias_mes = F.mes().dias
-        self.assertIn("Mes: ₽ 1,200 de ₽ {:,.0f}".format(1500 * dias_mes), t)
+        self.assertIn("Quedan en el mes: S/ {:,.2f}".format((1500 * dias_mes - 1200) * 0.05), t)
         t = self.di("55000 rub alquiler departamento")       # Vivienda: gasto fijo, no cuenta
         self.assertEqual(self.movs[-1]["Categoría"], "Vivienda")
-        self.assertNotIn("📏", t)
-        self.assertNotIn("Hoy:", t)
+        self.assertNotIn("Quedan hoy", t)
         t = self.di("500 rub taxi")
-        self.assertIn("🔴 Hoy: ₽ 1,700 de ₽ 1,500 · te pasaste ₽ 200", t)
-        self.assertIn("Día a día", self.di("/hoy"))
-        self.assertIn("Semana: ₽ 1,700 de ₽ 10,500", self.di("/semana"))
+        self.assertIn("🔴 Te pasaste hoy: S/ 10.00 · $ 2.50 · ₽ 200", t)
+        h = self.di("/hoy")
+        self.assertIn("Día a día", h)
+        self.assertIn("Gastado: S/ 85.00 · $ 21.25 · ₽ 1,700", h)
+        self.assertIn("Te pasaste: S/ 10.00", h)
+        sem = self.di("/semana")
+        self.assertIn("Límite: S/ 525.00 · $ 131.25 · ₽ 10,500", sem)
 
     def test_inicio_muestra_el_limite_arriba(self):
         t = self.di("/start")
@@ -705,7 +709,8 @@ class LimiteDiaADia(Base):
         t = self.di("/start")
         primeras = t.split("\n")[:5]
         self.assertIn("Para gastar en el día a día", primeras[2])
-        self.assertIn("Hoy: ₽ 1,200 de ₽ 1,500", primeras[3])
+        self.assertIn("<b>Hoy</b>", primeras[3])
+        self.assertIn("Gastado: S/ 60.00", primeras[4])
         self.assertIn("Deudas: <b>S/ 16,224.00", t)
         self.assertIn("Pasajes 0%", t)
         self.assertTrue(any("Deudas" in x for x, _ in self.tg.botones()))   # el menu sigue abajo
@@ -713,7 +718,7 @@ class LimiteDiaADia(Base):
 
     def test_quitar(self):
         self.di("/limite 64")
-        self.assertIn("S/ 64.00 por día", self.di("/limite"))
+        self.assertIn("S/ 64.00 · $", self.di("/limite"))
         self.assertIn("Quité el límite", self.di("/limite 0"))
         self.assertIn("Aún no tienes límite", self.di("/limite"))
 

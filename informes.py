@@ -256,21 +256,41 @@ NOMBRES_LIMITE = {"dia": "Hoy", "semana": "Semana", "mes": "Mes"}
 
 
 def lineas_limite(e: Optional[dict], cuales=("dia", "semana", "mes")) -> list:
-    """📏 Hoy ₽ 1,200 de ₽ 1,500 … para el limite del dia a dia."""
+    """El limite del dia a dia en soles, dolares y rublos: gastado, limite, lo que queda y por dia."""
     if not e:
         return []
-    mon = e["moneda"]
+    tc = F.tipo_de_cambio(e["moneda"])
     l = []
     for k in cuales:
         x = e[k]
-        linea = "%s %s: %s de %s" % (F.marca_limite(x["usado"]), NOMBRES_LIMITE[k], F.en_moneda(x["gastado"], mon), F.en_moneda(x["tope"], mon))
+        titulo = "%s <b>%s</b>" % (F.marca_limite(x["usado"]), NOMBRES_LIMITE[k])
+        if k != "dia" and x["dias"] > 1:
+            titulo += " · quedan %d días" % x["dias"]
+        l.append(titulo)
+        l.append("    Gastado: %s" % F.s3(x["gastado"] * tc))
+        l.append("    Límite: %s" % F.s3(x["tope"] * tc))
         if x["queda"] < 0:
-            linea += " · te pasaste %s" % F.en_moneda(-x["queda"], mon)
-        elif k != "dia" and x["dias"] > 1:
-            linea += " · quedan %s (%s por día, %d días)" % (F.en_moneda(x["queda"], mon), F.en_moneda(x["por_dia"], mon), x["dias"])
+            l.append("    Te pasaste: %s" % F.s3(-x["queda"] * tc))
         else:
-            linea += " · quedan %s" % F.en_moneda(x["queda"], mon)
-        l.append(linea)
+            l.append("    Queda: %s" % F.s3(x["queda"] * tc))
+            if k != "dia" and x["dias"] > 1:
+                l.append("    Por día: %s" % F.s3(x["por_dia"] * tc))
+    return l
+
+
+def limite_corto(e: Optional[dict]) -> list:
+    """Despues de anotar un gasto: cuanto queda hoy, en la semana y en el mes, en las tres monedas."""
+    if not e:
+        return []
+    tc = F.tipo_de_cambio(e["moneda"])
+    l = []
+    for k in ("dia", "semana", "mes"):
+        x = e[k]
+        nombre = {"dia": "hoy", "semana": "en la semana", "mes": "en el mes"}[k]
+        if x["queda"] < 0:
+            l.append("%s Te pasaste %s: %s" % (F.marca_limite(x["usado"]), nombre, F.s3(-x["queda"] * tc)))
+        else:
+            l.append("%s Quedan %s: %s" % (F.marca_limite(x["usado"]), nombre, F.s3(x["queda"] * tc)))
     return l
 
 
@@ -281,7 +301,7 @@ def texto_limite(notion, bases: dict) -> str:
                 "<code>/limite 1500 rub</code> · <code>/limite 64</code> (soles) · <code>/limite 19 usd</code>\n\n"
                 "La semana vale 7 días y el mes, los días que tenga. No cuentan los gastos fijos del mes "
                 "(vivienda, universidad, padres, servicios, suscripciones, salud…).")
-    return "\n".join(["📏 <b>Límite del día a día</b> · %s por día" % F.en_moneda(e["por_dia"], e["moneda"]), ""]
+    return "\n".join(["📏 <b>Límite del día a día</b> · %s por día" % F.s3(e["por_dia"] * F.tipo_de_cambio(e["moneda"])), ""]
                      + lineas_limite(e) + ["", "<i>No cuentan los gastos fijos del mes. Cambiarlo: /limite 1500 rub · quitarlo: /limite 0</i>"])
 
 
