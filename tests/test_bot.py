@@ -710,7 +710,7 @@ class LimiteDiaADia(Base):
         self.di("/meta Pasajes 10140")
         t = self.di("/start")
         primeras = t.split("\n")[:6]
-        self.assertEqual(primeras[0], "📏 Quedan hoy: S/ 15.00 · $ 4.00 · ₽ 300")   # lo que se ve en la barra fijada
+        self.assertEqual(primeras[0], "📏 Quedan hoy: S/ 15.00 · $ 4.00 · ₽ 300")   # lo primero que se ve
         self.assertIn("Finanzas", primeras[1])
         self.assertIn("Para gastar en el día a día", primeras[3])
         self.assertIn("<b>Hoy</b>", primeras[4])
@@ -720,27 +720,12 @@ class LimiteDiaADia(Base):
         self.assertTrue(any("Ajustar" in x for x, _ in self.tg.botones()))   # el menu sigue abajo
         self.assertIn("/gasto", self.di("/ayuda"))
 
-    def test_mensaje_fijado_se_actualiza(self):
-        self.di("1200 rub supermercado")
-        self.assertEqual(self.tg.fijados, [])                 # sin /start no se crea
+    def test_start_no_fija_nada(self):
         self.di("/limite 1500 rub")
         self.di("/start")
-        self.assertEqual(len(self.tg.fijados), 1)
-        mid = self.tg.fijados[0][1]
         self.di("100 rub cafe")
-        chat, editado, texto = self.tg.editados[-1]
-        self.assertEqual(editado, mid)
-        self.assertTrue(texto.startswith("📏 Quedan hoy: S/ 10.00"))
-        self.di("500 rub taxi")
-        self.assertTrue(self.tg.editados[-1][2].startswith("📏 Te pasaste hoy: S/ 15.00"))
-        n = len(self.tg.editados)
-        self.bot._dia_tablero = None                          # cambio de dia: se refresca solo
-        self.bot._refrescar_tableros()
-        self.assertEqual(len(self.tg.editados), n + 1)
-        self.bot._refrescar_tableros()                        # el mismo dia no se repite
-        self.assertEqual(len(self.tg.editados), n + 1)
-        self.di("/start")
-        self.assertEqual(len(self.tg.fijados), 2)             # /start vuelve a fijar el de abajo
+        self.assertFalse(hasattr(self.tg, "fijados"))
+        self.assertIn("Quedan hoy", self.tg.enviados[-2][1] if "Quedan hoy" not in self.tg.ultimo else self.tg.ultimo)
 
     def test_quitar(self):
         self.di("/limite 64")

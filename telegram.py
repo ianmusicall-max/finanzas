@@ -114,18 +114,6 @@ class Telegram:
             raise TelegramError("sendDocument: %s" % str(data.get("description", ""))[:200], data.get("error_code"))
         return data.get("result") or {}
 
-    def editar_texto(self, chat_id: int, message_id: int, texto: str, botones: Optional[list] = None) -> dict:
-        params = {"chat_id": chat_id, "message_id": message_id, "text": texto[:MAX_TEXTO], "parse_mode": "HTML",
-                  "disable_web_page_preview": True}
-        rm = teclado(botones)
-        if rm:
-            params["reply_markup"] = rm
-        return self._req("editMessageText", **params) or {}
-
-    def fijar(self, chat_id: int, message_id: int) -> None:
-        """Fija el mensaje arriba del chat, sin notificar."""
-        self._req("pinChatMessage", chat_id=chat_id, message_id=message_id, disable_notification=True)
-
     def quitar_botones(self, chat_id: int, message_id: int) -> None:
         """Apaga los botones de un mensaje que ya no espera respuesta."""
         try:

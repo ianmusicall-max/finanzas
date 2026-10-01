@@ -182,7 +182,6 @@ class Bot:
         self._por_ahorrar = {}     # chat -> ingreso recien anotado, mientras se elige cuanto separar
         self._pagando = {}         # chat -> pago de deuda en curso (con botones)
         self._suscribiendo = {}    # chat -> pago de una suscripcion nueva, mientras se elige cada cuanto se paga
-        self._dia_tablero = None   # ultimo dia en que se refresco el mensaje fijado
         self._ajustando = {}       # chat -> comando que espera el dato que se escriba (botones de Ajustar)
         self.form = Formularios(metas=self._nombres_metas, anuales=self._categorias_anuales)
 
@@ -349,7 +348,6 @@ class Bot:
             self.decir(chat, "🔁 %s · %s · próximo pago %s" % (esc(r["nombre"]), F.cada_texto(r["cada"]), r["proximo"].strftime("%d/%m/%Y")))
         elif nueva_sus:
             self._preguntar_suscripcion(chat, pid, mov)
-        self._tablero(chat)
 
     # ---- suscripciones: la primera vez que se paga una, se pregunta cada cuanto se paga
     def _preguntar_suscripcion(self, chat, pid: str, mov) -> None:
@@ -599,7 +597,6 @@ class Bot:
         if self._ultimo.get(chat) == pid:
             self._ultimo.pop(chat, None)
         self.decir(chat, "↩️ Borrado. (Queda en la papelera de Notion por 30 días.)")
-        self._tablero(chat)
 
     # ---- comandos
     def _comando(self, chat, texto: str) -> None:
@@ -608,7 +605,7 @@ class Bot:
         arg = partes[1].strip() if len(partes) > 1 else ""
         forzar = {"/gasto": "Gasto", "/ingreso": "Ingreso", "/ahorro": "Ahorro", "/inversion": "Inversión"}
         if cmd in ("/start", "/menu", "/inicio"):
-            self._tablero(chat, nuevo=True)
+            self.decir(chat, self._inicio(), MENU)
         elif cmd in ("/ayuda", "/help", "/comandos"):
             self.decir(chat, AYUDA, MENU)
         elif cmd == "/id":
@@ -719,40 +716,6 @@ class Bot:
         self.decir(chat, "%s %s · %s: %s%s\n🏦 Patrimonio neto: <b>%s</b>" % (
             "🟢" if clase == "Activo" else "🔻", esc(nombre), esc(tipo), F.s3(ahora), cambio, F.s3(net)))
 
-    # ---- tablero fijado arriba del chat: el limite de hoy siempre a la vista
-    def _tablero(self, chat, nuevo: bool = False) -> None:
-        """Manda (nuevo=True) o actualiza el mensaje fijado con el inicio. La primera linea es lo que
-        Telegram muestra en la barra de 'Mensaje fijado': cuanto queda hoy."""
-        try:
-            tableros = F.ajustes().get("tableros", {})
-            mid = tableros.get(str(chat))
-            if not mid and not nuevo:
-                return   # el tablero se crea con /start; despues solo se actualiza
-            texto = self._inicio()
-            if mid and not nuevo:
-                try:
-                    self.tg.editar_texto(chat, mid, texto, MENU)
-                    return
-                except TelegramError as exc:
-                    if "not modified" in str(exc):
-                        return
-            mid = (self.tg.enviar(chat, texto, MENU) or {}).get("message_id")
-            if mid:
-                self.tg.fijar(chat, mid)
-                a = F.ajustes()
-                a.setdefault("tableros", {})[str(chat)] = mid
-                F._guardar_ajustes(a)
-        except (TelegramError, NotionError, OSError) as exc:
-            print("  [bot] no pude actualizar el tablero: %s" % exc)
-
-    def _refrescar_tableros(self) -> None:
-        """Al cambiar el dia, el 'hoy' del mensaje fijado se pone en cero."""
-        if self._dia_tablero == F.hoy():
-            return
-        self._dia_tablero = F.hoy()
-        for chat in list(F.ajustes().get("tableros", {})):
-            self._tablero(int(chat))
-
     def _inicio(self) -> str:
         """La pantalla de inicio: arriba, cuanto puedes gastar y cuanto llevas; despues lo importante."""
         hoy = F.hoy()
@@ -761,7 +724,7 @@ class Bot:
         try:
             lim = F.estado_limite(self.notion, self.bases)
             if lim:
-                # primera linea: es lo que Telegram muestra arriba en el mensaje fijado
+                # primera linea: lo que queda hoy, lo primero que se ve
                 x, tc = lim["dia"], F.tipo_de_cambio(lim["moneda"])
                 l[0] = "📏 %s hoy: %s" % ("Te pasaste" if x["queda"] < 0 else "Quedan", F.s3(abs(x["queda"]) * tc))
                 l[1] = "💰 <b>Finanzas</b> · %s %d de %s\n" % (["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"][hoy.weekday()],
@@ -802,7 +765,6 @@ class Bot:
             self.decir(chat, "👌 Quité el límite del día a día.")
             return
         self.decir(chat, "📏 Listo.\n\n" + I.texto_limite(self.notion, self.bases))
-        self._tablero(chat)
 
     def _excel(self, chat) -> None:
         self.decir(chat, "📊 Preparando tu Excel…")
@@ -915,7 +877,6 @@ class Bot:
             self.decir(chat, "🎉 ¡%s pagada por completo! Ya no aparece en tus deudas." % esc(d["deuda"]))
         else:
             self.decir(chat, "✅ Pago a %s. Te queda: <b>%s</b>" % (esc(d["deuda"]), F.s3(F.soles(nuevo, d["moneda"]))))
-        self._tablero(chat)
         cuentas = F.cuentas(self.notion, self.bases)
         if cuentas:
             self._pagando[chat] = {"deuda": d, "pago_s": F.soles(monto, moneda or d["moneda"]), "cuentas": cuentas}
@@ -1015,7 +976,6 @@ class Bot:
                     self.procesar(u)
                 except Exception as exc:  # un update roto no puede tumbar el bot
                     print("  [bot] error procesando update %s: %s: %s" % (u.get("update_id"), type(exc).__name__, exc))
-            self._refrescar_tableros()
             if una_vez:
                 return 0
 
