@@ -104,6 +104,22 @@ def libro(notion, bases: dict, hoy: Optional[date] = None) -> bytes:
     ws.column_dimensions["A"].width = 28
     _grafico(ws, "columna", "Tienes vs debes (S/)", (2, 4, 2, 6), (1, 5, 1, 6), "F4", alto=7, ancho=12)
 
+    # limite del dia a dia (/limite): cuanto se puede gastar y cuanto va
+    lim = F.estado_limite(notion, bases, hoy)
+    if lim:
+        tc = F.tipo_de_cambio(lim["moneda"])
+        fila = 4 + len(filas) + 3
+        ws.cell(row=fila - 1, column=1, value="📏 Día a día (sin gastos fijos del mes)").font = Font(bold=True)
+        filas_lim = []
+        for k, nombre in (("dia", "Hoy"), ("semana", "Esta semana"), ("mes", "Este mes")):
+            x = lim[k]
+            filas_lim.append((nombre,) + _tres(x["tope"] * tc) + _tres(x["gastado"] * tc) + _tres(x["queda"] * tc))
+        _tabla(ws, fila, ["Período", "Puedes S/", "Puedes $", "Puedes ₽", "Gastado S/", "Gastado $", "Gastado ₽",
+                          "Queda S/", "Queda $", "Queda ₽"], filas_lim,
+               {"Puedes S/": SOLES, "Gastado S/": SOLES, "Queda S/": SOLES, "Puedes $": DOLARES, "Gastado $": DOLARES,
+                "Queda $": DOLARES, "Puedes ₽": RUBLOS, "Gastado ₽": RUBLOS, "Queda ₽": RUBLOS})
+        ws.column_dimensions["A"].width = 28
+
     # ---- Deudas
     ws = wb.create_sheet("Deudas")
     filas = [(d["deuda"], d["tipo"], d["saldo"], d["moneda"]) + _tres(d["saldo_s"]) +

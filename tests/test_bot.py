@@ -589,6 +589,19 @@ class Excel(Base):
         for hoja in ("Resumen", "Deudas", "Cuentas", "Metas", "Presupuesto", "Por mes", "Categorías"):
             self.assertTrue(wb[hoja]._charts, hoja)
 
+    def test_excel_muestra_el_limite(self):
+        from io import BytesIO
+        from openpyxl import load_workbook
+        F.fijar_tipo_de_cambio("RUB", 0.05)
+        self.di("/limite 1500 rub")
+        self.di("1200 rub supermercado")
+        self.di("/excel")
+        ws = load_workbook(BytesIO(self.tg.documentos[-1][2]))["Resumen"]
+        filas = {ws.cell(row=k, column=1).value: [ws.cell(row=k, column=c).value for c in range(2, 11)] for k in range(1, 30)}
+        self.assertEqual(filas["Hoy"][2], 1500)        # puedes ₽
+        self.assertEqual(filas["Hoy"][5], 1200)        # gastado ₽
+        self.assertEqual(filas["Esta semana"][2], 10500)
+
     def test_excel_vacio_no_falla(self):
         self.di("/excel")
         self.assertEqual(len(self.tg.documentos), 1)
