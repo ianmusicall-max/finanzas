@@ -51,8 +51,27 @@ AYUDA = (
 
 MENU = [[("➖ Gasto", "m:gasto"), ("➕ Ingreso", "m:ingreso"), ("🐷 Ahorro", "m:ahorro")],
         [("📅 Hoy", "m:hoy"), ("🗓 Semana", "m:semana"), ("📆 Mes", "m:mes")],
-        [("🧾 Presupuesto", "m:presupuesto"), ("🏦 Patrimonio", "m:patrimonio"), ("🎯 Metas", "m:metas")],
-        [("💳 Deudas", "m:deudas"), ("💡 Consejos", "m:consejos"), ("📊 Excel", "m:excel")]]
+        [("👁 Ver", "m:ver"), ("⚙️ Ajustar", "m:ajustar")]]
+
+MENU_VER = [[("📏 Límite", "m:limite"), ("🧾 Presupuesto", "m:presupuesto")],
+            [("💳 Deudas", "m:deudas"), ("🏦 Patrimonio", "m:patrimonio")],
+            [("🎯 Metas", "m:metas"), ("🔁 Suscripciones", "m:suscripciones")],
+            [("📊 Excel", "m:excel"), ("💡 Consejos", "m:consejos")],
+            [("🧾 Últimos", "m:ultimos"), ("💱 Tipo de cambio", "m:tc")]]
+
+# Ajustar: cada boton pide un dato y lo que se escribe despues va a ese comando.
+AJUSTES_BOT = {
+    "limite": ("📏 Límite diario", "/limite", "📏 ¿Cuánto puedes gastar por día en el día a día?\nEscribe el monto y la moneda, por ejemplo: <code>1500 rub</code> · <code>64</code> (soles) · <code>19 usd</code>"),
+    "presupuesto": ("🧾 Presupuesto", "/presupuesto", "🧾 Escribe la categoría y el tope.\nAl mes: <code>supermercado 855</code> · Pagos de una vez al año: <code>suscripciones anual 600</code>"),
+    "cuenta": ("🏦 Saldo de una cuenta", "/activo", "🏦 Escribe la cuenta y cuánto tiene hoy, por ejemplo: <code>T-Bank 25000 rub</code> · <code>Interbank dólares 1497 usd</code>"),
+    "deuda": ("💳 Deuda nueva o saldo", "/deuda", "💳 Escribe la deuda y cuánto debes hoy, por ejemplo: <code>Tarjeta BBVA 1200</code> · <code>Juan 200 usd</code>"),
+    "meta": ("🎯 Meta de ahorro", "/meta", "🎯 Escribe la meta y el objetivo en soles, por ejemplo: <code>Viaje a Cusco 5000</code>"),
+    "tc": ("💱 Tipo de cambio", "/tc", "💱 Escribe el tipo de cambio: <code>3.38</code> (dólar) · <code>rub 0.0428</code> · o <code>auto</code> para el del día"),
+}
+MENU_AJUSTAR = [[(AJUSTES_BOT["limite"][0], "aj:limite"), (AJUSTES_BOT["presupuesto"][0], "aj:presupuesto")],
+                [(AJUSTES_BOT["cuenta"][0], "aj:cuenta"), (AJUSTES_BOT["deuda"][0], "aj:deuda")],
+                [("💸 Pagar una deuda", "m:pago"), (AJUSTES_BOT["meta"][0], "aj:meta")],
+                [(AJUSTES_BOT["tc"][0], "aj:tc"), ("↩️ Deshacer lo último", "m:deshacer")]]
 
 METODOS = (
     "🧭 <b>Formas de manejar tu dinero</b>\n\n"
@@ -164,6 +183,7 @@ class Bot:
         self._pagando = {}         # chat -> pago de deuda en curso (con botones)
         self._suscribiendo = {}    # chat -> pago de una suscripcion nueva, mientras se elige cada cuanto se paga
         self._dia_tablero = None   # ultimo dia en que se refresco el mensaje fijado
+        self._ajustando = {}       # chat -> comando que espera el dato que se escriba (botones de Ajustar)
         self.form = Formularios(metas=self._nombres_metas, anuales=self._categorias_anuales)
 
     def _categorias_anuales(self) -> set:
@@ -215,7 +235,10 @@ class Bot:
         texto = msg["text"].strip()
         try:
             if texto.startswith("/"):
+                self._ajustando.pop(chat, None)
                 self._comando(chat, texto)
+            elif chat in self._ajustando:
+                self._comando(chat, self._ajustando.pop(chat) + " " + texto)
             elif (self._por_ahorrar.get(chat) or {}).get("esperando"):
                 self._monto_a_ahorrar(chat, texto)
             elif (self._pagando.get(chat) or {}).get("esperando"):
@@ -517,8 +540,20 @@ class Bot:
                 else:
                     self.tg.quitar_botones(chat, message_id)
                     self._responder(chat, self.form.boton(chat, data[2:]))
+            elif partes[0] == "m" and partes[1] == "ver":
+                self.decir(chat, "👁 <b>¿Qué quieres ver?</b>", MENU_VER)
+            elif partes[0] == "m" and partes[1] == "ajustar":
+                self.decir(chat, "⚙️ <b>¿Qué quieres ajustar?</b>", MENU_AJUSTAR)
             elif partes[0] == "m":
                 self._comando(chat, "/" + partes[1])
+            elif partes[0] == "aj":
+                self.tg.quitar_botones(chat, message_id)
+                if partes[1] == "no":
+                    self._ajustando.pop(chat, None)
+                    self.decir(chat, "👌 Nada que ajustar.")
+                elif partes[1] in AJUSTES_BOT:
+                    self._ajustando[chat] = AJUSTES_BOT[partes[1]][1]
+                    self.decir(chat, AJUSTES_BOT[partes[1]][2], [[("✖️ Cancelar", "aj:no")]])
             elif partes[0] == "k" and len(partes) == 3:
                 self.decir(chat, "Elige la categoría:", self._botones_categoria(partes[1], int(partes[2])))
             elif partes[0] == "c" and len(partes) == 4:

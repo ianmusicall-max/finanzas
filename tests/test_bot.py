@@ -267,6 +267,7 @@ class Deudas(Base):
 
     def test_menu_tiene_deudas(self):
         self.di("/start")
+        self.toca("Ver")
         self.assertIn("No tienes deudas activas", self.toca("Deudas"))
 
 
@@ -608,6 +609,7 @@ class Excel(Base):
 
     def test_boton_excel(self):
         self.di("/start")
+        self.toca("Ver")
         self.toca("Excel")
         self.assertEqual(len(self.tg.documentos), 1)
 
@@ -715,7 +717,7 @@ class LimiteDiaADia(Base):
         self.assertIn("Gastado: S/ 60.00", primeras[5])
         self.assertIn("Deudas: <b>S/ 16,224.00", t)
         self.assertIn("Pasajes 0%", t)
-        self.assertTrue(any("Deudas" in x for x, _ in self.tg.botones()))   # el menu sigue abajo
+        self.assertTrue(any("Ajustar" in x for x, _ in self.tg.botones()))   # el menu sigue abajo
         self.assertIn("/gasto", self.di("/ayuda"))
 
     def test_mensaje_fijado_se_actualiza(self):
@@ -875,3 +877,44 @@ class Suscripciones(Base):
         self.toca("Mensual")
         self.sus("Claude")["Próximo pago"] = (F.hoy() + F.timedelta(days=2)).isoformat()
         self.assertIn("🔁 Claude se renueva el", self.di("/hoy"))
+
+
+class VerYAjustar(Base):
+    def test_ver_muestra_las_opciones(self):
+        self.di("/start")
+        self.toca("Ver")
+        nombres = [t for t, _ in self.tg.botones()]
+        for x in ("Límite", "Presupuesto", "Deudas", "Patrimonio", "Metas", "Suscripciones", "Excel", "Consejos"):
+            self.assertTrue(any(x in n for n in nombres), x)
+        self.assertIn("Límite del día a día", self.toca("Límite"))
+
+    def test_ajustar_pide_el_dato_y_lo_guarda(self):
+        F.fijar_tipo_de_cambio("RUB", 0.05)
+        self.di("/start")
+        self.bot.procesar(boton("m:ajustar"))
+        self.assertIn("¿Cuánto puedes gastar por día", self.toca("Límite diario"))
+        self.assertIn("₽ 1,500 por día", self.di("1500 rub"))
+        self.bot.procesar(boton("m:ajustar"))
+        self.toca("Deuda nueva")
+        self.di("Tarjeta BBVA 1200")
+        self.assertEqual(self.n.dbs["db-deu"][0]["Deuda"], "Tarjeta BBVA")
+        self.bot.procesar(boton("m:ajustar"))
+        self.toca("Saldo de una cuenta")
+        self.di("T-Bank 25000 rub")
+        self.assertEqual((self.n.dbs["db-pat"][0]["Nombre"], self.n.dbs["db-pat"][0]["Moneda"]), ("T-Bank", "RUB"))
+        self.di("45 almuerzo")                                # despues vuelve a anotar normal
+        self.assertEqual(self.movs[-1]["Tipo"], "Gasto")
+
+    def test_ajustar_cancelar_y_pagar(self):
+        self.di("/deuda Luis 2941")
+        self.di("/start")
+        self.bot.procesar(boton("m:ajustar"))
+        self.toca("Meta de ahorro")
+        self.toca("Cancelar")
+        self.di("45 almuerzo")
+        self.assertEqual(self.movs[-1]["Tipo"], "Gasto")
+        self.assertEqual(self.n.dbs["db-met"], [])
+        self.di("/start")
+        self.bot.procesar(boton("m:ajustar"))
+        self.toca("Pagar una deuda")
+        self.assertIn("¿A qué deuda le pagaste?", self.tg.ultimo)
