@@ -16,7 +16,7 @@ import requests
 
 import config
 from config import AJUSTES, DATA, TC_EUR, TC_RUB, TC_USD, ahora, hoy
-from notion import (DEUDAS, METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, SUSCRIPCIONES, NotionError, p_date, p_number, p_select, p_text, p_title)
+from notion import (DEUDAS, METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, RECORDATORIOS, SUSCRIPCIONES, NotionError, p_date, p_number, p_select, p_text, p_title)
 
 MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre",
          "octubre", "noviembre", "diciembre"]
@@ -76,6 +76,11 @@ def tc_automatico() -> dict:
         if nuevo:
             nuevo.update({"ts": t, "fecha": ahora().strftime("%d/%m %H:%M")})
             a["auto"] = auto = nuevo
+            # historial de un valor por dia, para avisar cuando el cambio esta bueno
+            h = a.setdefault("historial_tc", {})
+            h[hoy().isoformat()] = {m: nuevo[m] for m in ("USD", "EUR", "RUB")}
+            for viejo in sorted(h)[:-90]:
+                h.pop(viejo, None)
         a["intento_tc"] = t
         try:
             _guardar_ajustes(a)
@@ -525,6 +530,154 @@ def mover_cuenta(notion, cuenta: dict, delta: float) -> float:
     notion.editar_pagina(cuenta["id"], {"Valor": p_number(nuevo), "Valor S/": p_number(soles(nuevo, cuenta["moneda"])),
                                         "Actualizado": p_date(hoy())})
     return nuevo
+
+
+# ---------------------------------------------------------------- recordatorios y pagos del mes
+
+def dia_del_mes(dia: int, d: date) -> int:
+    """El dia 30 en febrero es el ultimo dia del mes."""
+    return min(int(dia), monthrange(d.year, d.month)[1])
+
+
+def recordatorios(notion, bases: dict) -> list:
+    if RECORDATORIOS not in bases:
+        return []
+    out = []
+    for f in notion.consultar(bases[RECORDATORIOS], limite=200):
+        if (f.get("Estado") or "Activo") != "Activo":
+            continue
+        out.append({"id": f["_id"], "nombre": f.get("Recordatorio") or "?", "dia": int(f["Día"]) if f.get("Día") else None,
+                    "tipo": f.get("Tipo") or "Otro", "monto": float(f["Monto"]) if f.get("Monto") else None,
+                    "moneda": f.get("Moneda") or "PEN", "categoria": f.get("Categoría"), "deuda": f.get("Deuda") or "",
+                    "ultimo": (f.get("Último") or "")[:10]})
+    return sorted(out, key=lambda r: (r["dia"] or 99, r["nombre"]))
+
+
+def hecho_este_mes(r: dict, d: Optional[date] = None) -> bool:
+    d = d or hoy()
+    return bool(r["ultimo"]) and r["ultimo"][:7] == d.isoformat()[:7]
+
+
+def pendientes_del_mes(notion, bases: dict, d: Optional[date] = None) -> list:
+    d = d or hoy()
+    return [r for r in recordatorios(notion, bases) if not hecho_este_mes(r, d)]
+
+
+def avisos_de_hoy(notion, bases: dict, d: Optional[date] = None) -> list:
+    """Los recordatorios que tocan hoy (o que se pospusieron para hoy) y aun no se hicieron."""
+    d = d or hoy()
+    pospuestos = ajustes().get("posponer", {})
+    out = []
+    for r in pendientes_del_mes(notion, bases, d):
+        pospuesto = pospuestos.get(r["id"])
+        if pospuesto and pospuesto > d.isoformat():
+            continue                                   # lo pidio para mañana
+        toca = r["dia"] and dia_del_mes(r["dia"], d) == d.day
+        if toca or pospuesto == d.isoformat():
+            out.append(r)
+    return out
+
+
+def marcar_hecho(notion, r: dict, d: Optional[date] = None) -> None:
+    notion.editar_pagina(r["id"], {"Último": p_date(d or hoy())})
+
+
+def posponer(rid: str, d: Optional[date] = None) -> date:
+    manana = (d or hoy()) + timedelta(days=1)
+    a = ajustes()
+    a.setdefault("posponer", {})[rid] = manana.isoformat()
+    _guardar_ajustes(a)
+    return manana
+
+
+def proyeccion(notion, bases: dict, d: Optional[date] = None) -> Optional[dict]:
+    """Como cierra el mes si no entra mas dinero: lo que ya entro y salio, los pagos fijos que faltan
+    (Recordatorios con monto) y el dia a dia de los dias que quedan (el limite, o el promedio)."""
+    d = d or hoy()
+    m = mes(d)
+    movs = movimientos(notion, bases, m.desde, d)
+    r = resumir(movs, m)
+    if r.cantidad == 0 and not recordatorios(notion, bases):
+        return None
+    dias_rest = (m.hasta - d).days
+    lim = limite()
+    if lim:
+        diario = lim[0] * tipo_de_cambio(lim[1])
+    else:
+        diario = sum(x["monto_s"] for x in movs if es_dia_a_dia(x)) / max(d.day, 1)
+    fijos = sum(soles(x["monto"], x["moneda"]) for x in pendientes_del_mes(notion, bases, d)
+                if x["monto"] and x["tipo"] in ("Pago", "Deuda"))
+    resto = round(diario * dias_rest, 2)
+    return {"ingresos": r.ingresos, "gastos": r.gastos, "ahorro": r.ahorro, "fijos": round(fijos, 2),
+            "dia_a_dia": resto, "dias": dias_rest,
+            "cierre": round(r.ingresos - r.gastos - r.ahorro - fijos - resto, 2)}
+
+
+# ---------------------------------------------------------------- plan para salir de deudas
+
+def plan_deudas(lista: list, extra_s: float = 0.0, maximo: int = 120) -> dict:
+    """Simula mes a mes: cada deuda paga su cuota (o lo que le quede) con su interes si se sabe la
+    tasa; el extra, y las cuotas que se liberan al terminar una deuda, van a la deuda con mas
+    interes (o a la mas chica si no hay tasas). Todo en soles."""
+    ds = [{"deuda": x["deuda"], "saldo": x["saldo_s"], "cuota": soles(x["cuota"], x["moneda"]) if x.get("cuota") else 0.0,
+           "tasa": float(x.get("tasa") or 0)} for x in lista if x["saldo_s"] > 0]
+    orden_extra = sorted(ds, key=lambda x: (-x["tasa"], x["saldo"])) if any(x["tasa"] for x in ds) \
+        else sorted(ds, key=lambda x: x["saldo"])
+    presupuesto_mes = sum(x["cuota"] for x in ds) + extra_s
+    fin, intereses, mes_n = {}, 0.0, 0
+    while any(x["saldo"] > 0.005 for x in ds) and mes_n < maximo:
+        mes_n += 1
+        for x in ds:
+            if x["saldo"] > 0:
+                i = x["saldo"] * x["tasa"] / 12
+                x["saldo"] += i
+                intereses += i
+        disponible = presupuesto_mes
+        for x in ds:                                   # primero la cuota de cada una
+            if x["saldo"] > 0 and x["cuota"]:
+                pago = min(x["cuota"], x["saldo"], disponible)
+                x["saldo"] -= pago
+                disponible -= pago
+        for x in orden_extra:                          # lo que sobra, a la que toca
+            if disponible <= 0:
+                break
+            if x["saldo"] > 0:
+                pago = min(x["saldo"], disponible)
+                x["saldo"] -= pago
+                disponible -= pago
+        for x in ds:
+            if x["saldo"] <= 0.005 and x["deuda"] not in fin:
+                fin[x["deuda"]] = mes_n
+        if presupuesto_mes <= 0:
+            break
+    sin_pagar = [x["deuda"] for x in ds if x["saldo"] > 0.005]
+    return {"meses": mes_n if not sin_pagar else None, "fin": fin, "orden": [x["deuda"] for x in orden_extra],
+            "intereses": round(intereses, 2), "por_mes": round(presupuesto_mes, 2), "sin_pagar": sin_pagar}
+
+
+# ---------------------------------------------------------------- tipo de cambio: buen momento
+
+def alerta_cambio(umbral: float = 0.03) -> Optional[str]:
+    """Si hoy el dolar esta bastante mas alto o mas bajo que su promedio de 30 dias (en rublos y en soles)."""
+    h = ajustes().get("historial_tc", {})
+    dias = sorted(h)
+    if len(dias) < 10:
+        return None
+    hoy_ = h[dias[-1]]
+    previos = [h[x] for x in dias[-31:-1]]
+    out = []
+    for nombre, valor in (("rublos", lambda v: v["USD"] / v["RUB"]), ("soles", lambda v: v["USD"])):
+        actual = valor(hoy_)
+        prom = sum(valor(v) for v in previos) / len(previos)
+        dif = (actual - prom) / prom
+        simbolo = "₽" if nombre == "rublos" else "S/"
+        if dif >= umbral:
+            out.append("💱 El dólar está alto en %s: %s %.2f (promedio del mes %s %.2f, +%.1f%%). Buen momento para cambiar dólares a %s."
+                       % (nombre, simbolo, actual, simbolo, prom, dif * 100, nombre))
+        elif dif <= -umbral:
+            out.append("💱 El dólar está barato en %s: %s %.2f (promedio del mes %s %.2f, %.1f%%). Buen momento para comprar dólares."
+                       % (nombre, simbolo, actual, simbolo, prom, dif * 100))
+    return "\n".join(out) or None
 
 
 # ---------------------------------------------------------------- suscripciones

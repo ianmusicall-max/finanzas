@@ -900,3 +900,107 @@ class VerYAjustar(Base):
         self.bot.procesar(boton("m:ajustar"))
         self.toca("Pagar una deuda")
         self.assertIn("¿A qué deuda le pagaste?", self.tg.ultimo)
+
+
+class RecordatoriosYPlan(Base):
+    def rec(self, nombre, dia, tipo="Otro", monto=None, moneda="PEN", categoria=None, deuda=""):
+        from notion import p_number, p_select, p_text, p_title
+        props = {"Recordatorio": p_title(nombre), "Día": p_number(dia), "Tipo": p_select(tipo), "Moneda": p_select(moneda),
+                 "Estado": p_select("Activo"), "Deuda": p_text(deuda)}
+        if monto:
+            props["Monto"] = p_number(monto)
+        if categoria:
+            props["Categoría"] = p_select(categoria)
+        return self.n.crear_pagina("db-rec", props)["id"]
+
+    def test_avisos_del_dia_y_botones(self):
+        import avisos
+        hoy = F.hoy()
+        self.rec("Retirar dinero de Payoneer", hoy.day, "Retiro")
+        self.rec("Pagar servicios", hoy.day, "Pago", 350, "PEN", "Servicios")
+        self.rec("Otro día", (hoy.day % 28) + 1, "Otro")
+        msgs = avisos.mensajes(self.n, self.bot.bases)
+        textos = [t for t, _ in msgs]
+        self.assertTrue(any("Retirar dinero de Payoneer" in t for t in textos))
+        self.assertFalse(any("Otro día" in t for t in textos))
+        pago = next(b for t, b in msgs if "Pagar servicios" in t)
+        self.bot.procesar(boton(pago[0][0][1]))                  # ✅ Pagado S/ 350
+        self.assertEqual((self.movs[-1]["Categoría"], self.movs[-1]["Monto"]), ("Servicios", 350))
+        retiro = next(b for t, b in msgs if "Payoneer" in t)
+        self.bot.procesar(boton(retiro[0][1][1]))               # ⏰ Mañana
+        self.assertIn("Te lo recuerdo mañana", self.tg.ultimo)
+        textos = [t for t, _ in avisos.mensajes(self.n, self.bot.bases)]
+        self.assertFalse(any("Pagar servicios" in t for t in textos))   # ya esta hecho este mes
+        self.assertFalse(any("Payoneer" in t for t in textos))          # pospuesto para mañana
+
+    def test_fin_de_mes_y_cuota_de_banco(self):
+        self.di("/deuda Banco Falabella 15751")
+        self.n.dbs["db-deu"][0]["Cuota mensual"] = 1374
+        self.di("/activo Interbank soles 5000")
+        self.rec("Cuota Banco Falabella", 31, "Deuda", 1374, "PEN", deuda="Banco Falabella")
+        r = F.recordatorios(self.n, self.bot.bases)[0]
+        fin = F.mes().hasta
+        self.assertEqual(F.dia_del_mes(31, fin), fin.day)       # el 31 cae el ultimo dia del mes
+        t = self.di("/pagos")
+        self.assertIn("Cuota Banco Falabella", t)
+        self.toca("Pagar")
+        self.assertEqual(self.n.dbs["db-deu"][0]["Saldo"], 15751 - 1374)
+        self.assertIn("¿De qué cuenta salió el pago?", self.tg.ultimo)
+        self.assertIn("✅ Cuota Banco Falabella", self.di("/pagos"))
+
+    def test_proyeccion(self):
+        F.fijar_tipo_de_cambio("RUB", 0.05)
+        self.rec("Apartamento", 28, "Pago", 2000, "PEN", "Vivienda")
+        self.di("/limite 20")
+        self.di("+3000 sueldo")
+        self.toca("No esta vez")
+        self.di("100 supermercado")
+        p = F.proyeccion(self.n, self.bot.bases)
+        dias = (F.mes().hasta - F.hoy()).days
+        self.assertEqual(p["cierre"], round(3000 - 100 - 2000 - 20 * dias, 2))
+        self.assertIn("cierras el mes con", self.di("/proyeccion"))
+        self.assertIn("cierras el mes con", self.di("/start"))
+
+    def test_plan_de_deudas(self):
+        lista = [{"deuda": "A", "saldo_s": 1000, "cuota": 100, "moneda": "PEN", "tasa": 0},
+                 {"deuda": "B", "saldo_s": 300, "cuota": 0, "moneda": "PEN", "tasa": 0}]
+        base = F.plan_deudas(lista, 0)
+        self.assertEqual((base["meses"], base["sin_pagar"]), (13, []))   # la cuota de A pasa a B al terminar
+        self.assertEqual(F.plan_deudas([lista[1]], 0)["sin_pagar"], ["B"])   # sin cuota ni extra no termina
+        p = F.plan_deudas(lista, 100)
+        self.assertEqual(p["fin"]["B"], 3)                      # el extra va primero a la mas chica
+        self.assertEqual(p["meses"], 7)                         # 1300 / 200 al mes
+        con_tasa = F.plan_deudas([{"deuda": "C", "saldo_s": 1200, "cuota": 100, "moneda": "PEN", "tasa": 0.12}], 0)
+        self.assertGreater(con_tasa["meses"], 12)
+        self.assertGreater(con_tasa["intereses"], 0)
+        self.di("/deuda Banco SIP 16224")
+        self.n.dbs["db-deu"][0]["Cuota mensual"] = 1500
+        t = self.di("/plan 300 usd")
+        self.assertIn("Solo con las cuotas", t)
+        self.assertIn("Con $ 300.00 extra al mes", t)
+
+    def test_ingresos_por_fuente_y_grafico(self):
+        self.di("+1000 usd facebook")
+        self.di("+500 freshtunes")
+        t = self.di("/ingresos")
+        self.assertIn("Facebook", t)
+        self.assertIn("Freshtunes", t)
+        self.assertIn("Por mes", t)
+        self.assertIn("todavía no hay gastos", self.di("/grafico"))
+        self.di("120 supermercado")
+        self.di("/grafico")
+        self.assertTrue(self.tg.fotos[-1][1].startswith("https://quickchart.io/chart?"))
+
+    def test_alerta_de_tipo_de_cambio(self):
+        a = F.ajustes()
+        h = {}
+        for k in range(15):
+            h["2026-09-%02d" % (k + 1)] = {"USD": 3.4, "EUR": 3.9, "RUB": 3.4 / 80}
+        h["2026-09-20"] = {"USD": 3.4, "EUR": 3.9, "RUB": 3.4 / 86}      # 86 rublos por dolar: +7.5%
+        a["historial_tc"] = h
+        F._guardar_ajustes(a)
+        self.assertIn("El dólar está alto en rublos", F.alerta_cambio())
+        h["2026-09-20"] = {"USD": 3.4, "EUR": 3.9, "RUB": 3.4 / 80.5}
+        a["historial_tc"] = h
+        F._guardar_ajustes(a)
+        self.assertIsNone(F.alerta_cambio())

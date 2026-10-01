@@ -1,0 +1,18 @@
+# Recordatorios de pagos, aviso de tipo de cambio y renovaciones. Lo dispara finanzas-avisos.timer.
+[Unit]
+Description=Avisos de finanzas por Telegram
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=finanzas
+Group=finanzas
+WorkingDirectory=/opt/finanzas
+ExecStart=/opt/finanzas/.venv/bin/python avisos.py
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=America/Lima
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/finanzas/data

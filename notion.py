@@ -188,8 +188,9 @@ def _num(formato: str = "number") -> dict:
 MOVIMIENTOS, PRESUPUESTO, PATRIMONIO, METAS, RESUMENES = "Movimientos", "Presupuesto", "Patrimonio", "Metas", "Resúmenes"
 DEUDAS = "Deudas"
 SUSCRIPCIONES = "Suscripciones"
+RECORDATORIOS = "Recordatorios"
 ICONOS = {MOVIMIENTOS: "💸", PRESUPUESTO: "🧾", PATRIMONIO: "🏦", METAS: "🎯", RESUMENES: "📊", DEUDAS: "💳",
-          SUSCRIPCIONES: "🔁"}
+          SUSCRIPCIONES: "🔁", RECORDATORIOS: "🔔"}
 TIPOS_DEUDA = ["Tarjeta de crédito", "Préstamo", "Hipoteca", "Persona", "Otra"]
 
 
@@ -255,6 +256,17 @@ def esquemas() -> dict:
             "Patrimonio neto S/": _num(),
             "Principales gastos": {"rich_text": {}},
             "Alertas": {"rich_text": {}},
+        },
+        RECORDATORIOS: {
+            "Recordatorio": {"title": {}},
+            "Día": _num(),
+            "Tipo": _sel(["Pago", "Deuda", "Retiro", "Otro"]),
+            "Monto": _num(),
+            "Moneda": _sel(C.MONEDAS),
+            "Categoría": _sel(C.nombres("Gasto")),
+            "Deuda": {"rich_text": {}},
+            "Último": {"date": {}},
+            "Estado": _sel(["Activo", "Pausado"]),
         },
         SUSCRIPCIONES: {
             "Suscripción": {"title": {}},

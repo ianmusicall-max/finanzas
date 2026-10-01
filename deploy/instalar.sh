@@ -15,7 +15,7 @@ chmod 600 .env && chown finanzas:finanzas .env
 sudo -u finanzas .venv/bin/python setup_notion.py
 cp deploy/systemd/finanzas-* /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now finanzas-bot finanzas-diario.timer finanzas-semanal.timer finanzas-mensual.timer finanzas-autoupdate.timer
+systemctl enable --now finanzas-bot finanzas-diario.timer finanzas-semanal.timer finanzas-mensual.timer finanzas-autoupdate.timer finanzas-avisos.timer
 sleep 3
 systemctl is-active finanzas-bot
 systemctl list-timers 'finanzas-*' --no-pager

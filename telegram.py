@@ -114,6 +114,10 @@ class Telegram:
             raise TelegramError("sendDocument: %s" % str(data.get("description", ""))[:200], data.get("error_code"))
         return data.get("result") or {}
 
+    def enviar_foto(self, chat_id: int, url: str, texto: str = "") -> dict:
+        """Manda una imagen a partir de su URL (Telegram la descarga)."""
+        return self._req("sendPhoto", chat_id=chat_id, photo=url, caption=texto[:1000], parse_mode="HTML") or {}
+
     def quitar_botones(self, chat_id: int, message_id: int) -> None:
         """Apaga los botones de un mensaje que ya no espera respuesta."""
         try:

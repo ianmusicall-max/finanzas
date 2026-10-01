@@ -100,6 +100,11 @@ class Informe:
             l.append("")
             l.append("<b>📏 Día a día</b>")
             l.extend(lim)
+        if p.tipo != "Diario" and p.desde <= F.hoy() <= p.hasta:
+            pro = lineas_proyeccion(F.proyeccion(self.notion, self.bases, F.hoy()))
+            if pro:
+                l.append("")
+                l.extend(pro)
         if p.tipo == "Diario":
             proximas = F.renovaciones(self.notion, self.bases, min(p.hasta, F.hoy()))
             if proximas:
@@ -334,3 +339,152 @@ def texto_deudas(notion, bases: dict) -> str:
         l.append("📅 Cuotas al mes: %s" % F.s(cuotas))
     l.append("Para registrar un pago: <code>/pago %s 300</code>" % esc(lista[0]["deuda"].split()[-1]))
     return "\n".join(l)
+
+
+# ---------------------------------------------------------------- pagos del mes (recordatorios)
+
+def fecha_corta(dia: Optional[int], d: date) -> str:
+    return "día %d" % F.dia_del_mes(dia, d) if dia else "sin día"
+
+
+def monto_rec(r: dict) -> str:
+    return "" if not r["monto"] else " · %s" % F.en_moneda(r["monto"], r["moneda"])
+
+
+def texto_pagos(notion, bases: dict, d: Optional[date] = None) -> str:
+    d = d or F.hoy()
+    todos = F.recordatorios(notion, bases)
+    if not todos:
+        return "🔔 <b>Pagos del mes</b>\n\nTodavía no hay recordatorios."
+    l = ["🔔 <b>Pagos y recordatorios de %s</b>" % F.MESES[d.month - 1], ""]
+    for r in todos:
+        hecho = F.hecho_este_mes(r, d)
+        marca = "✅" if hecho else ("⏰" if r["dia"] and F.dia_del_mes(r["dia"], d) < d.day else "▫️")
+        l.append("%s %s · %s%s" % (marca, esc(r["nombre"]), fecha_corta(r["dia"], d), monto_rec(r)))
+    pend = [r for r in todos if not F.hecho_este_mes(r, d)]
+    if pend:
+        total = sum(F.soles(r["monto"], r["moneda"]) for r in pend if r["monto"] and r["tipo"] in ("Pago", "Deuda"))
+        if total:
+            l.append("")
+            l.append("Falta pagar este mes: %s" % F.s3(total))
+    l.append("")
+    l.append("<i>⏰ = ya pasó la fecha y no está marcado. Toca un botón cuando lo hagas.</i>")
+    return "\n".join(l)
+
+
+def texto_aviso(r: dict) -> str:
+    verbo = {"Retiro": "🏧", "Deuda": "💳", "Pago": "🔔"}.get(r["tipo"], "🔔")
+    return "%s <b>Hoy toca: %s</b>%s" % (verbo, esc(r["nombre"]), monto_rec(r))
+
+
+# ---------------------------------------------------------------- proyeccion del mes
+
+def lineas_proyeccion(p: Optional[dict]) -> list:
+    if not p:
+        return []
+    marca = "🟢" if p["cierre"] >= 0 else "🔴"
+    l = ["%s <b>Si no entra más dinero, cierras el mes con %s</b>" % (marca, F.s3(p["cierre"]))]
+    l.append("    Entró %s · gastaste %s · ahorraste %s" % (F.s(p["ingresos"]), F.s(p["gastos"]), F.s(p["ahorro"])))
+    if p["fijos"]:
+        l.append("    Faltan pagos fijos: %s" % F.s(p["fijos"]))
+    if p["dias"]:
+        l.append("    Día a día de los %d días que quedan: %s" % (p["dias"], F.s(p["dia_a_dia"])))
+    return l
+
+
+def texto_proyeccion(notion, bases: dict) -> str:
+    p = F.proyeccion(notion, bases)
+    if not p:
+        return "📈 <b>Proyección del mes</b>\n\nTodavía no hay movimientos este mes."
+    return "\n".join(["📈 <b>Proyección de %s</b>" % F.MESES[F.hoy().month - 1], ""] + lineas_proyeccion(p))
+
+
+# ---------------------------------------------------------------- plan para salir de deudas
+
+def _cuando(meses: Optional[int]) -> str:
+    if meses is None:
+        return "no termina (alguna deuda no tiene cuota)"
+    fin = F.sumar_meses(F.hoy().replace(day=1), meses)
+    return "%s %d (%d meses)" % (F.MESES[fin.month - 1].lower(), fin.year, meses)
+
+
+def texto_plan(notion, bases: dict, extra_s: Optional[float] = None, extra_txt: str = "") -> str:
+    lista = F.deudas(notion, bases)
+    if not lista:
+        return "🎉 No tienes deudas activas."
+    total = sum(d["saldo_s"] for d in lista)
+    base = F.plan_deudas(lista, 0)
+    l = ["📉 <b>Plan para salir de deudas</b> · debes %s" % F.s3(total), ""]
+    l.append("Solo con las cuotas (%s al mes): <b>%s</b>" % (F.s(base["por_mes"]), _cuando(base["meses"])))
+    if base["sin_pagar"]:
+        l.append("<i>Sin cuota: %s. Ponles una en Notion o págalas con el extra.</i>" % esc(", ".join(base["sin_pagar"])))
+    extras = [(extra_s, extra_txt)] if extra_s else [(F.soles(x, "USD"), "$%d" % x) for x in (200, 500)]
+    for e, txt in extras:
+        p = F.plan_deudas(lista, e)
+        l.append("Con %s extra al mes: <b>%s</b>" % (txt or F.s(e), _cuando(p["meses"])))
+    con = F.plan_deudas(lista, extras[-1][0])
+    l.append("")
+    l.append("<b>Orden para el dinero extra</b> (%s):" % ("la de más interés primero" if any(d["tasa"] for d in lista)
+                                                         else "la más chica primero: bola de nieve"))
+    for k, nombre in enumerate(con["orden"], 1):
+        mes_fin = con["fin"].get(nombre)
+        l.append("%d. %s%s" % (k, esc(nombre), " · terminas en %s" % _cuando(mes_fin).split(" (")[0] if mes_fin else ""))
+    if con["intereses"]:
+        l.append("")
+        l.append("Intereses que pagarías en el camino: ≈ %s" % F.s(con["intereses"]))
+    l.append("")
+    l.append("<i>Prueba con otro monto: /plan 300 usd · /plan 1000</i>")
+    return "\n".join(l)
+
+
+# ---------------------------------------------------------------- ingresos por fuente
+
+def texto_ingresos(notion, bases: dict, meses: int = 6) -> str:
+    hoy = F.hoy()
+    ini = F.sumar_meses(hoy.replace(day=1), -(meses - 1))
+    movs = [m for m in F.movimientos(notion, bases, ini, hoy) if m["tipo"] == "Ingreso"]
+    if not movs:
+        return "💰 <b>Ingresos por fuente</b>\n\nTodavía no hay ingresos anotados."
+    claves = [F.sumar_meses(ini, k).isoformat()[:7] for k in range(meses)]
+    por = {}
+    for m in movs:
+        por.setdefault(m["categoria"], {}).setdefault(m["fecha"][:7], 0)
+        por[m["categoria"]][m["fecha"][:7]] += m["monto_s"]
+    este, antes = claves[-1], claves[-2] if len(claves) > 1 else None
+    l = ["💰 <b>Ingresos por fuente</b> · últimos %d meses" % meses, ""]
+    for cat, vals in sorted(por.items(), key=lambda x: -sum(x[1].values())):
+        tot = sum(vals.values())
+        ahora, previo = vals.get(este, 0), vals.get(antes, 0) if antes else 0
+        flecha = "" if not previo else (" ↑" if ahora > previo else " ↓" if ahora < previo else " =")
+        l.append("%s <b>%s</b>: %s en total" % (C.emoji("Ingreso", cat), esc(cat), F.s3(tot)))
+        l.append("    este mes %s · mes pasado %s%s" % (F.s(ahora), F.s(previo), flecha))
+    l.append("")
+    l.append("<b>Por mes</b>")
+    for k in claves:
+        v = sum(vals.get(k, 0) for vals in por.values())
+        l.append("%s %d: %s" % (F.MESES[int(k[5:7]) - 1][:3], int(k[:4]), F.s3(v)))
+    return "\n".join(l)
+
+
+# ---------------------------------------------------------------- grafico de la semana (imagen)
+
+def url_grafico_semana(notion, bases: dict, d: Optional[date] = None) -> Optional[str]:
+    """Imagen de barras de los gastos de la semana por categoria, hecha por quickchart.io (gratis, sin clave)."""
+    import json
+    from urllib.parse import quote
+    d = d or F.hoy()
+    sem = F.semana(d)
+    r = F.resumir(F.movimientos(notion, bases, sem.desde, min(sem.hasta, d)), sem)
+    top = r.top(8)
+    if not top:
+        return None
+    titulo = "Gastos %s - %s: S/ %s" % (sem.desde.strftime("%d/%m"), sem.hasta.strftime("%d/%m"), "{:,.0f}".format(r.gastos))
+    lim = F.estado_limite(notion, bases, min(sem.hasta, d))
+    if lim:
+        tc = F.tipo_de_cambio(lim["moneda"])
+        titulo += " | dia a dia S/ %s de S/ %s" % ("{:,.0f}".format(lim["semana"]["gastado"] * tc), "{:,.0f}".format(lim["semana"]["tope"] * tc))
+    cfg = {"type": "horizontalBar",
+           "data": {"labels": [c for c, _ in top], "datasets": [{"label": "S/", "data": [round(v, 2) for _, v in top],
+                                                                  "backgroundColor": "#2F5597"}]},
+           "options": {"title": {"display": True, "text": titulo}, "legend": {"display": False}}}
+    return "https://quickchart.io/chart?w=700&h=420&bkg=white&c=" + quote(json.dumps(cfg, ensure_ascii=False, separators=(",", ":")))

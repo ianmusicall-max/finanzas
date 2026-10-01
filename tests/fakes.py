@@ -4,7 +4,7 @@ import itertools
 
 from notion import leer
 
-BASES = {"Movimientos": "db-mov", "Presupuesto": "db-pre", "Patrimonio": "db-pat", "Metas": "db-met", "Resúmenes": "db-res", "Deudas": "db-deu", "Suscripciones": "db-sus"}
+BASES = {"Movimientos": "db-mov", "Presupuesto": "db-pre", "Patrimonio": "db-pat", "Metas": "db-met", "Resúmenes": "db-res", "Deudas": "db-deu", "Suscripciones": "db-sus", "Recordatorios": "db-rec"}
 
 
 def _plano(props: dict) -> dict:
@@ -89,6 +89,7 @@ class FakeTelegram:
         self.enviados = []
         self.apagados = []
         self.documentos = []
+        self.fotos = []
 
     def enviar(self, chat, texto, botones=None):
         self.enviados.append((chat, texto, botones))
@@ -97,6 +98,10 @@ class FakeTelegram:
     def enviar_documento(self, chat, nombre, contenido, texto=""):
         self.documentos.append((chat, nombre, contenido, texto))
         return {"message_id": len(self.enviados)}
+
+    def enviar_foto(self, chat, url, texto=""):
+        self.fotos.append((chat, url, texto))
+        return {}
 
     def quitar_botones(self, chat, message_id):
         self.apagados.append((chat, message_id))

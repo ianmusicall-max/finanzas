@@ -15,7 +15,7 @@ from datetime import date, timedelta
 
 import finanzas as F
 from config import TELEGRAM_USUARIOS
-from informes import Informe
+from informes import Informe, url_grafico_semana
 from notion import Notion, NotionError, cargar_bases
 from telegram import Telegram, TelegramError
 
@@ -65,10 +65,18 @@ def main(argv=None) -> int:
     except TelegramError as exc:
         print(exc)
         return 1
+    grafico = None
+    if a.tipo == "semanal":
+        try:
+            grafico = url_grafico_semana(inf.notion, bases, fecha)
+        except NotionError:
+            grafico = None
     fallo = 0
     for chat in sorted(TELEGRAM_USUARIOS):
         try:
             tg.enviar(chat, texto)
+            if grafico:
+                tg.enviar_foto(chat, grafico, "🖼 Tus gastos de la semana por categoría")
         except TelegramError as exc:
             print("  [telegram] %s: %s" % (chat, exc))
             fallo = 1

@@ -16,5 +16,6 @@ if ! .venv/bin/python -m unittest discover -s tests -t . -q; then
 fi
 sudo -u finanzas .venv/bin/python setup_notion.py >/dev/null   # agrega columnas nuevas si las hay
 cp deploy/systemd/finanzas-* /etc/systemd/system/ && systemctl daemon-reload
+systemctl enable -q --now finanzas-avisos.timer   # recordatorios de cada mañana
 systemctl restart finanzas-bot
 echo "Actualizado de ${antes:0:7} a $(git rev-parse --short HEAD)."

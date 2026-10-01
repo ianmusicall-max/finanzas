@@ -1,0 +1,11 @@
+# Todos los días a las 09:00 (hora de Lima): recordatorios de pagos y avisos
+[Unit]
+Description=Avisos de finanzas cada mañana
+
+[Timer]
+OnCalendar=*-*-* 09:00:00 America/Lima
+Persistent=true
+Unit=finanzas-avisos.service
+
+[Install]
+WantedBy=timers.target

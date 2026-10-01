@@ -37,6 +37,11 @@ AYUDA = (
     "/excel · todo en un Excel con gráficos\n"
     "/limite · cuánto llevas gastado hoy, en la semana y en el mes\n"
     "/suscripciones · tus suscripciones y cuándo se renuevan\n"
+    "/pagos · pagos y recordatorios del mes (servicios, bancos, retiros)\n"
+    "/proyeccion · cómo cierras el mes si no entra más dinero\n"
+    "/plan · cuándo terminas de pagar tus deudas (y con extra: /plan 300 usd)\n"
+    "/ingresos · cuánto deja cada fuente, mes a mes\n"
+    "/grafico · imagen con los gastos de la semana\n"
     "/consejos · qué mejorar según tus números\n"
     "/metodos · formas de manejar tu dinero\n"
     "/ultimos · lo último que anotaste\n\n"
@@ -53,8 +58,9 @@ MENU = [[("➖ Gasto", "m:gasto"), ("➕ Ingreso", "m:ingreso"), ("🐷 Ahorro",
         [("📅 Hoy", "m:hoy"), ("🗓 Semana", "m:semana"), ("📆 Mes", "m:mes")],
         [("📏 Límite", "m:limite"), ("🧾 Presupuesto", "m:presupuesto"), ("💳 Deudas", "m:deudas")],
         [("🏦 Patrimonio", "m:patrimonio"), ("🎯 Metas", "m:metas"), ("🔁 Suscripciones", "m:suscripciones")],
-        [("📊 Excel", "m:excel"), ("💡 Consejos", "m:consejos"), ("🧾 Últimos", "m:ultimos")],
-        [("💱 Tipo de cambio", "m:tc"), ("⚙️ Ajustar", "m:ajustar")]]
+        [("🔔 Pagos del mes", "m:pagos"), ("📈 Proyección", "m:proyeccion"), ("📉 Plan deudas", "m:plan")],
+        [("💰 Ingresos", "m:ingresos"), ("📊 Excel", "m:excel"), ("🖼 Gráfico", "m:grafico")],
+        [("💡 Consejos", "m:consejos"), ("💱 Tipo de cambio", "m:tc"), ("⚙️ Ajustar", "m:ajustar")]]
 
 MENU_VER = [[("📏 Límite", "m:limite"), ("🧾 Presupuesto", "m:presupuesto")],
             [("💳 Deudas", "m:deudas"), ("🏦 Patrimonio", "m:patrimonio")],
@@ -564,6 +570,9 @@ class Bot:
                 F.cambiar_categoria(self.notion, partes[1], tipo, cat)
                 aviso = self._aviso_presupuesto(cat) if tipo == "Gasto" else ""
                 self.decir(chat, "🏷 Listo: %s %s%s" % (C.emoji(tipo, cat), esc(cat), "\n" + aviso if aviso else ""))
+            elif partes[0] == "rc" and len(partes) == 3:
+                self.tg.quitar_botones(chat, message_id)
+                self._boton_recordatorio(chat, partes[1], partes[2])
             elif partes[0] == "sc":
                 self.tg.quitar_botones(chat, message_id)
                 self._boton_suscripcion(chat, partes[1])
@@ -643,6 +652,16 @@ class Bot:
             lista = inf.consejos or ["🟢 No veo nada preocupante este mes. Sigue anotando todo."]
             self.decir(chat, "💡 <b>Qué mejorar</b> (con lo que va de %s)\n\n%s\n\nMás ideas: /metodos" % (
                 F.MESES[F.hoy().month - 1], "\n\n".join(esc(c) for c in lista)))
+        elif cmd in ("/pagos", "/recordatorios", "/fijos"):
+            self._pagos(chat)
+        elif cmd in ("/proyeccion", "/proyección"):
+            self.decir(chat, I.texto_proyeccion(self.notion, self.bases))
+        elif cmd == "/plan":
+            self._plan(chat, arg)
+        elif cmd == "/ingresos":
+            self.decir(chat, I.texto_ingresos(self.notion, self.bases))
+        elif cmd in ("/grafico", "/gráfico"):
+            self._grafico(chat)
         elif cmd in ("/suscripciones", "/suscripcion"):
             self._suscripcion_cmd(chat, arg)
         elif cmd in ("/limite", "/limites"):
@@ -746,6 +765,11 @@ class Bot:
             metas = [m for m in F.metas(self.notion, self.bases) if m["avance"] < 1]
             if metas:
                 l.append("🎯 " + " · ".join("%s %s" % (esc(m["meta"]), F.pct(m["avance"])) for m in metas[:4]))
+            for r in F.avisos_de_hoy(self.notion, self.bases, hoy):
+                l.append("🔔 Hoy toca: %s%s" % (esc(r["nombre"]), I.monto_rec(r)))
+            pro = F.proyeccion(self.notion, self.bases, hoy)
+            if pro:
+                l.append("%s Si no entra más dinero, cierras el mes con %s" % ("📈" if pro["cierre"] >= 0 else "📉", F.s3(pro["cierre"])))
             for x in F.renovaciones(self.notion, self.bases, hoy, 3):
                 l.append("🔁 %s se renueva el %s" % (esc(x["nombre"]), "/".join(reversed(x["proximo"][5:10].split("-")))))
         except NotionError:
@@ -753,6 +777,64 @@ class Bot:
         l.append("")
         l.append("Anotar: /gasto · /ingreso · /ahorro · /inversion\nTodos los comandos: /ayuda")
         return "\n".join(l)
+
+    # ---- pagos del mes, proyeccion, plan de deudas y grafico
+    def _botones_recordatorios(self, lista: list) -> list:
+        import avisos
+        filas = []
+        for r in lista[:10]:
+            hacer = avisos.botones_aviso(r)[0][0]
+            filas.append([("%s · %s" % (hacer[0], r["nombre"]), hacer[1])])
+        return filas
+
+    def _pagos(self, chat) -> None:
+        pend = F.pendientes_del_mes(self.notion, self.bases)
+        self.decir(chat, I.texto_pagos(self.notion, self.bases), self._botones_recordatorios(pend) or None)
+
+    def _boton_recordatorio(self, chat, accion: str, rid: str) -> None:
+        r = next((x for x in F.recordatorios(self.notion, self.bases) if _pid(x["id"]) == rid), None)
+        if not r:
+            self.decir(chat, "Ese recordatorio ya no existe. Mira /pagos.")
+            return
+        if accion == "m":
+            dia = F.posponer(r["id"])
+            self.decir(chat, "⏰ Te lo recuerdo mañana (%s): %s" % (dia.strftime("%d/%m"), esc(r["nombre"])))
+            return
+        if accion == "d":
+            d = F.buscar_deuda(F.deudas(self.notion, self.bases), r["deuda"])
+            if not d:
+                self.decir(chat, "No encuentro la deuda «%s». Mira /deudas." % esc(r["deuda"]))
+                return
+            F.marcar_hecho(self.notion, r)
+            self._registrar_pago(chat, d, r["monto"] or d["cuota"] or d["saldo"], r["moneda"] if r["monto"] else None)
+            return
+        if accion == "p":
+            mov = Movimiento(tipo="Gasto", monto=r["monto"], moneda=r["moneda"], descripcion=r["nombre"],
+                             categoria=r["categoria"], fecha=F.hoy(), cuenta="Gastos")
+            F.marcar_hecho(self.notion, r)
+            self._guardar(chat, mov)
+            return
+        F.marcar_hecho(self.notion, r)
+        self.decir(chat, "✅ Listo: %s (marcado este mes)." % esc(r["nombre"]))
+
+    def _plan(self, chat, arg: str) -> None:
+        extra, txt = None, ""
+        m = re.search(r"\d[\d.,]*", arg or "")
+        if m:
+            moneda = next((v for k, v in MONEDAS.items() if k in C.normal(arg).split()), "PEN")
+            n = _numero(m.group(0))
+            extra, txt = F.soles(n, moneda), F.en_moneda(n, moneda)
+        self.decir(chat, I.texto_plan(self.notion, self.bases, extra, txt))
+
+    def _grafico(self, chat) -> None:
+        url = I.url_grafico_semana(self.notion, self.bases)
+        if not url:
+            self.decir(chat, "🖼 Esta semana todavía no hay gastos para graficar.")
+            return
+        try:
+            self.tg.enviar_foto(chat, url, "🖼 Tus gastos de la semana por categoría")
+        except TelegramError as exc:
+            self.decir(chat, "⚠️ No pude mandar el gráfico: %s" % esc(str(exc)[:200]))
 
     def _limite(self, chat, arg: str) -> None:
         if not arg:

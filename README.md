@@ -132,6 +132,23 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
   día sin tope no se marcan si hay `/limite`, porque ya las controla el límite. Se avisa al anotarlo y el resumen
   semanal y mensual lista lo imprevisto con su total.
 
+## Recordatorios, proyección, plan de deudas, ingresos y gráfico
+
+- **Recordatorios** (base 🔔 Recordatorios: nombre, día del mes, tipo Pago/Deuda/Retiro/Otro, monto, moneda,
+  categoría, deuda). `avisos.py` corre cada mañana (`finanzas-avisos.timer`, 09:00) y avisa lo que toca hoy con
+  botones: **Pagado** (Pago con monto: anota el gasto), **Pagar** (Deuda: registra la cuota y pregunta de qué cuenta
+  salió), **Hecho** (Retiro/Otro) y **Mañana** (pospone un día). El día 30/31 cae en el último día de los meses
+  cortos. `/pagos` lista todo el mes con lo hecho y lo pendiente.
+- **Proyección** (`/proyeccion`, en `/start` y en los resúmenes): cómo cierras el mes si no entra más dinero
+  = lo que entró − lo gastado − lo ahorrado − pagos fijos pendientes − día a día de los días que quedan.
+- **Plan de deudas** (`/plan`, `/plan 300 usd`): mes en que terminas pagando solo las cuotas y con dinero extra;
+  las cuotas liberadas pasan a la siguiente; el extra va a la de más interés (o a la más chica).
+- **Ingresos por fuente** (`/ingresos`): cada fuente en los últimos 6 meses, este mes contra el anterior.
+- **Gráfico** (`/grafico` y cada domingo con el resumen): imagen de los gastos de la semana por categoría, hecha
+  por quickchart.io (gratis, sin clave; recibe solo los nombres de categoría y los montos).
+- **Aviso de tipo de cambio**: con los avisos de la mañana, si el dólar está 3% o más por encima o por debajo de
+  su promedio de 30 días (en rublos y en soles).
+
 ## Suscripciones
 
 Base **Suscripciones** en Notion (nombre, monto, moneda, cada cuántos meses, próximo pago). Al anotar un gasto de
