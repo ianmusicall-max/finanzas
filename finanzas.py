@@ -197,6 +197,65 @@ def mes(d: Optional[date] = None) -> Periodo:
     return Periodo("Mensual", d.replace(day=1), d.replace(day=monthrange(d.year, d.month)[1]))
 
 
+# ---------------------------------------------------------------- limite del dia a dia
+
+SIMBOLO = {"PEN": "S/ ", "USD": "$ ", "RUB": "₽ ", "EUR": "€ "}
+
+
+def en_moneda(monto: float, moneda: str) -> str:
+    """₽ 1,500 · $ 19.00 · S/ 64.00"""
+    if moneda == "RUB":
+        return "₽ {:,.0f}".format(monto)
+    return SIMBOLO.get(moneda, moneda + " ") + "{:,.2f}".format(monto)
+
+
+def limite() -> Optional[tuple]:
+    """(monto por dia, moneda) que se fijo con /limite, o None."""
+    l = ajustes().get("limite") or {}
+    return (float(l["monto"]), l.get("moneda", "PEN")) if l.get("monto") else None
+
+
+def fijar_limite(monto: float, moneda: str = "PEN") -> None:
+    a = ajustes()
+    if monto > 0:
+        a["limite"] = {"monto": round(float(monto), 2), "moneda": moneda}
+    else:
+        a.pop("limite", None)
+    _guardar_ajustes(a)
+
+
+def es_dia_a_dia(m: dict) -> bool:
+    return m["tipo"] == "Gasto" and m["categoria"] not in C.CATEGORIAS_FIJAS
+
+
+def estado_limite(notion, bases: dict, d: Optional[date] = None) -> Optional[dict]:
+    """Cuanto va del limite del dia a dia hoy, en la semana y en el mes, en la moneda del limite.
+    La semana vale 7 dias de limite y el mes, los dias que tenga."""
+    lim = limite()
+    if not lim or MOVIMIENTOS not in bases:
+        return None
+    por_dia, moneda = lim
+    d = d or hoy()
+    sem, m = semana(d), mes(d)
+    desde = min(sem.desde, m.desde)
+    movs = [x for x in movimientos(notion, bases, desde, d) if es_dia_a_dia(x)]
+    tc = tipo_de_cambio(moneda)
+    out = {"moneda": moneda, "por_dia": por_dia}
+    for clave, ini, fin in (("dia", d, d), ("semana", sem.desde, sem.hasta), ("mes", m.desde, m.hasta)):
+        dias = (fin - ini).days + 1
+        tope = round(por_dia * dias, 2)
+        gastado = round(sum(x["monto_s"] for x in movs if ini.isoformat() <= x["fecha"] <= d.isoformat()) / tc, 2)
+        quedan_dias = (fin - d).days + 1
+        queda = round(tope - gastado, 2)
+        out[clave] = {"gastado": gastado, "tope": tope, "queda": queda, "usado": gastado / tope if tope else 0,
+                      "dias": quedan_dias, "por_dia": round(max(queda, 0) / quedan_dias, 2) if quedan_dias else 0}
+    return out
+
+
+def marca_limite(usado: float) -> str:
+    return "🔴" if usado > 1 else "🟡" if usado >= 0.8 else "🟢"
+
+
 # ---------------------------------------------------------------- movimientos
 
 def propiedades_movimiento(mov, origen: str = "Telegram") -> dict:

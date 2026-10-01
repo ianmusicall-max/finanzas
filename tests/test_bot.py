@@ -654,3 +654,35 @@ class PagarConBotones(Base):
         self.assertIn("¿De qué cuenta salió el pago?", self.tg.ultimo)
         self.di("45 almuerzo")                                 # seguir anotando no se rompe
         self.assertEqual(self.movs[-1]["Tipo"], "Gasto")
+
+
+class LimiteDiaADia(Base):
+    def setUp(self):
+        super().setUp()
+        F.fijar_tipo_de_cambio("RUB", 0.05)
+
+    def test_sin_limite_explica(self):
+        self.assertIn("Aún no tienes límite", self.di("/limite"))
+        self.assertNotIn("📏", self.di("45 almuerzo"))
+
+    def test_hoy_semana_mes(self):
+        self.assertIn("₽ 1,500 por día", self.di("/limite 1500 rub"))
+        t = self.di("1200 rub supermercado")
+        self.assertIn("🟡 Hoy: ₽ 1,200 de ₽ 1,500 · quedan ₽ 300", t)   # 80%: amarillo
+        self.assertIn("Semana: ₽ 1,200 de ₽ 10,500", t)
+        dias_mes = F.mes().dias
+        self.assertIn("Mes: ₽ 1,200 de ₽ {:,.0f}".format(1500 * dias_mes), t)
+        t = self.di("55000 rub alquiler departamento")       # Vivienda: gasto fijo, no cuenta
+        self.assertEqual(self.movs[-1]["Categoría"], "Vivienda")
+        self.assertNotIn("📏", t)
+        self.assertNotIn("Hoy:", t)
+        t = self.di("500 rub taxi")
+        self.assertIn("🔴 Hoy: ₽ 1,700 de ₽ 1,500 · te pasaste ₽ 200", t)
+        self.assertIn("Día a día", self.di("/hoy"))
+        self.assertIn("Semana: ₽ 1,700 de ₽ 10,500", self.di("/semana"))
+
+    def test_quitar(self):
+        self.di("/limite 64")
+        self.assertIn("S/ 64.00 por día", self.di("/limite"))
+        self.assertIn("Quité el límite", self.di("/limite 0"))
+        self.assertIn("Aún no tienes límite", self.di("/limite"))

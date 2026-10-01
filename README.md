@@ -121,6 +121,14 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
   10% · 20% · otro monto · no esta vez, y luego la meta (o ahorro general). El ahorro no sale de la
   cuenta: es una parte del dinero que queda marcada para esa meta.
 
+## Límite del día a día
+
+`/limite 1500 rub` fija cuánto puedes gastar por día en el día a día (comida, salidas, transporte, gustos). La
+semana vale 7 días y el mes, los días que tenga. No cuentan los gastos fijos del mes (`CATEGORIAS_FIJAS` en
+`categorias.py`: vivienda, universidad, padres, servicios, suscripciones, salud…). Después de cada gasto, en
+`/hoy`, `/semana`, `/mes` y en los resúmenes automáticos aparece cuánto llevas hoy, en la semana y en el mes,
+con 🟢 / 🟡 (80%) / 🔴 (te pasaste) y cuánto te queda por día. `/limite` muestra el estado; `/limite 0` lo quita.
+
 ## Excel con gráficos
 
 `/excel` (o el botón 📊 Excel) manda por Telegram un Excel con los datos del momento y un gráfico en cada hoja:

@@ -43,6 +43,7 @@ AYUDA = (
     "/metas · avance de tus metas de ahorro\n"
     "/deudas · cuánto debes y a quién\n"
     "/excel · todo en un Excel con gráficos\n"
+    "/limite · cuánto llevas gastado hoy, en la semana y en el mes\n"
     "/consejos · qué mejorar según tus números\n"
     "/metodos · formas de manejar tu dinero\n"
     "/ultimos · lo último que anotaste\n\n"
@@ -299,6 +300,8 @@ class Bot:
             aviso = self._aviso_presupuesto(mov.categoria)
             if aviso:
                 l.append(aviso)
+            if mov.categoria not in C.CATEGORIAS_FIJAS:
+                l.extend(I.lineas_limite(F.estado_limite(self.notion, self.bases)))
         ti = C.TIPOS.index(mov.tipo)
         if not mov.adivinada:
             l.append("\n¿De qué categoría es?")
@@ -495,6 +498,8 @@ class Bot:
             lista = inf.consejos or ["🟢 No veo nada preocupante este mes. Sigue anotando todo."]
             self.decir(chat, "💡 <b>Qué mejorar</b> (con lo que va de %s)\n\n%s\n\nMás ideas: /metodos" % (
                 F.MESES[F.hoy().month - 1], "\n\n".join(esc(c) for c in lista)))
+        elif cmd in ("/limite", "/limites"):
+            self._limite(chat, arg)
         elif cmd in ("/excel", "/graficos"):
             self._excel(chat)
         elif cmd in ("/metodos", "/opciones"):
@@ -557,6 +562,21 @@ class Bot:
         _, _, net, _ = F.neto(F.patrimonio(self.notion, self.bases))
         self.decir(chat, "%s %s · %s: %s%s\n🏦 Patrimonio neto: <b>%s</b>" % (
             "🟢" if clase == "Activo" else "🔻", esc(nombre), esc(tipo), F.s3(ahora), cambio, F.s3(net)))
+
+    def _limite(self, chat, arg: str) -> None:
+        if not arg:
+            self.decir(chat, I.texto_limite(self.notion, self.bases))
+            return
+        m = re.search(r"\d[\d.,]*", arg)
+        if not m:
+            self.decir(chat, "Escribe cuánto puedes gastar por día: <code>/limite 1500 rub</code>")
+            return
+        moneda = next((v for k, v in MONEDAS.items() if k in C.normal(arg).split()), "PEN")
+        F.fijar_limite(_numero(m.group(0)), moneda)
+        if not F.limite():
+            self.decir(chat, "👌 Quité el límite del día a día.")
+            return
+        self.decir(chat, "📏 Listo.\n\n" + I.texto_limite(self.notion, self.bases))
 
     def _excel(self, chat) -> None:
         self.decir(chat, "📊 Preparando tu Excel…")

@@ -68,6 +68,11 @@ INVERSIONES = {
 CUENTAS = ["Gastos", "Salud", "Inversión", "Educación", "Export Latam", "Facebook"]
 MONEDAS = ["PEN", "RUB", "USD", "EUR"]
 
+# Gastos que se pagan una vez al mes y no cuentan para el limite del dia a dia (/limite).
+CATEGORIAS_FIJAS = {"Vivienda", "Universidad", "Padres", "Servicios", "Servicios Rusia", "Suscripciones",
+                    "Gastos financieros", "Comisiones Banco", "Cursos y aprendizaje", "Salud y Bienestar",
+                    "Citas médicas", "Medicina", "Cuidado Personal"}
+
 # Medios de pago, en el orden en que mas se usan.
 MEDIOS = ["T-Bank", "Falabella", "Interbank", "Binance", "PayPal", "Sberbank", "Payoneer", "SIP", "KuCoin",
           "Efectivo", "Tarjeta OH", "BBVA", "BCP", "Yape", "Plin"]

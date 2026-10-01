@@ -87,6 +87,12 @@ class Informe:
                 l.append("<b>En qué se fue</b>")
                 for cat, v in r.top(6):
                     l.append("%s %s: %s" % (C.emoji("Gasto", cat), esc(cat), F.s(v)))
+        lim = lineas_limite(F.estado_limite(self.notion, self.bases, min(p.hasta, F.hoy())),
+                            {"Diario": ("dia", "semana", "mes"), "Semanal": ("semana", "mes"), "Mensual": ("mes",)}[p.tipo])
+        if lim:
+            l.append("")
+            l.append("<b>📏 Día a día</b>")
+            l.extend(lim)
         if p.tipo != "Mensual" and self.mes.gastos:
             l.append("")
             gastado = self.mes.gastos
@@ -197,6 +203,39 @@ def texto_metas(notion, bases: dict) -> str:
             esc(m["meta"]), "✅" if m["avance"] >= 1 else "", barra(m["avance"]), F.pct(m["avance"]),
             F.s(m["ahorrado"]), F.s(m["objetivo"]), F.s(falta)))
     return "\n".join(l)
+
+
+NOMBRES_LIMITE = {"dia": "Hoy", "semana": "Semana", "mes": "Mes"}
+
+
+def lineas_limite(e: Optional[dict], cuales=("dia", "semana", "mes")) -> list:
+    """📏 Hoy ₽ 1,200 de ₽ 1,500 … para el limite del dia a dia."""
+    if not e:
+        return []
+    mon = e["moneda"]
+    l = []
+    for k in cuales:
+        x = e[k]
+        linea = "%s %s: %s de %s" % (F.marca_limite(x["usado"]), NOMBRES_LIMITE[k], F.en_moneda(x["gastado"], mon), F.en_moneda(x["tope"], mon))
+        if x["queda"] < 0:
+            linea += " · te pasaste %s" % F.en_moneda(-x["queda"], mon)
+        elif k != "dia" and x["dias"] > 1:
+            linea += " · quedan %s (%s por día, %d días)" % (F.en_moneda(x["queda"], mon), F.en_moneda(x["por_dia"], mon), x["dias"])
+        else:
+            linea += " · quedan %s" % F.en_moneda(x["queda"], mon)
+        l.append(linea)
+    return l
+
+
+def texto_limite(notion, bases: dict) -> str:
+    e = F.estado_limite(notion, bases)
+    if not e:
+        return ("📏 <b>Límite del día a día</b>\n\nAún no tienes límite. Fíjalo con lo que puedes gastar por día:\n"
+                "<code>/limite 1500 rub</code> · <code>/limite 64</code> (soles) · <code>/limite 19 usd</code>\n\n"
+                "La semana vale 7 días y el mes, los días que tenga. No cuentan los gastos fijos del mes "
+                "(vivienda, universidad, padres, servicios, suscripciones, salud…).")
+    return "\n".join(["📏 <b>Límite del día a día</b> · %s por día" % F.en_moneda(e["por_dia"], e["moneda"]), ""]
+                     + lineas_limite(e) + ["", "<i>No cuentan los gastos fijos del mes. Cambiarlo: /limite 1500 rub · quitarlo: /limite 0</i>"])
 
 
 def texto_deudas(notion, bases: dict) -> str:
