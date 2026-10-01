@@ -22,7 +22,7 @@ GASTOS = {
     "Cuidado Personal": ("Deseo", "🧴", ["corte", "peluqueria", "barberia", "perfume", "crema", "shampoo", "desodorante"]),
     "Vivienda": ("Necesidad", "🏠", ["alquiler", "renta", "hipoteca", "departamento", "depa", "autovaluo", "arbitrios", "condominio"]),
     "Gastos financieros": ("Necesidad", "🏦", ["interes", "intereses", "desgravamen", "cuota", "membresia tarjeta", "seguro"]),
-    "Suscripciones": ("Deseo", "📺", ["netflix", "spotify", "youtube", "disney", "hbo", "max", "prime", "icloud", "google one", "chatgpt", "claude", "suscripcion", "canva", "adobe"]),
+    "Suscripciones": ("Deseo", "📺", ["netflix", "spotify", "youtube", "disney", "hbo", "max", "prime", "icloud", "google one", "chatgpt", "claude", "suscripcion", "canva", "adobe", "terabox", "vpn", "adguard", "lightroom", "logic"]),
     "Padres": ("Necesidad", "👪", ["papa", "mama", "padres", "papas"]),
     "Hogar y decoración": ("Deseo", "🛋", ["mueble", "decoracion", "cocina", "sabanas", "toallas", "hogar"]),
     "Salud y Bienestar": ("Necesidad", "🧘", ["gimnasio", "gym", "yoga", "vitaminas", "suplementos", "proteina"]),

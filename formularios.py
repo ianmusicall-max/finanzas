@@ -112,7 +112,9 @@ class Formularios:
         if paso == "tarjeta":
             return self.estado[chat]["datos"].get("medio") in C.TARJETAS
         if paso == "frecuencia":
-            return self.estado[chat]["datos"].get("categoria") in self.anuales()
+            # en Suscripciones la frecuencia la da la lista de suscripciones (el bot pregunta si es nueva)
+            cat = self.estado[chat]["datos"].get("categoria")
+            return cat in self.anuales() and cat != "Suscripciones"
         return True
 
     def _pasos(self, chat) -> list:
@@ -313,7 +315,8 @@ class Formularios:
                          medio=d.get("medio") or d.get("medio_in"), fecha=d.get("fecha") or hoy(),
                          cuenta=d.get("cuenta"),
                          tarjeta=d.get("tarjeta") if d.get("medio") in C.TARJETAS and tipo == "Gasto" else None,
-                         frecuencia="Anual" if d.get("frecuencia") == "Anual" and categoria in self.anuales() else None)
+                         frecuencia="Anual" if d.get("frecuencia") == "Anual" and categoria in self.anuales()
+                         and categoria != "Suscripciones" else None)
         return mov, meta
 
     def listo(self, chat) -> bool:

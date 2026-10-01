@@ -16,7 +16,7 @@ import requests
 
 import config
 from config import AJUSTES, DATA, TC_EUR, TC_RUB, TC_USD, ahora, hoy
-from notion import (DEUDAS, METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, NotionError, p_date, p_number, p_select, p_text, p_title)
+from notion import (DEUDAS, METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, SUSCRIPCIONES, NotionError, p_date, p_number, p_select, p_text, p_title)
 
 MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre",
          "octubre", "noviembre", "diciembre"]
@@ -525,6 +525,85 @@ def mover_cuenta(notion, cuenta: dict, delta: float) -> float:
     notion.editar_pagina(cuenta["id"], {"Valor": p_number(nuevo), "Valor S/": p_number(soles(nuevo, cuenta["moneda"])),
                                         "Actualizado": p_date(hoy())})
     return nuevo
+
+
+# ---------------------------------------------------------------- suscripciones
+
+CATEGORIA_SUSCRIPCIONES = "Suscripciones"
+
+
+def sumar_meses(d: date, n: int) -> date:
+    m = d.month - 1 + n
+    anio, mes_ = d.year + m // 12, m % 12 + 1
+    return date(anio, mes_, min(d.day, monthrange(anio, mes_)[1]))
+
+
+def cada_texto(cada: int) -> str:
+    return {1: "mensual", 12: "anual"}.get(cada, "cada %d meses" % cada)
+
+
+def suscripciones(notion, bases: dict, todas: bool = False) -> list:
+    """Las suscripciones activas: nombre, monto, moneda, cada cuantos meses y proximo pago."""
+    if SUSCRIPCIONES not in bases:
+        return []
+    out = []
+    for f in notion.consultar(bases[SUSCRIPCIONES], limite=200):
+        estado = f.get("Estado") or "Activa"
+        if estado != "Activa" and not todas:
+            continue
+        cada = int(f.get("Cada (meses)") or 1)
+        monto, moneda = float(f.get("Monto") or 0), f.get("Moneda") or "PEN"
+        out.append({"id": f["_id"], "nombre": f.get("Suscripción") or "?", "monto": monto, "moneda": moneda,
+                    "cada": max(cada, 1), "por_mes_s": round(soles(monto, moneda) / max(cada, 1), 2),
+                    "ultimo": f.get("Último pago"), "proximo": f.get("Próximo pago"), "estado": estado})
+    return sorted(out, key=lambda x: (x["proximo"] or "9999", x["nombre"]))
+
+
+def buscar_suscripcion(lista: list, texto: str) -> Optional[dict]:
+    """La suscripcion que nombra el texto: 'claude pro mayo' -> Claude Pro."""
+    t = C.normal(texto)
+    palabras = set(t.split())
+    for s_ in lista:
+        n = C.normal(s_["nombre"])
+        if n == t or n in t or (n.split() and n.split()[0] in palabras and len(n.split()[0]) > 2):
+            return s_
+    return None
+
+
+def registrar_pago_suscripcion(notion, bases: dict, nombre: str, monto: float, moneda: str, cada: int,
+                               fecha: date, existente: Optional[dict] = None) -> dict:
+    """Crea la suscripcion (o anota el pago de una que ya existe) y deja el proximo pago calculado."""
+    proximo = sumar_meses(fecha, cada)
+    props = {"Monto": p_number(monto), "Moneda": p_select(moneda), "Cada (meses)": p_number(cada),
+             "Por mes S/": p_number(round(soles(monto, moneda) / cada, 2)), "Último pago": p_date(fecha),
+             "Próximo pago": p_date(proximo), "Estado": p_select("Activa")}
+    if existente:
+        notion.editar_pagina(existente["id"], props)
+        pid = existente["id"]
+    else:
+        props["Suscripción"] = p_title(nombre)
+        pid = notion.crear_pagina(bases[SUSCRIPCIONES], props)["id"]
+    return {"id": pid, "nombre": existente["nombre"] if existente else nombre, "cada": cada, "proximo": proximo}
+
+
+def recalcular_presupuesto_suscripciones(notion, bases: dict) -> dict:
+    """Cuanto suman las suscripciones: las mensuales, las de varios meses en un año, y todo junto por mes.
+    El tope anual de Suscripciones se ajusta a la lista; el mensual es el maximo que fijo la persona
+    (/presupuesto suscripciones 500) y se compara con el total por mes."""
+    lista = suscripciones(notion, bases)
+    mensual = round(sum(soles(x["monto"], x["moneda"]) for x in lista if x["cada"] == 1), 2)
+    anual = round(sum(soles(x["monto"], x["moneda"]) * 12 / x["cada"] for x in lista if x["cada"] > 1), 2)
+    if PRESUPUESTO in bases and anual:
+        fijar_presupuesto(notion, bases, CATEGORIA_SUSCRIPCIONES, anual, "Anual S/")
+    tope = presupuesto(notion, bases).get(CATEGORIA_SUSCRIPCIONES) if PRESUPUESTO in bases else None
+    return {"mensual": mensual, "anual": anual, "por_mes": round(mensual + anual / 12, 2), "tope": tope}
+
+
+def renovaciones(notion, bases: dict, d: Optional[date] = None, dias: int = 3) -> list:
+    """Suscripciones que se renuevan entre hoy y dentro de `dias` dias."""
+    d = d or hoy()
+    lim = (d + timedelta(days=dias)).isoformat()
+    return [x for x in suscripciones(notion, bases) if x["proximo"] and d.isoformat() <= x["proximo"][:10] <= lim]
 
 
 # ---------------------------------------------------------------- deudas

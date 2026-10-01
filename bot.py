@@ -19,7 +19,7 @@ import excel as X
 import finanzas as F
 import informes as I
 from config import DATA, TELEGRAM_USUARIOS
-from notion import DEUDAS, METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, Notion, NotionError, cargar_bases
+from notion import DEUDAS, METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, SUSCRIPCIONES, Notion, NotionError, cargar_bases, p_select
 from formularios import Formularios
 from lector import MONEDAS, Movimiento, NoEntendi, _numero, interpretar
 from telegram import Telegram, TelegramError, esc, guardar_offset, leer_offset, turno_del_bot
@@ -44,6 +44,7 @@ AYUDA = (
     "/deudas · cuánto debes y a quién\n"
     "/excel · todo en un Excel con gráficos\n"
     "/limite · cuánto llevas gastado hoy, en la semana y en el mes\n"
+    "/suscripciones · tus suscripciones y cuándo se renuevan\n"
     "/consejos · qué mejorar según tus números\n"
     "/metodos · formas de manejar tu dinero\n"
     "/ultimos · lo último que anotaste\n\n"
@@ -169,6 +170,7 @@ class Bot:
         self._cuenta_de = {}       # page_id de un movimiento -> (cuenta_id, delta) para poder deshacer
         self._por_ahorrar = {}     # chat -> ingreso recien anotado, mientras se elige cuanto separar
         self._pagando = {}         # chat -> pago de deuda en curso (con botones)
+        self._suscribiendo = {}    # chat -> pago de una suscripcion nueva, mientras se elige cada cuanto se paga
         self.form = Formularios(metas=self._nombres_metas, anuales=self._categorias_anuales)
 
     def _categorias_anuales(self) -> set:
@@ -225,6 +227,8 @@ class Bot:
                 self._monto_a_ahorrar(chat, texto)
             elif (self._pagando.get(chat) or {}).get("esperando"):
                 self._monto_pagado(chat, texto)
+            elif (self._suscribiendo.get(chat) or {}).get("esperando"):
+                self._meses_suscripcion(chat, texto)
             elif self.form.activo(chat):
                 self._responder(chat, self.form.texto(chat, texto))
             else:
@@ -262,9 +266,18 @@ class Bot:
             if meta:
                 mov.categoria = "Fondo de emergencia" if "emergencia" in C.normal(meta["meta"]) else "Metas"
                 mov.adivinada = True
+        sus, nueva_sus = None, False
+        if mov.tipo == "Gasto" and mov.categoria == F.CATEGORIA_SUSCRIPCIONES and SUSCRIPCIONES in self.bases:
+            sus = F.buscar_suscripcion(F.suscripciones(self.notion, self.bases), mov.descripcion)
+            if sus:
+                mov.frecuencia = "Anual" if sus["cada"] > 1 else None
+            else:
+                nueva_sus = True
         pag = F.guardar_movimiento(self.notion, self.bases, mov)
         pid = _pid(pag["id"])
         self._ultimo[chat] = pid
+        if sus:
+            r = F.registrar_pago_suscripcion(self.notion, self.bases, sus["nombre"], mov.monto, mov.moneda, sus["cada"], mov.fecha, sus)
         l = ["%s <b>%s</b> · %s" % (C.emoji(mov.tipo, mov.categoria), esc(mov.tipo), esc(mov.categoria))]
         monto = F.s3(F.soles(mov.monto, mov.moneda))
         if mov.moneda != "PEN":
@@ -316,6 +329,84 @@ class Bot:
             self.decir(chat, "\n".join(l), [[("🏷 Cambiar categoría", "k:%s:%d" % (pid, ti)), ("↩️ Deshacer", "x:" + pid)]])
         if mov.tipo == "Ingreso" and mov.categoria != "Retiro de ahorro":
             self._ofrecer_ahorro(chat, mov)
+        if sus:
+            self.decir(chat, "🔁 %s · %s · próximo pago %s" % (esc(r["nombre"]), F.cada_texto(r["cada"]), r["proximo"].strftime("%d/%m/%Y")))
+        elif nueva_sus:
+            self._preguntar_suscripcion(chat, pid, mov)
+
+    # ---- suscripciones: la primera vez que se paga una, se pregunta cada cuanto se paga
+    def _preguntar_suscripcion(self, chat, pid: str, mov) -> None:
+        nombre = mov.descripcion if C.normal(mov.descripcion) != C.normal(F.CATEGORIA_SUSCRIPCIONES) else ""
+        self._suscribiendo[chat] = {"pid": pid, "nombre": nombre, "monto": mov.monto, "moneda": mov.moneda, "fecha": mov.fecha}
+        self.decir(chat, "🔁 <b>%s</b> es una suscripción nueva. ¿Cada cuánto se paga?\n"
+                         "<i>Queda en tu lista y el presupuesto de Suscripciones se ajusta solo.</i>" % esc(nombre or "Esta"),
+                   [[("Mensual", "sc:1"), ("Anual", "sc:12")], [("3 meses", "sc:3"), ("6 meses", "sc:6")],
+                    [("✏️ Otro (meses)", "sc:x"), ("Pago único", "sc:no")]])
+
+    def _boton_suscripcion(self, chat, valor: str) -> None:
+        p = self._suscribiendo.get(chat)
+        if not p:
+            self.decir(chat, "Ese botón ya no sirve.")
+            return
+        if valor == "no":
+            self._suscribiendo.pop(chat, None)
+            self.decir(chat, "👌 Queda como un pago único, no como suscripción.")
+        elif valor == "x":
+            p["esperando"] = True
+            self.decir(chat, "✏️ ¿Cada cuántos meses se paga? Escribe solo el número, por ejemplo <code>4</code>.")
+        else:
+            self._crear_suscripcion(chat, int(valor))
+
+    def _meses_suscripcion(self, chat, texto: str) -> None:
+        p = self._suscribiendo[chat]
+        if not p.get("nombre") and p.get("pidiendo_nombre"):
+            p["nombre"] = texto.strip()[:60]
+            p.pop("esperando", None)
+            self._crear_suscripcion(chat, p["cada"])
+            return
+        m = re.match(r"^\s*(\d{1,2})\s*(meses|mes)?\s*$", C.normal(texto))
+        if not m or not 1 <= int(m.group(1)) <= 36:
+            self.decir(chat, "Escribe solo el número de meses, por ejemplo <code>4</code>.", [[("Pago único", "sc:no")]])
+            return
+        p.pop("esperando", None)
+        self._crear_suscripcion(chat, int(m.group(1)))
+
+    def _crear_suscripcion(self, chat, cada: int) -> None:
+        p = self._suscribiendo[chat]
+        if not p.get("nombre"):
+            p.update({"cada": cada, "esperando": True, "pidiendo_nombre": True})
+            self.decir(chat, "📝 ¿Cómo se llama la suscripción? (por ejemplo: <i>Netflix</i>)")
+            return
+        self._suscribiendo.pop(chat, None)
+        r = F.registrar_pago_suscripcion(self.notion, self.bases, p["nombre"], p["monto"], p["moneda"], cada, p["fecha"])
+        if cada > 1:
+            self.notion.editar_pagina(p["pid"], {"Frecuencia": p_select("Anual")})   # no infla el mes
+        self.decir(chat, "🔁 Agregué <b>%s</b> (%s). Próximo pago: %s.\n%s" % (
+            esc(r["nombre"]), F.cada_texto(cada), r["proximo"].strftime("%d/%m/%Y"),
+            self._texto_tope_suscripciones(F.recalcular_presupuesto_suscripciones(self.notion, self.bases))))
+
+    def _texto_tope_suscripciones(self, t: dict) -> str:
+        l = "🧾 Tus suscripciones: %s al mes + %s al año (≈ %s al mes en total)" % (
+            F.s(t["mensual"]), F.s(t["anual"]), F.s(t["por_mes"]))
+        if t["tope"]:
+            usado = t["por_mes"] / t["tope"]
+            l += "\n%s Máximo: %s al mes · %s" % (
+                F.marca_limite(usado), F.s(t["tope"]),
+                "te pasas por %s" % F.s(t["por_mes"] - t["tope"]) if usado > 1 else "quedan %s" % F.s(t["tope"] - t["por_mes"]))
+        return l
+
+    def _suscripcion_cmd(self, chat, arg: str) -> None:
+        m = re.match(r"(?i)\s*cancelar\s+(.+)$", arg or "")
+        if not m:
+            self.decir(chat, I.texto_suscripciones(self.notion, self.bases))
+            return
+        x = F.buscar_suscripcion(F.suscripciones(self.notion, self.bases), m.group(1))
+        if not x:
+            self.decir(chat, "No encuentro «%s» en tus suscripciones. Mira /suscripciones." % esc(m.group(1)))
+            return
+        self.notion.editar_pagina(x["id"], {"Estado": p_select("Cancelada")})
+        self.decir(chat, "✖️ Cancelé %s.\n%s" % (esc(x["nombre"]), self._texto_tope_suscripciones(
+            F.recalcular_presupuesto_suscripciones(self.notion, self.bases))))
 
     # ---- pagate primero: al cobrar, separar una parte para ahorro
     def _ofrecer_ahorro(self, chat, mov) -> None:
@@ -443,6 +534,9 @@ class Bot:
                 F.cambiar_categoria(self.notion, partes[1], tipo, cat)
                 aviso = self._aviso_presupuesto(cat) if tipo == "Gasto" else ""
                 self.decir(chat, "🏷 Listo: %s %s%s" % (C.emoji(tipo, cat), esc(cat), "\n" + aviso if aviso else ""))
+            elif partes[0] == "sc":
+                self.tg.quitar_botones(chat, message_id)
+                self._boton_suscripcion(chat, partes[1])
             elif partes[0] in ("pg", "pm", "pc"):
                 self.tg.quitar_botones(chat, message_id)
                 self._boton_pago(chat, partes[0], ":".join(partes[1:]))
@@ -517,6 +611,8 @@ class Bot:
             lista = inf.consejos or ["🟢 No veo nada preocupante este mes. Sigue anotando todo."]
             self.decir(chat, "💡 <b>Qué mejorar</b> (con lo que va de %s)\n\n%s\n\nMás ideas: /metodos" % (
                 F.MESES[F.hoy().month - 1], "\n\n".join(esc(c) for c in lista)))
+        elif cmd in ("/suscripciones", "/suscripcion"):
+            self._suscripcion_cmd(chat, arg)
         elif cmd in ("/limite", "/limites"):
             self._limite(chat, arg)
         elif cmd in ("/excel", "/graficos"):
@@ -534,7 +630,9 @@ class Bot:
             else:
                 self._deshacer(chat, pid)
         elif cmd == "/cancelar":
-            if self._pagando.pop(chat, None):
+            if self._suscribiendo.pop(chat, None):
+                self.decir(chat, "👌 Queda como un pago único.")
+            elif self._pagando.pop(chat, None):
                 self.decir(chat, "👌 No registré ningún pago.")
             elif self._por_ahorrar.pop(chat, None):
                 self.decir(chat, "👌 No separo nada esta vez.")

@@ -705,7 +705,8 @@ class PresupuestoAnualYFuera(Base):
         self.assertIn("al año", self.di("/presupuesto suscripciones anual 600"))
         pre = self.n.dbs["db-pre"][0]
         self.assertEqual((pre["Mensual S/"], pre["Anual S/"]), (100, 600))
-        t = self.di("450 icloud anual")
+        self.di("450 icloud anual")
+        t = self.tg.enviados[-2][1]                              # el ultimo pregunta si es suscripcion nueva
         self.assertEqual((self.movs[-1]["Categoría"], self.movs[-1]["Frecuencia"]), ("Suscripciones", "Anual"))
         self.assertEqual(self.movs[-1]["Descripción"], "Icloud")
         self.assertIn("Pagos anuales de Suscripciones: S/ 450.00 de S/ 600.00", t)
@@ -715,13 +716,14 @@ class PresupuestoAnualYFuera(Base):
         self.assertIn("S/ 68.00 de S/ 100.00", p)
         self.assertIn("Pagos anuales de", p)
         self.assertIn("S/ 450.00 de S/ 600.00", p)
-        self.assertIn("🔴 Pasaste el presupuesto anual", self.di("200 vpn anual suscripcion"))
+        self.di("200 vpn anual suscripcion")
+        self.assertIn("🔴 Pasaste el presupuesto anual", self.tg.enviados[-2][1])
 
     def test_formulario_pregunta_mensual_o_anual(self):
-        self.di("/presupuesto suscripciones 100")
-        self.di("/presupuesto suscripciones anual 600")
+        self.di("/presupuesto vivienda 100")
+        self.di("/presupuesto vivienda anual 600")
         self.di("/gasto")
-        for b in ("Hoy", "Gastos", "Efectivo", "Suscripciones"):
+        for b in ("Hoy", "Gastos", "Efectivo", "Vivienda"):
             self.toca(b)
         self.assertIn("pago anual", self.tg.ultimo)
         self.toca("Anual")
@@ -749,3 +751,68 @@ class PresupuestoAnualYFuera(Base):
 
     def test_sin_presupuesto_no_marca_nada(self):
         self.assertNotIn("Fuera del presupuesto", self.di("150 consulta medica"))
+
+
+class Suscripciones(Base):
+    def sus(self, nombre):
+        return next(f for f in self.n.dbs["db-sus"] if f["Suscripción"] == nombre)
+
+    def test_nueva_mensual_y_despues_la_reconoce(self):
+        F.fijar_tipo_de_cambio("USD", 3.38)
+        self.di("/presupuesto suscripciones 500")
+        self.di("20 usd claude pro")
+        self.assertIn("es una suscripción nueva", self.tg.ultimo)
+        t = self.toca("Mensual")
+        self.assertIn("Agregué <b>Claude pro</b> (mensual)", t)
+        self.assertIn("S/ 67.60 al mes + S/ 0.00 al año", t)
+        self.assertIn("🟢 Máximo: S/ 500.00 al mes · quedan S/ 432.40", t)
+        s = self.sus("Claude pro")
+        self.assertEqual((s["Cada (meses)"], s["Estado"]), (1, "Activa"))
+        self.assertEqual(s["Próximo pago"], F.sumar_meses(F.hoy(), 1).isoformat())
+        n = len(self.tg.enviados)
+        self.di("20 usd claude")                       # la segunda vez no pregunta
+        self.assertIn("🔁 Claude pro · mensual · próximo pago", self.tg.ultimo)
+        self.assertNotIn("suscripción nueva", " ".join(t for _, t, _ in self.tg.enviados[n:]))
+        self.assertEqual(len(self.n.dbs["db-sus"]), 1)
+
+    def test_anual_va_al_tope_anual_y_no_infla_el_mes(self):
+        self.di("/presupuesto suscripciones 500")
+        self.di("150 terabox")
+        self.toca("Anual")
+        self.assertEqual(self.movs[-1]["Frecuencia"], "Anual")
+        self.assertEqual(self.n.dbs["db-pre"][0]["Anual S/"], 150)
+        self.assertEqual(self.n.dbs["db-pre"][0]["Mensual S/"], 500)   # el maximo no se toca
+        self.assertIn("S/ 0.00 de S/ 500.00", self.di("/presupuesto"))
+
+    def test_cada_n_meses_y_sin_nombre(self):
+        self.di("/gasto")
+        for b in ("Hoy", "Gastos", "Efectivo", "Suscripciones", "PEN", "Omitir"):
+            self.toca(b)
+        self.di("90")
+        self.toca("Guardar")
+        self.toca("Otro (meses)")
+        self.assertIn("número", self.di("muchos"))
+        self.di("3")
+        self.assertIn("¿Cómo se llama", self.tg.ultimo)
+        self.assertIn("cada 3 meses", self.di("Gimnasio app"))
+        s = self.sus("Gimnasio app")
+        self.assertEqual((s["Cada (meses)"], s["Por mes S/"]), (3, 30))
+        self.assertEqual(self.n.dbs["db-pre"][0]["Anual S/"], 360)
+
+    def test_pasarse_del_maximo_pago_unico_y_cancelar(self):
+        self.di("/presupuesto suscripciones 50")
+        self.di("80 netflix")
+        self.assertIn("🔴 Máximo: S/ 50.00 al mes · te pasas por S/ 30.00", self.toca("Mensual"))
+        self.di("40 adobe")
+        self.toca("Pago único")
+        self.assertEqual(len(self.n.dbs["db-sus"]), 1)
+        self.assertIn("Netflix", self.di("/suscripciones"))
+        self.assertIn("Cancelé Netflix", self.di("/suscripcion cancelar netflix"))
+        self.assertEqual(self.sus("Netflix")["Estado"], "Cancelada")
+        self.assertIn("Todavía no hay", self.di("/suscripciones"))
+
+    def test_aviso_de_renovacion_en_el_resumen_diario(self):
+        self.di("20 claude")
+        self.toca("Mensual")
+        self.sus("Claude")["Próximo pago"] = (F.hoy() + F.timedelta(days=2)).isoformat()
+        self.assertIn("🔁 Claude se renueva el", self.di("/hoy"))

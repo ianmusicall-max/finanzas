@@ -100,6 +100,13 @@ class Informe:
             l.append("")
             l.append("<b>📏 Día a día</b>")
             l.extend(lim)
+        if p.tipo == "Diario":
+            proximas = F.renovaciones(self.notion, self.bases, min(p.hasta, F.hoy()))
+            if proximas:
+                l.append("")
+                for x in proximas:
+                    l.append("🔁 %s se renueva el %s: %s %s" % (esc(x["nombre"]), "/".join(reversed(x["proximo"][5:10].split("-"))),
+                                                             x["moneda"], "{:,.2f}".format(x["monto"])))
         if p.tipo != "Mensual" and self.mes.gastos:
             l.append("")
             gastado = self.mes.gastos
@@ -222,6 +229,26 @@ def texto_metas(notion, bases: dict) -> str:
         l.append("<b>%s</b> %s\n    %s %s · %s de %s · faltan %s" % (
             esc(m["meta"]), "✅" if m["avance"] >= 1 else "", barra(m["avance"]), F.pct(m["avance"]),
             F.s(m["ahorrado"]), F.s(m["objetivo"]), F.s(falta)))
+    return "\n".join(l)
+
+
+def texto_suscripciones(notion, bases: dict) -> str:
+    lista = F.suscripciones(notion, bases)
+    if not lista:
+        return ("🔁 <b>Suscripciones</b>\n\nTodavía no hay. Se agregan solas: cuando anotes el pago de una "
+                "(<code>20 usd claude pro</code>), el bot te pregunta cada cuánto se paga.")
+    total = sum(x["por_mes_s"] for x in lista)
+    tope = F.presupuesto(notion, bases).get(F.CATEGORIA_SUSCRIPCIONES)
+    l = ["🔁 <b>Suscripciones</b> · %s al mes en promedio" % F.s3(total)]
+    if tope:
+        l.append("%s Máximo %s al mes (%s)" % (F.marca_limite(total / tope), F.s(tope), F.pct(total / tope)))
+    l.append("")
+    for x in lista:
+        prox = " · próximo pago %s" % "/".join(reversed(x["proximo"][:10].split("-"))) if x["proximo"] else ""
+        l.append("• <b>%s</b>: %s %s, %s%s" % (esc(x["nombre"]), x["moneda"], "{:,.2f}".format(x["monto"]),
+                                              F.cada_texto(x["cada"]), prox))
+    l.append("")
+    l.append("<i>Cancelar una: /suscripcion cancelar Netflix</i>")
     return "\n".join(l)
 
 

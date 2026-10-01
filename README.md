@@ -132,6 +132,15 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
   día sin tope no se marcan si hay `/limite`, porque ya las controla el límite. Se avisa al anotarlo y el resumen
   semanal y mensual lista lo imprevisto con su total.
 
+## Suscripciones
+
+Base **Suscripciones** en Notion (nombre, monto, moneda, cada cuántos meses, próximo pago). Al anotar un gasto de
+Suscripciones que no está en la lista, el bot pregunta cada cuánto se paga: Mensual · Anual · 3 meses · 6 meses ·
+otro número de meses · pago único. Desde ahí la reconoce sola (`20 usd claude`), calcula el próximo pago y avisa
+en el resumen diario 3 días antes de cada renovación. El tope **anual** de Suscripciones se ajusta solo con la
+lista; el **mensual** es el máximo que fijas tú (`/presupuesto suscripciones 500`) y se compara con el total por
+mes (mensuales + anuales repartidas). `/suscripciones` las lista; `/suscripcion cancelar Netflix` la da de baja.
+
 ## Límite del día a día
 
 `/limite 1500 rub` fija cuánto puedes gastar por día en el día a día (comida, salidas, transporte, gustos). La
