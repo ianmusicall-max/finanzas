@@ -162,8 +162,14 @@ journalctl -u finanzas-bot -n 50
 
 ## Actualizar
 
+**Es automático.** El servidor revisa GitHub cada 5 minutos (`finanzas-autoupdate.timer`); si hay algo
+nuevo lo baja, corre los tests y reinicia el bot. Si un test falla, vuelve a la versión anterior y el bot
+sigue como estaba. Para ver qué hizo: `journalctl -u finanzas-autoupdate -n 20`.
+
+Para forzarlo a mano:
+
 ```bash
-ssh root@TU-SERVIDOR 'bash /opt/finanzas/deploy/actualizar.sh'
+ssh root@TU-SERVIDOR 'cd /opt/finanzas && git pull -q origin main && bash deploy/actualizar.sh'
 ```
 
 ## Tests

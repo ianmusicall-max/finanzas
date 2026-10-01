@@ -7,6 +7,7 @@ cd /opt/finanzas && git pull -q origin main
 .venv/bin/python -m unittest discover -s tests -t . -q || echo ">> OJO: fallaron tests"
 sudo -u finanzas .venv/bin/python setup_notion.py >/dev/null   # agrega columnas nuevas si las hay
 cp deploy/systemd/finanzas-* /etc/systemd/system/ && systemctl daemon-reload
+systemctl enable -q --now finanzas-autoupdate.timer   # desde ahora se actualiza solo cada 5 minutos
 systemctl restart finanzas-bot
 sleep 3
 systemctl is-active finanzas-bot
