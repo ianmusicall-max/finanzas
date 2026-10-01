@@ -217,6 +217,20 @@ class Deudas(Base):
         b.procesar(mensaje("/deuda Tarjeta Ripley 1200"))
         self.assertEqual(self.n.dbs["db-pat"][0]["Clase"], "Pasivo")
 
+    def test_editar_en_notion(self):
+        F.fijar_tipo_de_cambio("RUB", 0.05)
+        self.di("/deuda Tarjeta Falabella 1000")
+        self.di("/deuda Luis 2000 rub")
+        fal, luis = self.n.dbs["db-deu"]
+        fal["Saldo"] = 400                       # lo cambio a mano en Notion, sin tocar Saldo S/
+        luis["Saldo"] = 0
+        self.n.dbs["db-deu"].append({"_id": "%032d" % 999, "_orden": 2, "Deuda": "Janet", "Saldo": 300})
+        t = self.di("/deudas")
+        self.assertIn("Deudas: S/ 700.00", t)    # 400 + 300 (Janet, sin moneda = soles)
+        self.assertNotIn("Luis", t)
+        self.assertEqual((fal["Saldo S/"], luis["Estado"]), (400, "Pagada"))
+        self.assertEqual((self.n.dbs["db-deu"][2]["Saldo S/"], self.n.dbs["db-deu"][2]["Estado"]), (300, "Activa"))
+
     def test_menu_tiene_deudas(self):
         self.di("/start")
         self.assertIn("No tienes deudas activas", self.toca("Deudas"))

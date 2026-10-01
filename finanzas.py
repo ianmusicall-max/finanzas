@@ -12,7 +12,7 @@ from typing import Optional
 
 import categorias as C
 from config import AJUSTES, DATA, TC_EUR, TC_RUB, TC_USD, hoy
-from notion import (DEUDAS, METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, p_date, p_number, p_select, p_text, p_title)
+from notion import (DEUDAS, METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, NotionError, p_date, p_number, p_select, p_text, p_title)
 
 MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre",
          "octubre", "noviembre", "diciembre"]
@@ -312,19 +312,35 @@ def fijar_patrimonio(notion, bases: dict, nombre: str, clase: str, tipo: str, va
 # ---------------------------------------------------------------- deudas
 
 def deudas(notion, bases: dict, todas: bool = False) -> list:
-    """Deudas de la base Deudas, la mas grande primero. Sin todas=True solo las activas."""
+    """Deudas de la base Deudas, la mas grande primero. Sin todas=True solo las activas.
+
+    Las deudas se pueden editar a mano en Notion: lo que vale es Saldo y Moneda. Saldo S/
+    se recalcula aqui y, si quedo distinto (o falta), se corrige en Notion para que el
+    grafico muestre lo mismo. Una deuda Activa con Saldo 0 pasa a Pagada."""
     if DEUDAS not in bases:
         return []
     out = []
     for f in notion.consultar(bases[DEUDAS], limite=200):
+        saldo, moneda = float(f.get("Saldo") or 0), f.get("Moneda") or "PEN"
+        saldo_s = round(soles(saldo, moneda), 2)
         estado = f.get("Estado") or "Activa"
+        if estado == "Activa" and saldo <= 0 and f.get("Saldo") is not None:
+            estado = "Pagada"
+        cambios = {}
+        guardado = f.get("Saldo S/")
+        if guardado is None or abs(float(guardado) - saldo_s) > 0.01:
+            cambios["Saldo S/"] = p_number(saldo_s)
+        if estado != f.get("Estado"):
+            cambios["Estado"] = p_select(estado)
+        if cambios:
+            try:
+                notion.editar_pagina(f["_id"], cambios)
+            except NotionError:
+                pass   # se corrige la proxima vez; el calculo de ahora ya usa el valor bueno
         if estado != "Activa" and not todas:
             continue
-        saldo, moneda = float(f.get("Saldo") or 0), f.get("Moneda") or "PEN"
-        saldo_s = f.get("Saldo S/")
         out.append({"id": f["_id"], "deuda": f.get("Deuda") or "?", "tipo": f.get("Tipo") or "Otra",
-                    "saldo": saldo, "moneda": moneda,
-                    "saldo_s": float(saldo_s if saldo_s is not None else soles(saldo, moneda)),
+                    "saldo": saldo, "moneda": moneda, "saldo_s": saldo_s,
                     "original": f.get("Monto original"), "tasa": f.get("Tasa anual"),
                     "cuota": f.get("Cuota mensual"), "dia": f.get("Día de pago"),
                     "estado": estado, "actualizado": f.get("Actualizado")})
