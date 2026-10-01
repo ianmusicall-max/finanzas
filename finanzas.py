@@ -396,6 +396,35 @@ def fijar_patrimonio(notion, bases: dict, nombre: str, clase: str, tipo: str, va
     return notion.crear_pagina(bases[PATRIMONIO], props), None
 
 
+def cuentas(notion, bases: dict) -> list:
+    """Las cuentas de dinero (Activo, Efectivo y bancos) de Patrimonio."""
+    if PATRIMONIO not in bases:
+        return []
+    return [{"id": f["_id"], "nombre": f.get("Nombre") or "?", "valor": float(f.get("Valor") or 0),
+             "moneda": f.get("Moneda") or "PEN"}
+            for f in notion.consultar(bases[PATRIMONIO], limite=300)
+            if (f.get("Clase") or "Activo") == "Activo" and (f.get("Tipo") or "Efectivo y bancos") in C.LIQUIDOS]
+
+
+def buscar_cuenta(notion, bases: dict, medio: Optional[str], moneda: str) -> Optional[dict]:
+    """La cuenta de ese banco en esa moneda: medio Interbank + USD -> "Interbank dólares"."""
+    if not medio:
+        return None
+    m = C.normal(medio)
+    for c in cuentas(notion, bases):
+        if c["moneda"] == moneda and (C.normal(c["nombre"]) == m or m in C.normal(c["nombre"]).split()):
+            return c
+    return None
+
+
+def mover_cuenta(notion, cuenta: dict, delta: float) -> float:
+    """Suma (o resta) al saldo de una cuenta, en su moneda. Devuelve el saldo nuevo."""
+    nuevo = round(cuenta["valor"] + delta, 2)
+    notion.editar_pagina(cuenta["id"], {"Valor": p_number(nuevo), "Valor S/": p_number(soles(nuevo, cuenta["moneda"])),
+                                        "Actualizado": p_date(hoy())})
+    return nuevo
+
+
 # ---------------------------------------------------------------- deudas
 
 def deudas(notion, bases: dict, todas: bool = False) -> list:

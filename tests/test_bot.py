@@ -104,7 +104,8 @@ class Anotar(Base):
 
     def test_dolares_muestra_conversion(self):
         self.di("/tc 3.70")
-        t = self.di("+100 usd facebook")
+        self.di("+100 usd facebook")
+        t = self.tg.enviados[-2][1]
         self.assertIn("USD 100.00 = S/ 370.00", t)
 
 
@@ -236,7 +237,8 @@ class Deudas(Base):
         F.fijar_tipo_de_cambio("RUB", 0.0428)
         self.assertEqual(F.s3(1000), "S/ 1,000.00 · $ 295.86 · ₽ 23,364")
         self.assertEqual(F.s3(-20), "-S/ 20.00 · -$ 5.92 · -₽ 467")
-        t = self.di("+100 usd facebook")
+        self.di("+100 usd facebook")
+        t = self.tg.enviados[-2][1]
         self.assertIn("USD 100.00 = S/ 338.00 · $ 100.00 · ₽ 7,897", t)
         self.assertEqual((self.movs[0]["Monto USD"], self.movs[0]["Monto RUB"]), (100, 7897))
         self.di("/deuda Luis 2941")
@@ -499,3 +501,60 @@ class Formularios(Base):
         self.di("/start")
         self.bot.procesar(boton(self.tg.data_de("Gasto")))
         self.assertIn("¿Qué fecha?", self.tg.ultimo)
+
+
+class CuentasYAhorro(Base):
+    """El ingreso sube la cuenta donde entra, el gasto (no a credito) la baja, y al cobrar se ofrece ahorrar."""
+
+    def cuenta(self, nombre):
+        return next(f for f in self.n.dbs["db-pat"] if f["Nombre"] == nombre)
+
+    def test_ingreso_y_gasto_mueven_la_cuenta(self):
+        F.fijar_tipo_de_cambio("USD", 3.38)
+        self.di("/activo Interbank dólares 1497 usd")
+        self.di("/activo Interbank soles 463")
+        self.di("+100 usd facebook interbank")
+        self.assertIn("Interbank dólares ahora tiene S/ 5,397.86 · $ 1,597.00", self.tg.enviados[-2][1])
+        self.assertEqual(self.cuenta("Interbank dólares")["Valor"], 1597)
+        self.assertEqual(self.cuenta("Interbank soles")["Valor"], 463)      # la de soles no se toca
+        t = self.di("63 almuerzo interbank")
+        self.assertIn("Interbank soles ahora tiene S/ 400.00", t)
+        self.di("/deshacer")
+        self.assertEqual(self.cuenta("Interbank soles")["Valor"], 463)
+
+    def test_credito_y_sin_cuenta_no_mueven(self):
+        self.di("/activo Falabella 500")
+        self.di("50 almuerzo falabella credito")
+        self.assertEqual(self.cuenta("Falabella")["Valor"], 500)
+        t = self.di("50 almuerzo bbva")
+        self.assertIn("/activo BBVA 1000 pen", t)
+        self.assertEqual(len(self.n.dbs["db-pat"]), 1)
+
+    def test_pagate_primero_20_por_ciento_a_una_meta(self):
+        self.di("/meta Emergencia 10000")
+        self.di("+3000 sueldo")
+        self.assertIn("¿Separas algo para ahorro?", self.tg.ultimo)
+        self.toca("20%")
+        self.toca("Emergencia")
+        ahorro = self.movs[-1]
+        self.assertEqual((ahorro["Tipo"], ahorro["Monto"], ahorro["Categoría"]), ("Ahorro", 600, "Fondo de emergencia"))
+        self.assertEqual(self.n.dbs["db-met"][0]["Ahorrado S/"], 600)
+
+    def test_otro_monto_y_ahorro_general(self):
+        self.di("+3000 sueldo")
+        self.toca("Otro monto")
+        self.assertIn("número", self.di("mucho"))
+        self.di("250")
+        self.toca("Ahorro general")
+        self.assertEqual((self.movs[-1]["Monto"], self.movs[-1]["Categoría"]), (250, "Ahorro general"))
+        self.assertEqual(len(self.movs), 2)
+        self.di("45 almuerzo")                 # despues de elegir, lo escrito vuelve a ser un gasto
+        self.assertEqual(self.movs[-1]["Tipo"], "Gasto")
+
+    def test_no_esta_vez(self):
+        self.di("+3000 sueldo")
+        self.toca("No esta vez")
+        self.assertEqual(len(self.movs), 1)
+        self.di("+500 sueldo")
+        self.di("/cancelar")
+        self.assertIn("No separo nada", self.tg.ultimo)

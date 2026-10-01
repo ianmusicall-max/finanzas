@@ -19,7 +19,7 @@ import informes as I
 from config import DATA, TELEGRAM_USUARIOS
 from notion import DEUDAS, METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, Notion, NotionError, cargar_bases
 from formularios import Formularios
-from lector import MONEDAS, NoEntendi, _numero, interpretar
+from lector import MONEDAS, Movimiento, NoEntendi, _numero, interpretar
 from telegram import Telegram, TelegramError, esc, guardar_offset, leer_offset, turno_del_bot
 
 AYUDA = (
@@ -162,6 +162,8 @@ class Bot:
         self._ultimo = {}          # chat -> page_id del ultimo movimiento anotado
         self._metas_de = {}        # page_id de un ahorro -> (meta_id, monto) para poder deshacer
         self._credito_de = {}      # page_id de un gasto a credito -> (deuda_id, cargo) para poder deshacer
+        self._cuenta_de = {}       # page_id de un movimiento -> (cuenta_id, delta) para poder deshacer
+        self._por_ahorrar = {}     # chat -> ingreso recien anotado, mientras se elige cuanto separar
         self.form = Formularios(metas=self._nombres_metas)
 
     def _nombres_metas(self) -> list:
@@ -208,6 +210,8 @@ class Bot:
         try:
             if texto.startswith("/"):
                 self._comando(chat, texto)
+            elif (self._por_ahorrar.get(chat) or {}).get("esperando"):
+                self._monto_a_ahorrar(chat, texto)
             elif self.form.activo(chat):
                 self._responder(chat, self.form.texto(chat, texto))
             else:
@@ -269,6 +273,17 @@ class Bot:
             debe = F.s3(F.soles(d["saldo"], d["moneda"]))
             l.append("🧾 A crédito: %s %s. Ahora debes %s." % (
                 "creé la deuda" if d["nueva"] else "se sumó a", esc(d["deuda"]), debe))
+        mueve = mov.tipo == "Ingreso" or (mov.tipo == "Gasto" and getattr(mov, "tarjeta", None) != "Crédito")
+        if mueve and mov.medio and PATRIMONIO in self.bases:
+            cuenta = F.buscar_cuenta(self.notion, self.bases, mov.medio, mov.moneda)
+            if cuenta:
+                delta = mov.monto if mov.tipo == "Ingreso" else -mov.monto
+                nuevo = F.mover_cuenta(self.notion, cuenta, delta)
+                self._cuenta_de[pid] = (cuenta["id"], delta)
+                l.append("🏦 %s ahora tiene %s" % (esc(cuenta["nombre"]), F.s3(F.soles(nuevo, cuenta["moneda"]))))
+            else:
+                l.append("<i>💡 Para que siga el saldo de %s en %s: <code>/activo %s 1000 %s</code> con lo que tengas hoy.</i>" % (
+                    esc(mov.medio), mov.moneda, esc(mov.medio), mov.moneda.lower()))
         if meta:
             nuevo = F.sumar_a_meta(self.notion, meta, F.soles(mov.monto, mov.moneda))
             self._metas_de[pid] = (meta, F.soles(mov.monto, mov.moneda))
@@ -282,8 +297,75 @@ class Bot:
         if not mov.adivinada:
             l.append("\n¿De qué categoría es?")
             self.decir(chat, "\n".join(l), self._botones_categoria(pid, ti) + [[("↩️ Deshacer", "x:" + pid)]])
+        else:
+            self.decir(chat, "\n".join(l), [[("🏷 Cambiar categoría", "k:%s:%d" % (pid, ti)), ("↩️ Deshacer", "x:" + pid)]])
+        if mov.tipo == "Ingreso" and mov.categoria != "Retiro de ahorro":
+            self._ofrecer_ahorro(chat, mov)
+
+    # ---- pagate primero: al cobrar, separar una parte para ahorro
+    def _ofrecer_ahorro(self, chat, mov) -> None:
+        self._por_ahorrar[chat] = {"monto": mov.monto, "moneda": mov.moneda, "medio": mov.medio}
+        botones = []
+        for pct in (10, 20):
+            parte = round(mov.monto * pct / 100, 2)
+            botones.append(("%d%% (%s)" % (pct, self._en(parte, mov.moneda)), "a:%d" % pct))
+        self.decir(chat, "🐷 <b>¿Separas algo para ahorro?</b>\nPágate primero: lo que separas apenas cobras es lo que de verdad se ahorra.",
+                   [botones, [("✏️ Otro monto", "a:x"), ("No esta vez", "a:no")]])
+
+    @staticmethod
+    def _en(monto: float, moneda: str) -> str:
+        return F.s(monto) if moneda == "PEN" else "%s %s" % (moneda, "{:,.2f}".format(monto))
+
+    def _boton_ahorro(self, chat, data: str) -> None:
+        p = self._por_ahorrar.get(chat)
+        if not p:
+            self.decir(chat, "Ese botón ya no sirve.")
             return
-        self.decir(chat, "\n".join(l), [[("🏷 Cambiar categoría", "k:%s:%d" % (pid, ti)), ("↩️ Deshacer", "x:" + pid)]])
+        if data == "no":
+            self._por_ahorrar.pop(chat, None)
+            self.decir(chat, "👌 Todo queda disponible en la cuenta.")
+        elif data == "x":
+            p["esperando"] = True
+            self.decir(chat, "✏️ ¿Cuánto separas? Escribe solo el número, en %s." % p["moneda"])
+        elif data.startswith("m:"):
+            self._ahorrar(chat, data[2:])
+        else:
+            p["separar"] = round(p["monto"] * int(data) / 100, 2)
+            self._elegir_meta(chat)
+
+    def _monto_a_ahorrar(self, chat, texto: str) -> None:
+        p = self._por_ahorrar[chat]
+        try:
+            n = _numero(texto.replace(" ", "").lstrip("S/$€₽").strip())
+        except ValueError:
+            n = 0
+        if n <= 0:
+            self.decir(chat, "Escribe solo el número, por ejemplo <code>150</code>.", [[("No esta vez", "a:no")]])
+            return
+        p.pop("esperando", None)
+        p["separar"] = round(n, 2)
+        self._elegir_meta(chat)
+
+    def _elegir_meta(self, chat) -> None:
+        p = self._por_ahorrar[chat]
+        nombres = self._nombres_metas()
+        p["metas"] = nombres
+        botones = [[("🎯 " + n, "a:m:%d" % k)] for k, n in enumerate(nombres)]
+        botones.append([("🐷 Ahorro general", "a:m:g")])
+        extra = "" if nombres else "\n<i>Aún no tienes metas; puedes crear una con /meta Emergencia 10000</i>"
+        self.decir(chat, "¿Para qué es lo que separas (%s)?%s" % (self._en(p["separar"], p["moneda"]), extra), botones)
+
+    def _ahorrar(self, chat, cual: str) -> None:
+        p = self._por_ahorrar.pop(chat, None)
+        if not p or "separar" not in p:
+            self.decir(chat, "Ese botón ya no sirve.")
+            return
+        meta = None if cual == "g" else p["metas"][int(cual)]
+        mov = Movimiento(tipo="Ahorro", monto=p["separar"], moneda=p["moneda"],
+                         descripcion="Ahorro para %s" % meta if meta else "Ahorro",
+                         categoria="Fondo de emergencia" if meta and "emergencia" in C.normal(meta) else "Metas" if meta else "Ahorro general",
+                         medio=p["medio"], fecha=F.hoy())
+        self._guardar(chat, mov, meta)
 
     def _aviso_presupuesto(self, categoria: str) -> str:
         """Si con este gasto la categoria pasa del 80% o del 100% del presupuesto del mes."""
@@ -333,6 +415,9 @@ class Bot:
                 F.cambiar_categoria(self.notion, partes[1], tipo, cat)
                 aviso = self._aviso_presupuesto(cat) if tipo == "Gasto" else ""
                 self.decir(chat, "🏷 Listo: %s %s%s" % (C.emoji(tipo, cat), esc(cat), "\n" + aviso if aviso else ""))
+            elif partes[0] == "a":
+                self.tg.quitar_botones(chat, message_id)
+                self._boton_ahorro(chat, data[2:])
             elif partes[0] == "x" and len(partes) == 2:
                 self.tg.quitar_botones(chat, message_id)
                 self._deshacer(chat, partes[1])
@@ -347,6 +432,11 @@ class Bot:
             meta, monto = self._metas_de.pop(pid)
             actual = F.buscar_meta(F.metas(self.notion, self.bases), meta["meta"]) or meta
             F.sumar_a_meta(self.notion, actual, -monto)
+        if pid in self._cuenta_de:
+            cuenta_id, delta = self._cuenta_de.pop(pid)
+            c = next((x for x in F.cuentas(self.notion, self.bases) if _pid(x["id"]) == _pid(cuenta_id)), None)
+            if c:
+                F.mover_cuenta(self.notion, c, -delta)
         if pid in self._credito_de:
             deuda_id, cargo = self._credito_de.pop(pid)
             d = next((x for x in F.deudas(self.notion, self.bases, todas=True) if _pid(x["id"]) == _pid(deuda_id)), None)
@@ -409,7 +499,9 @@ class Bot:
             else:
                 self._deshacer(chat, pid)
         elif cmd == "/cancelar":
-            if self.form.activo(chat):
+            if self._por_ahorrar.pop(chat, None):
+                self.decir(chat, "👌 No separo nada esta vez.")
+            elif self.form.activo(chat):
                 self._responder(chat, self.form.cancelar(chat))
             else:
                 self.decir(chat, "No hay nada en curso. 🙂")

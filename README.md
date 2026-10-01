@@ -109,6 +109,17 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
 - **Fondo de emergencia**: efectivo y bancos ÷ gasto de un mes normal (el mes pasado). Lo recomendable son 3 a 6 meses.
 - **Gastos hormiga**: los de menos de S/ 20; si son muchos y pesan más del 10%, te avisa.
 
+## Cuentas y "págate primero"
+
+- **Saldos de las cuentas**: en Patrimonio, cada cuenta de dinero (Activo · Efectivo y bancos) se reconoce
+  por el nombre del banco y la moneda: medio *Interbank* + USD → "Interbank dólares". Un **ingreso** suma al
+  saldo de la cuenta donde entró; un **gasto** con débito o efectivo lo resta; un gasto **a crédito** no toca
+  la cuenta (va a la deuda de la tarjeta). Deshacer lo revierte. Si la cuenta no existe, el bot sugiere
+  crearla con `/activo T-Bank 25000 rub` y el saldo de hoy.
+- **Págate primero**: después de cada ingreso el bot pregunta *¿Separas algo para ahorro?* con botones
+  10% · 20% · otro monto · no esta vez, y luego la meta (o ahorro general). El ahorro no sale de la
+  cuenta: es una parte del dinero que queda marcada para esa meta.
+
 ## Gráficos en Notion
 
 Abre la página **Finanzas** en Notion. Cada base tiene pestañas arriba con los gráficos:
