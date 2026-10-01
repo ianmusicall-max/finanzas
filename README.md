@@ -121,6 +121,17 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
   10% · 20% · otro monto · no esta vez, y luego la meta (o ahorro general). El ahorro no sale de la
   cuenta: es una parte del dinero que queda marcada para esa meta.
 
+## Presupuesto mensual, anual y gastos fuera del presupuesto
+
+- Cada categoría puede tener tope **mensual** (`/presupuesto suscripciones 100`) y tope **anual** para lo que se
+  paga una vez al año (`/presupuesto suscripciones anual 600`). En Notion: columnas `Mensual S/` y `Anual S/`.
+- Un pago anual se marca tocando **Anual** en el formulario (solo pregunta en categorías con tope anual) o con la
+  palabra *anual*: `120 icloud anual`. Cuenta contra el tope anual y no infla el mes. En Movimientos queda
+  `Frecuencia = Anual`.
+- **⚠️ Fuera del presupuesto**: un gasto en una categoría sin tope (o un pago anual sin tope anual). Las del día a
+  día sin tope no se marcan si hay `/limite`, porque ya las controla el límite. Se avisa al anotarlo y el resumen
+  semanal y mensual lista lo imprevisto con su total.
+
 ## Límite del día a día
 
 `/limite 1500 rub` fija cuánto puedes gastar por día en el día a día (comida, salidas, transporte, gustos). La

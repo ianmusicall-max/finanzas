@@ -136,7 +136,7 @@ def libro(notion, bases: dict, hoy: Optional[date] = None) -> bytes:
     # ---- Presupuesto del mes
     ws = wb.create_sheet("Presupuesto")
     filas = []
-    for cat, g, tope, usado in F.estado_presupuesto(r_mes.por_categoria, plan, 1.0):
+    for cat, g, tope, usado in F.estado_presupuesto(r_mes.mensuales, plan, 1.0):
         filas.append((cat, tope, round(g, 2), round(max(tope - g, 0), 2), usado))
     fin = _tabla(ws, 1, ["Categoría", "Presupuesto S/", "Gastado S/", "Queda S/", "Usado"], filas,
                  {"Presupuesto S/": SOLES, "Gastado S/": SOLES, "Queda S/": SOLES, "Usado": PORCENTAJE})

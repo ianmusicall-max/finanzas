@@ -686,3 +686,66 @@ class LimiteDiaADia(Base):
         self.assertIn("S/ 64.00 por día", self.di("/limite"))
         self.assertIn("Quité el límite", self.di("/limite 0"))
         self.assertIn("Aún no tienes límite", self.di("/limite"))
+
+
+class PresupuestoAnualYFuera(Base):
+    def setUp(self):
+        super().setUp()
+        import formularios
+        self._fa = formularios.AJUSTES
+        formularios.AJUSTES = F.AJUSTES
+
+    def tearDown(self):
+        import formularios
+        formularios.AJUSTES = self._fa
+        super().tearDown()
+
+    def test_mensual_y_anual_separados(self):
+        self.di("/presupuesto suscripciones 100")
+        self.assertIn("al año", self.di("/presupuesto suscripciones anual 600"))
+        pre = self.n.dbs["db-pre"][0]
+        self.assertEqual((pre["Mensual S/"], pre["Anual S/"]), (100, 600))
+        t = self.di("450 icloud anual")
+        self.assertEqual((self.movs[-1]["Categoría"], self.movs[-1]["Frecuencia"]), ("Suscripciones", "Anual"))
+        self.assertEqual(self.movs[-1]["Descripción"], "Icloud")
+        self.assertIn("Pagos anuales de Suscripciones: S/ 450.00 de S/ 600.00", t)
+        t = self.di("68 claude pro suscripcion")                # mensual: no se mezcla con el anual
+        self.assertNotIn("Pasaste", t)
+        p = self.di("/presupuesto")
+        self.assertIn("S/ 68.00 de S/ 100.00", p)
+        self.assertIn("Pagos anuales de", p)
+        self.assertIn("S/ 450.00 de S/ 600.00", p)
+        self.assertIn("🔴 Pasaste el presupuesto anual", self.di("200 vpn anual suscripcion"))
+
+    def test_formulario_pregunta_mensual_o_anual(self):
+        self.di("/presupuesto suscripciones 100")
+        self.di("/presupuesto suscripciones anual 600")
+        self.di("/gasto")
+        for b in ("Hoy", "Gastos", "Efectivo", "Suscripciones"):
+            self.toca(b)
+        self.assertIn("pago anual", self.tg.ultimo)
+        self.toca("Anual")
+        for b in ("PEN", "Omitir"):
+            self.toca(b)
+        self.di("120")
+        self.assertIn("Pago: <b>Anual</b>", self.tg.ultimo)
+        self.toca("Guardar")
+        self.assertEqual(self.movs[-1]["Frecuencia"], "Anual")
+        self.di("/gasto")
+        for b in ("Hoy", "Gastos", "Efectivo", "Supermercado"):   # sin tope anual: no pregunta
+            self.toca(b)
+        self.assertIn("¿En qué moneda?", self.tg.ultimo)
+
+    def test_fuera_del_presupuesto(self):
+        self.di("/presupuesto supermercado 800")
+        t = self.di("150 consulta medica")
+        self.assertEqual(self.movs[-1]["Categoría"], "Citas médicas")
+        self.assertIn("⚠️ Fuera del presupuesto: Citas médicas", t)
+        self.assertNotIn("Fuera del presupuesto", self.di("100 supermercado"))
+        self.di("/limite 64")
+        self.assertNotIn("Fuera del presupuesto", self.di("30 almuerzo"))    # dia a dia: lo controla el limite
+        self.assertIn("⚠️ <b>Fuera del presupuesto</b>: Citas médicas S/ 150.00 · total S/ 150.00", self.di("/mes"))
+        self.assertIn("fuera del presupuesto", self.di("/presupuesto"))
+
+    def test_sin_presupuesto_no_marca_nada(self):
+        self.assertNotIn("Fuera del presupuesto", self.di("150 consulta medica"))

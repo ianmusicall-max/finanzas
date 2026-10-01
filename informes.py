@@ -87,6 +87,13 @@ class Informe:
                 l.append("<b>En qué se fue</b>")
                 for cat, v in r.top(6):
                     l.append("%s %s: %s" % (C.emoji("Gasto", cat), esc(cat), F.s(v)))
+        if p.tipo != "Diario":
+            fuera = F.gastos_fuera(r, self.plan, F.presupuesto_anual(self.notion, self.bases))
+            if fuera:
+                l.append("")
+                l.append("⚠️ <b>Fuera del presupuesto</b>: %s · total %s" % (
+                    " · ".join("%s %s" % (esc(c), F.s(v)) for c, v in sorted(fuera.items(), key=lambda x: -x[1])),
+                    F.s(sum(fuera.values()))))
         lim = lineas_limite(F.estado_limite(self.notion, self.bases, min(p.hasta, F.hoy())),
                             {"Diario": ("dia", "semana", "mes"), "Semanal": ("semana", "mes"), "Mensual": ("mes",)}[p.tipo])
         if lim:
@@ -158,15 +165,28 @@ def texto_presupuesto(notion, bases: dict, corte: Optional[date] = None) -> str:
             for cat, v in r.top(8):
                 l.append("%s %s: %s" % (C.emoji("Gasto", cat), esc(cat), F.s(v)))
         return "\n".join(l)
-    for cat, g, tope, usado in F.estado_presupuesto(r.por_categoria, plan, avance):
+    for cat, g, tope, usado in F.estado_presupuesto(r.mensuales, plan, avance):
         if usado is None:
-            l.append("⚪ %s: %s <i>(sin presupuesto)</i>" % (esc(cat), F.s(g)))
+            if F.fuera_de_presupuesto(cat, plan):
+                l.append("⚠️ %s: %s <i>(fuera del presupuesto)</i>" % (esc(cat), F.s(g)))
+            else:
+                l.append("⚪ %s: %s <i>(día a día, lo controla /limite)</i>" % (esc(cat), F.s(g)))
             continue
         marca = "🔴" if usado >= 1 else "🟡" if usado > avance + 0.1 else "🟢"
         l.append("%s %s\n    %s %s de %s · queda %s" % (marca, esc(cat), barra(usado), F.s(g), F.s(tope), F.s(max(tope - g, 0))))
     total = sum(plan.values())
+    mensual = round(sum(r.mensuales.values()), 2)
     l.append("")
-    l.append("Total: %s de %s (%s)" % (F.s(r.gastos), F.s(total), F.pct(r.gastos / total if total else None)))
+    l.append("Total del mes: %s de %s (%s)" % (F.s(mensual), F.s(total), F.pct(mensual / total if total else None)))
+    anual = F.presupuesto_anual(notion, bases)
+    if anual:
+        l.append("")
+        l.append("<b>Pagos anuales de %d</b>" % corte.year)
+        for cat, tope in sorted(anual.items(), key=lambda x: -x[1]):
+            pagado = F.pagado_anual(notion, bases, cat, corte)
+            usado = pagado / tope if tope else 0
+            marca = "🔴" if usado > 1 else "🟡" if usado >= 0.8 else "🟢"
+            l.append("%s %s\n    %s %s de %s · queda %s" % (marca, esc(cat), barra(usado), F.s(pagado), F.s(tope), F.s(max(tope - pagado, 0))))
     return "\n".join(l)
 
 

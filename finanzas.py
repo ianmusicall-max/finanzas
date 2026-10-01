@@ -274,6 +274,7 @@ def propiedades_movimiento(mov, origen: str = "Telegram") -> dict:
         "Monto RUB": p_number(en_rublos(mov.monto * tc)),
         "Medio de pago": p_select(mov.medio),
         "Tarjeta": p_select(getattr(mov, "tarjeta", None)),
+        "Frecuencia": p_select(getattr(mov, "frecuencia", None)),
         "Fecha": p_date(mov.fecha),
         "Origen": p_select(origen),
     }
@@ -302,7 +303,7 @@ def movimientos(notion, bases: dict, desde: date, hasta: date) -> list:
         out.append({"id": f["_id"], "url": f.get("_url"), "tipo": f.get("Tipo") or "Gasto",
                     "categoria": f.get("Categoría") or "Otros", "monto_s": float(monto_s or 0),
                     "fecha": (f.get("Fecha") or "")[:10], "descripcion": f.get("Descripción") or "",
-                    "medio": f.get("Medio de pago"), "cuenta": f.get("Cuenta")})
+                    "medio": f.get("Medio de pago"), "cuenta": f.get("Cuenta"), "frecuencia": f.get("Frecuencia")})
     return out
 
 
@@ -320,6 +321,7 @@ class Resumen:
     ahorro: float = 0.0
     inversion: float = 0.0
     por_categoria: dict = field(default_factory=dict)       # gastos
+    anuales: dict = field(default_factory=dict)             # de esos, los pagos anuales (no cuentan contra el tope mensual)
     ingresos_por_categoria: dict = field(default_factory=dict)
     necesidades: float = 0.0
     deseos: float = 0.0
@@ -342,6 +344,12 @@ class Resumen:
         if self.gastos <= 0:
             return None
         return (self.necesidades if grupo == "Necesidad" else self.deseos) / self.gastos
+
+    @property
+    def mensuales(self) -> dict:
+        """Gastos por categoria sin los pagos anuales: lo que se compara con el presupuesto mensual."""
+        return {c: round(v - self.anuales.get(c, 0), 2) for c, v in self.por_categoria.items()
+                if round(v - self.anuales.get(c, 0), 2) > 0}
 
     def top(self, n: int = 5) -> list:
         return sorted(self.por_categoria.items(), key=lambda kv: -kv[1])[:n]
@@ -366,6 +374,8 @@ def resumir(movs: list, periodo: Periodo) -> Resumen:
         else:
             r.gastos += v
             r.por_categoria[m["categoria"]] = r.por_categoria.get(m["categoria"], 0) + v
+            if m.get("frecuencia") == "Anual":
+                r.anuales[m["categoria"]] = r.anuales.get(m["categoria"], 0) + v
             if C.grupo(m["categoria"]) == "Necesidad":
                 r.necesidades += v
             else:
@@ -380,23 +390,56 @@ def resumir(movs: list, periodo: Periodo) -> Resumen:
 
 # ---------------------------------------------------------------- presupuesto
 
-def presupuesto(notion, bases: dict) -> dict:
-    """{categoria: monto mensual en soles}"""
+def presupuesto(notion, bases: dict, columna: str = "Mensual S/") -> dict:
+    """{categoria: tope en soles}. Mensual por defecto; columna="Anual S/" da los topes de los pagos anuales."""
     if PRESUPUESTO not in bases:
         return {}
     out = {}
     for f in notion.consultar(bases[PRESUPUESTO], limite=200):
-        if f.get("Categoría") and f.get("Mensual S/"):
-            out[f["Categoría"]] = float(f["Mensual S/"])
+        if f.get("Categoría") and f.get(columna):
+            out[f["Categoría"]] = float(f[columna])
     return out
 
 
-def fijar_presupuesto(notion, bases: dict, categoria: str, monto: float) -> dict:
+def presupuesto_anual(notion, bases: dict) -> dict:
+    return presupuesto(notion, bases, "Anual S/")
+
+
+def pagado_anual(notion, bases: dict, categoria: str, d: Optional[date] = None) -> float:
+    """Lo pagado en el año como pago anual en esa categoria."""
+    d = d or hoy()
+    return round(sum(m["monto_s"] for m in movimientos(notion, bases, date(d.year, 1, 1), d)
+                     if m["tipo"] == "Gasto" and m["categoria"] == categoria and m.get("frecuencia") == "Anual"), 2)
+
+
+def fijar_presupuesto(notion, bases: dict, categoria: str, monto: float, columna: str = "Mensual S/") -> dict:
     existentes = notion.consultar(bases[PRESUPUESTO], {"property": "Categoría", "title": {"equals": categoria}}, limite=5)
-    props = {"Categoría": p_title(categoria), "Mensual S/": p_number(monto), "Grupo": p_select(C.grupo(categoria))}
+    props = {"Categoría": p_title(categoria), columna: p_number(monto), "Grupo": p_select(C.grupo(categoria))}
     if existentes:
         return notion.editar_pagina(existentes[0]["_id"], props)
     return notion.crear_pagina(bases[PRESUPUESTO], props)
+
+
+def fuera_de_presupuesto(categoria: str, plan: dict, frecuencia: Optional[str] = None, anual: Optional[dict] = None) -> bool:
+    """Un gasto que no estaba previsto: su categoria no tiene tope (mensual, o anual si es pago anual).
+    Las categorias del dia a dia sin tope no cuentan si hay /limite: ya las controla el limite."""
+    if frecuencia == "Anual":
+        return categoria not in (anual or {})
+    if not plan or categoria in plan:
+        return False
+    return categoria in C.CATEGORIAS_FIJAS or not limite()
+
+
+def gastos_fuera(r: "Resumen", plan: dict, anual: Optional[dict] = None) -> dict:
+    """{categoria: soles} de lo gastado en el periodo fuera del presupuesto."""
+    out = {}
+    for cat, v in r.mensuales.items():
+        if fuera_de_presupuesto(cat, plan):
+            out[cat] = round(v, 2)
+    for cat, v in r.anuales.items():
+        if fuera_de_presupuesto(cat, plan, "Anual", anual):
+            out[cat] = round(out.get(cat, 0) + v, 2)
+    return out
 
 
 def estado_presupuesto(gastado: dict, plan: dict, avance_mes: float) -> list:
@@ -656,7 +699,7 @@ def consejos(r: Resumen, plan: dict = None, items: list = None, gasto_mensual: f
 
     # presupuesto
     pasados = []
-    for cat, g, tope, usado in estado_presupuesto(r.por_categoria, plan, avance_mes):
+    for cat, g, tope, usado in estado_presupuesto(r.mensuales, plan, avance_mes):
         if usado is None or tope <= 0:
             continue
         if usado >= 1:

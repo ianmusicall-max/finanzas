@@ -169,7 +169,13 @@ class Bot:
         self._cuenta_de = {}       # page_id de un movimiento -> (cuenta_id, delta) para poder deshacer
         self._por_ahorrar = {}     # chat -> ingreso recien anotado, mientras se elige cuanto separar
         self._pagando = {}         # chat -> pago de deuda en curso (con botones)
-        self.form = Formularios(metas=self._nombres_metas)
+        self.form = Formularios(metas=self._nombres_metas, anuales=self._categorias_anuales)
+
+    def _categorias_anuales(self) -> set:
+        try:
+            return set(F.presupuesto_anual(self.notion, self.bases))
+        except NotionError:
+            return set()
 
     def _nombres_metas(self) -> list:
         if METAS not in self.bases:
@@ -297,7 +303,7 @@ class Bot:
             avance = nuevo / meta["objetivo"] if meta["objetivo"] else None
             l.append("🎯 %s: %s de %s (%s)" % (esc(meta["meta"]), F.s(nuevo), F.s(meta["objetivo"]), F.pct(avance)))
         if mov.tipo == "Gasto":
-            aviso = self._aviso_presupuesto(mov.categoria)
+            aviso = self._aviso_presupuesto(mov.categoria, getattr(mov, "frecuencia", None))
             if aviso:
                 l.append(aviso)
             if mov.categoria not in C.CATEGORIAS_FIJAS:
@@ -376,14 +382,27 @@ class Bot:
                          medio=p["medio"], fecha=F.hoy())
         self._guardar(chat, mov, meta)
 
-    def _aviso_presupuesto(self, categoria: str) -> str:
-        """Si con este gasto la categoria pasa del 80% o del 100% del presupuesto del mes."""
+    def _aviso_presupuesto(self, categoria: str, frecuencia: Optional[str] = None) -> str:
+        """Si con este gasto la categoria pasa del 80% o del 100% de su presupuesto: el mensual,
+        o el anual si es un pago anual."""
         try:
+            if frecuencia == "Anual":
+                plan = F.presupuesto_anual(self.notion, self.bases)
+                if categoria not in plan:
+                    return "⚠️ Pago anual de %s fuera del presupuesto (no tiene tope anual)." % esc(categoria)
+                g, tope = F.pagado_anual(self.notion, self.bases, categoria), plan[categoria]
+                if g > tope:
+                    return "🔴 Pasaste el presupuesto anual de %s: %s de %s este año." % (esc(categoria), F.s(g), F.s(tope))
+                return "%s Pagos anuales de %s: %s de %s este año (quedan %s)." % (
+                    "🟡" if g >= 0.8 * tope else "🟢", esc(categoria), F.s(g), F.s(tope), F.s(tope - g))
             plan = F.presupuesto(self.notion, self.bases)
+            if F.fuera_de_presupuesto(categoria, plan):
+                return "⚠️ Fuera del presupuesto: %s no tiene tope mensual. Si es un gasto que se repite, ponle uno: <code>/presupuesto %s 100</code>" % (
+                    esc(categoria), esc(categoria.split()[0].lower()))
             if categoria not in plan:
                 return ""
             m = F.mes()
-            g = F.resumir(F.movimientos(self.notion, self.bases, m.desde, F.hoy()), m).por_categoria.get(categoria, 0)
+            g = F.resumir(F.movimientos(self.notion, self.bases, m.desde, F.hoy()), m).mensuales.get(categoria, 0)
         except NotionError:
             return ""
         tope = plan[categoria]
@@ -530,9 +549,12 @@ class Bot:
         if not arg:
             self.decir(chat, I.texto_presupuesto(self.notion, self.bases))
             return
+        anual = bool(re.search(r"\banual\b", C.normal(arg)))
+        arg = re.sub(r"(?i)\banual\b", " ", arg).strip()
         m = re.match(r"(.+?)\s+(\d[\d.,]*)\s*$", arg)
         if not m:
-            self.decir(chat, "Escribe la categoría y el monto mensual: <code>/presupuesto comida 800</code>")
+            self.decir(chat, "Escribe la categoría y el monto: <code>/presupuesto comida 800</code> (al mes) · "
+                             "<code>/presupuesto suscripciones anual 600</code> (pagos de una vez al año)")
             return
         cat = C.buscar_categoria("Gasto", m.group(1))
         if not cat:
@@ -540,8 +562,12 @@ class Bot:
                 esc(m.group(1)), esc(", ".join(C.nombres("Gasto")))))
             return
         monto = _numero(m.group(2))
-        F.fijar_presupuesto(self.notion, self.bases, cat, monto)
-        self.decir(chat, "🧾 Presupuesto de %s %s: %s al mes." % (C.emoji("Gasto", cat), esc(cat), F.s3(monto)))
+        F.fijar_presupuesto(self.notion, self.bases, cat, monto, "Anual S/" if anual else "Mensual S/")
+        if anual:
+            self.decir(chat, "🧾 Pagos anuales de %s %s: %s al año.\nCuando anotes uno, toca <b>Anual</b> en el formulario "
+                             "o escribe la palabra <i>anual</i>: <code>120 icloud anual</code>" % (C.emoji("Gasto", cat), esc(cat), F.s3(monto)))
+        else:
+            self.decir(chat, "🧾 Presupuesto de %s %s: %s al mes." % (C.emoji("Gasto", cat), esc(cat), F.s3(monto)))
 
     def _patrimonio(self, chat, clase: str, arg: str) -> None:
         if not arg:

@@ -47,6 +47,7 @@ class Movimiento:
     adivinada: bool = True
     cuenta: Optional[str] = None   # Gastos, Salud, Inversion... (formulario de gastos)
     tarjeta: Optional[str] = None  # "Crédito" o "Débito" si se pago con tarjeta
+    frecuencia: Optional[str] = None  # "Anual" si es un pago de una vez al año (cuenta contra el presupuesto anual)
 
 
 class NoEntendi(ValueError):
@@ -141,6 +142,10 @@ def interpretar(texto: str, tipo: Optional[str] = None, base: Optional[date] = N
         if re.search(r"\b%s\b" % w, C.normal(desc)):
             tarjeta = valor
             desc = " ".join(x for x in desc.split() if C.normal(x).strip(".,") not in ("credito", "debito"))
+    frecuencia = None
+    if re.search(r"\banual\b", C.normal(desc)):
+        frecuencia = "Anual"
+        desc = " ".join(x for x in desc.split() if C.normal(x).strip(".,") != "anual")
     medio = C.buscar_medio(desc)
     if medio not in C.TARJETAS:
         tarjeta = None
@@ -157,7 +162,8 @@ def interpretar(texto: str, tipo: Optional[str] = None, base: Optional[date] = N
     return Movimiento(tipo=tipo, monto=round(monto, 2), moneda=moneda, descripcion=desc[:1].upper() + desc[1:],
                       categoria=cat or C.otros(tipo), medio=medio, fecha=fecha, adivinada=adivinada,
                       cuenta="Gastos" if tipo == "Gasto" else None,
-                      tarjeta=tarjeta if tipo == "Gasto" else None)
+                      tarjeta=tarjeta if tipo == "Gasto" else None,
+                      frecuencia=frecuencia if tipo == "Gasto" else None)
 
 
 def _suena_a_ingreso(desc: str) -> bool:

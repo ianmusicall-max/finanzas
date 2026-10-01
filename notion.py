@@ -208,6 +208,7 @@ def esquemas() -> dict:
             "Monto RUB": _num(),
             "Medio de pago": _sel(C.MEDIOS),
             "Tarjeta": _sel(["Débito", "Crédito"]),
+            "Frecuencia": _sel(["Mensual", "Anual"]),
             "Fecha": {"date": {}},
             "Origen": _sel(["Telegram", "Hoja 2025", "Manual"]),
             "Creado": {"created_time": {}},
@@ -215,6 +216,7 @@ def esquemas() -> dict:
         PRESUPUESTO: {
             "Categoría": {"title": {}},
             "Mensual S/": _num(),
+            "Anual S/": _num(),
             "Grupo": _sel(C.GRUPOS),
             "Notas": {"rich_text": {}},
         },

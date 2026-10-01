@@ -28,6 +28,8 @@ PASOS = {
     "cuenta": ("🗂 ¿A qué cuenta va?", "opciones"),
     "medio": ("💳 ¿Con qué pagaste?", "opciones"),
     "medio_in": ("🏦 ¿Dónde entró el dinero?", "opciones"),
+    "frecuencia": ("🗓 ¿Es un pago del mes o un pago anual?\n<i>Los anuales (por ejemplo iCloud o la VPN del año) "
+                   "cuentan contra el presupuesto anual, no contra el del mes.</i>", "opciones"),
     "tarjeta": ("💳 ¿Crédito o débito?\n<i>Si es crédito, se suma a la deuda de esa tarjeta.</i>", "opciones"),
     "categoria": ("🏷 ¿Qué categoría?", "opciones"),
     "meta": ("🎯 ¿Para qué meta es?", "opciones"),
@@ -37,7 +39,7 @@ PASOS = {
 }
 
 FORMULARIOS = {
-    "gasto": ("Gasto", ["fecha", "cuenta", "medio", "tarjeta", "categoria", "moneda", "descripcion", "importe"]),
+    "gasto": ("Gasto", ["fecha", "cuenta", "medio", "tarjeta", "categoria", "frecuencia", "moneda", "descripcion", "importe"]),
     "ingreso": ("Ingreso", ["fecha", "medio_in", "categoria", "moneda", "descripcion", "importe"]),
     "ahorro": ("Ahorro", ["fecha", "meta", "medio", "moneda", "importe"]),
     "inversion": ("Inversión", ["fecha", "categoria", "medio", "moneda", "descripcion", "importe"]),
@@ -46,7 +48,7 @@ TITULOS = {"gasto": "➖ Nuevo gasto", "ingreso": "➕ Nuevo ingreso", "ahorro":
            "inversion": "📈 Nueva inversión"}
 TIPOS_TARJETA = ["Débito", "Crédito"]
 ETIQUETAS = {"fecha": "Fecha", "cuenta": "Cuenta", "medio": "Medio de pago", "medio_in": "Medio de pago",
-             "tarjeta": "Tarjeta",
+             "tarjeta": "Tarjeta", "frecuencia": "Pago",
              "categoria": "Categoría", "meta": "Meta", "moneda": "Moneda", "descripcion": "Descripción",
              "importe": "Importe"}
 SIN_META = "Sin meta (ahorro general)"
@@ -86,10 +88,12 @@ def _botones(pares: list, por_fila: int = 2) -> list:
 
 
 class Formularios:
-    def __init__(self, metas=None):
-        """metas: funcion que devuelve los nombres de las metas de Notion (para el formulario de ahorro)."""
+    def __init__(self, metas=None, anuales=None):
+        """metas: funcion que devuelve los nombres de las metas de Notion (para el formulario de ahorro).
+        anuales: funcion que devuelve las categorias con presupuesto anual (preguntan mensual o anual)."""
         self.estado = {}        # chat -> {"forma", "i", "datos", "corrigiendo"}
         self.metas = metas or (lambda: [])
+        self.anuales = anuales or (lambda: set())
 
     def activo(self, chat) -> bool:
         return chat in self.estado
@@ -107,6 +111,8 @@ class Formularios:
         """Crédito o débito solo se pregunta si se pagó con un banco o tarjeta."""
         if paso == "tarjeta":
             return self.estado[chat]["datos"].get("medio") in C.TARJETAS
+        if paso == "frecuencia":
+            return self.estado[chat]["datos"].get("categoria") in self.anuales()
         return True
 
     def _pasos(self, chat) -> list:
@@ -132,6 +138,8 @@ class Formularios:
             lista = list(C.MONEDAS)
         elif paso == "tarjeta":
             lista = list(TIPOS_TARJETA)
+        elif paso == "frecuencia":
+            lista = ["Mensual", "Anual"]
         elif paso == "meta":
             lista = list(self.metas()) + [SIN_META]
         else:
@@ -251,6 +259,8 @@ class Formularios:
         pasos = FORMULARIOS[e["forma"]][1]
         if e["corrigiendo"] and pasos[e["i"]] == "medio" and "tarjeta" in pasos and self._aplica(chat, "tarjeta"):
             e["i"] = pasos.index("tarjeta")   # cambio a un banco: falta saber si es credito o debito
+        elif e["corrigiendo"] and pasos[e["i"]] == "categoria" and "frecuencia" in pasos and self._aplica(chat, "frecuencia"):
+            e["i"] = pasos.index("frecuencia")   # categoria con pagos anuales: falta saber cual es
         elif e["corrigiendo"]:
             e["corrigiendo"] = False
             e["i"] = len(pasos)
@@ -302,7 +312,8 @@ class Formularios:
                          descripcion=descripcion[:1].upper() + descripcion[1:], categoria=categoria,
                          medio=d.get("medio") or d.get("medio_in"), fecha=d.get("fecha") or hoy(),
                          cuenta=d.get("cuenta"),
-                         tarjeta=d.get("tarjeta") if d.get("medio") in C.TARJETAS and tipo == "Gasto" else None)
+                         tarjeta=d.get("tarjeta") if d.get("medio") in C.TARJETAS and tipo == "Gasto" else None,
+                         frecuencia="Anual" if d.get("frecuencia") == "Anual" and categoria in self.anuales() else None)
         return mov, meta
 
     def listo(self, chat) -> bool:
