@@ -149,6 +149,79 @@ class Patrimonio(Base):
         self.assertEqual(leer_patrimonio("Pasivo", "Tarjeta Ripley 1,200"), ("Tarjeta Ripley", 1200, "PEN", "Tarjeta de crédito"))
 
 
+class Deudas(Base):
+    @property
+    def deudas(self):
+        return self.n.dbs["db-deu"]
+
+    def test_deuda_va_a_la_base_deudas(self):
+        t = self.di("/deuda Tarjeta Ripley 1200")
+        self.assertIn("Total de deudas: <b>S/ 1,200.00</b>", t)
+        d = self.deudas[0]
+        self.assertEqual((d["Deuda"], d["Tipo"], d["Saldo"], d["Monto original"], d["Estado"]),
+                         ("Tarjeta Ripley", "Tarjeta de crédito", 1200, 1200, "Activa"))
+        self.assertEqual(self.n.dbs["db-pat"], [])
+        t = self.di("/deuda Tarjeta Ripley 1500")
+        self.assertIn("antes S/ 1,200.00", t)
+        self.assertEqual(len(self.deudas), 1)
+
+    def test_cuenta_en_el_patrimonio_neto(self):
+        self.di("/activo Interbank 5200")
+        self.di("/deuda Préstamo BCP 2000")
+        t = self.di("/patrimonio")
+        self.assertIn("Patrimonio neto: S/ 3,200.00", t)
+        self.assertIn("Préstamo BCP", t)
+
+    def test_pago_baja_el_saldo_hasta_pagarla(self):
+        self.di("/deuda Tarjeta Ripley 1000")
+        t = self.di("/pago ripley 300")
+        self.assertIn("Te queda: <b>S/ 700.00</b>", t)
+        self.assertEqual(self.deudas[0]["Saldo"], 700)
+        self.assertEqual(self.movs, [])  # pagar una deuda no es un gasto nuevo
+        t = self.di("/pago ripley 700")
+        self.assertIn("pagada por completo", t)
+        self.assertEqual(self.deudas[0]["Estado"], "Pagada")
+        self.assertIn("No tienes deudas activas", self.di("/deudas"))
+
+    def test_pago_en_otra_moneda(self):
+        F.fijar_tipo_de_cambio("USD", 4.0)
+        self.di("/deuda Juan 100 usd")
+        self.assertEqual(self.deudas[0]["Tipo"], "Otra")
+        self.di("/pago juan 200 soles")
+        self.assertEqual(self.deudas[0]["Saldo"], 50)
+
+    def test_lista_y_errores(self):
+        self.di("/deuda Tarjeta Ripley 1200")
+        self.di("/deuda Préstamo BCP 15000")
+        self.n.dbs["db-deu"][1].update({"Tasa anual": 0.18, "Cuota mensual": 800, "Día de pago": 5})
+        t = self.di("/deudas")
+        self.assertIn("Deudas: S/ 16,200.00", t)
+        self.assertLess(t.index("Préstamo BCP"), t.index("Tarjeta Ripley"))
+        self.assertIn("tasa 18%", t)
+        self.assertIn("Cuotas al mes: S/ 800.00", t)
+        self.assertIn("No encuentro", self.di("/pago visa 10"))
+        self.assertIn("Tus deudas", self.di("/pago"))
+        self.assertIn("Escribe el nombre", self.di("/deuda"))
+
+    def test_avalancha_en_consejos(self):
+        self.di("/deuda Tarjeta Ripley 1200")
+        self.di("/deuda Préstamo BCP 15000")
+        self.n.dbs["db-deu"][0]["Tasa anual"] = 0.65
+        self.n.dbs["db-deu"][1]["Tasa anual"] = 0.18
+        self.di("+3000 sueldo")
+        self.assertIn("avalancha: paga el mínimo en todas y lo extra a Tarjeta Ripley", self.di("/consejos"))
+
+    def test_sin_base_deudas_sigue_en_patrimonio(self):
+        bases = {k: v for k, v in self.bot.bases.items() if k != "Deudas"}
+        b = Bot(self.tg, self.n, bases, {YO})
+        b.procesar(mensaje("/deuda Tarjeta Ripley 1200"))
+        self.assertEqual(self.n.dbs["db-pat"][0]["Clase"], "Pasivo")
+
+    def test_menu_tiene_deudas(self):
+        self.di("/start")
+        self.assertIn("No tienes deudas activas", self.toca("Deudas"))
+
+
 class Resumenes(Base):
     def test_hoy_semana_mes(self):
         self.di("+3000 sueldo")

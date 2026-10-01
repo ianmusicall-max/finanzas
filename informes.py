@@ -197,3 +197,34 @@ def texto_metas(notion, bases: dict) -> str:
             esc(m["meta"]), "✅" if m["avance"] >= 1 else "", barra(m["avance"]), F.pct(m["avance"]),
             F.s(m["ahorrado"]), F.s(m["objetivo"]), F.s(falta)))
     return "\n".join(l)
+
+
+def texto_deudas(notion, bases: dict) -> str:
+    lista = F.deudas(notion, bases)
+    if not lista:
+        return ("💳 <b>Deudas</b>\n\nNo tienes deudas activas. 🎉\nSi tienes una, anótala con:\n"
+                "<code>/deuda Tarjeta Ripley 1200</code>\n<code>/deuda Préstamo BCP 15000</code>")
+    total = sum(d["saldo_s"] for d in lista)
+    cuotas = sum(F.soles(d["cuota"], d["moneda"]) for d in lista if d["cuota"])
+    l = ["💳 <b>Deudas: %s</b>" % F.s(total), ""]
+    for d in lista:
+        extra = "" if d["moneda"] == "PEN" else " (%s %s)" % (d["moneda"], "{:,.2f}".format(d["saldo"]))
+        l.append("<b>%s</b> · %s%s <i>%s</i>" % (esc(d["deuda"]), F.s(d["saldo_s"]), extra, esc(d["tipo"])))
+        det = []
+        if d["original"]:
+            pagado = 1 - d["saldo"] / d["original"] if d["original"] > 0 else 0
+            if pagado > 0:
+                det.append("%s %s pagado" % (barra(pagado), F.pct(pagado)))
+        if d["tasa"]:
+            det.append("tasa %s" % F.pct(d["tasa"]))
+        if d["cuota"]:
+            det.append("cuota %s" % F.s(F.soles(d["cuota"], d["moneda"])))
+        if d["dia"]:
+            det.append("paga el día %d" % int(d["dia"]))
+        if det:
+            l.append("    " + " · ".join(det))
+    l.append("")
+    if cuotas:
+        l.append("📅 Cuotas al mes: %s" % F.s(cuotas))
+    l.append("Para registrar un pago: <code>/pago %s 300</code>" % esc(lista[0]["deuda"].split()[-1]))
+    return "\n".join(l)

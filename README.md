@@ -71,7 +71,9 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
 | `/presupuesto comida 800` | fija el tope mensual de una categoría |
 | `/patrimonio` | lo que tienes, lo que debes y tu patrimonio neto |
 | `/activo Interbank 5200` · `/activo Binance 800 usd` · `/activo Auto 45000` | crea o actualiza un activo |
-| `/deuda Tarjeta Ripley 1200` · `/deuda Préstamo BCP 15000` | crea o actualiza una deuda |
+| `/deuda Tarjeta Ripley 1200` · `/deuda Préstamo BCP 15000` | crea una deuda o actualiza su saldo (base **Deudas**) |
+| `/deudas` | cuánto debes, a quién, tasa, cuota y cuánto llevas pagado |
+| `/pago Ripley 300` · `/pago Juan 50 usd` | registra un pago: baja el saldo; en 0 la marca como pagada |
 | `/metas` · `/meta Auto 100000` | ver metas / crear o cambiar el objetivo |
 | `/consejos` | qué mejorar según tus números del mes |
 | `/metodos` | formas de manejar tu dinero (50/30/20, págate primero, sobres, base cero, deudas) |
@@ -92,6 +94,20 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
 - **Patrimonio neto** = activos − deudas, en soles. Queda registrado en cada resumen, así ves su evolución.
 - **Fondo de emergencia**: efectivo y bancos ÷ gasto de un mes normal (el mes pasado). Lo recomendable son 3 a 6 meses.
 - **Gastos hormiga**: los de menos de S/ 20; si son muchos y pesan más del 10%, te avisa.
+
+## Gráficos en Notion
+
+Abre la página **Finanzas** en Notion. Cada base tiene pestañas arriba con los gráficos:
+
+| Base | Gráficos |
+|---|---|
+| **Movimientos** (desde 2026, lo que anotas por Telegram) | 📊 Gastos por categoría · 📈 Ingresos vs gastos por mes · 🍩 Necesidad vs deseo |
+| **Historial 2025** (lo importado de la hoja de Google) | los mismos tres y 💳 Gastos por medio de pago |
+| **Resúmenes** | 📈 Balance mensual · 🏦 Patrimonio neto |
+| **Deudas** | 📉 Saldo por deuda |
+
+En **Deudas** puedes completar a mano la tasa anual, la cuota y el día de pago; el bot los usa en
+`/deudas` y en `/consejos` (te dice qué deuda pagar primero, la de mayor tasa).
 
 ## Puesta en marcha
 

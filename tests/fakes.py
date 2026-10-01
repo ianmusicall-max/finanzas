@@ -4,7 +4,7 @@ import itertools
 
 from notion import leer
 
-BASES = {"Movimientos": "db-mov", "Presupuesto": "db-pre", "Patrimonio": "db-pat", "Metas": "db-met", "Resúmenes": "db-res"}
+BASES = {"Movimientos": "db-mov", "Presupuesto": "db-pre", "Patrimonio": "db-pat", "Metas": "db-met", "Resúmenes": "db-res", "Deudas": "db-deu"}
 
 
 def _plano(props: dict) -> dict:

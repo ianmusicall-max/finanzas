@@ -17,7 +17,7 @@ import categorias as C
 import finanzas as F
 import informes as I
 from config import DATA, TELEGRAM_USUARIOS
-from notion import METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, Notion, NotionError, cargar_bases
+from notion import DEUDAS, METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, Notion, NotionError, cargar_bases
 from formularios import Formularios
 from lector import MONEDAS, NoEntendi, _numero, interpretar
 from telegram import Telegram, TelegramError, esc, guardar_offset, leer_offset, turno_del_bot
@@ -38,12 +38,14 @@ AYUDA = (
     "/presupuesto · cuánto llevas de cada categoría\n"
     "/patrimonio · lo que tienes menos lo que debes\n"
     "/metas · avance de tus metas de ahorro\n"
+    "/deudas · cuánto debes y a quién\n"
     "/consejos · qué mejorar según tus números\n"
     "/metodos · formas de manejar tu dinero\n"
     "/ultimos · lo último que anotaste\n\n"
     "<b>Ajustar</b>\n"
     "<code>/presupuesto comida 800</code>\n"
     "<code>/activo Interbank 5200</code> · <code>/deuda Tarjeta Ripley 1200</code>\n"
+    "<code>/pago Ripley 300</code> · baja el saldo de una deuda\n"
     "<code>/meta Auto 100000</code>\n"
     "<code>/tc 3.72</code> · <code>/tc rub 0.046</code> · tipo de cambio\n"
     "/deshacer · borra lo último que anotaste"
@@ -52,7 +54,7 @@ AYUDA = (
 MENU = [[("➖ Gasto", "m:gasto"), ("➕ Ingreso", "m:ingreso"), ("🐷 Ahorro", "m:ahorro")],
         [("📅 Hoy", "m:hoy"), ("🗓 Semana", "m:semana"), ("📆 Mes", "m:mes")],
         [("🧾 Presupuesto", "m:presupuesto"), ("🏦 Patrimonio", "m:patrimonio"), ("🎯 Metas", "m:metas")],
-        [("💡 Consejos", "m:consejos")]]
+        [("💳 Deudas", "m:deudas"), ("💡 Consejos", "m:consejos")]]
 
 METODOS = (
     "🧭 <b>Formas de manejar tu dinero</b>\n\n"
@@ -111,6 +113,7 @@ TIPOS_DEUDA = [
     ("Tarjeta de crédito", ["tarjeta", "ripley", "cmr", "oh", "visa", "mastercard", "amex"]),
     ("Hipoteca", ["hipoteca", "hipotecario"]),
     ("Préstamo", ["prestamo", "credito", "banco"]),
+    ("Persona", ["amigo", "amiga", "mama", "papa", "hermano", "hermana", "tio", "tia", "primo", "prima"]),
 ]
 
 
@@ -119,7 +122,7 @@ def _tipo_patrimonio(clase: str, texto: str) -> str:
     for tipo, claves in (TIPOS_ACTIVO if clase == "Activo" else TIPOS_DEUDA):
         if any(" %s " % k in t or (len(k) > 4 and k in t) for k in claves):
             return tipo
-    return "Efectivo y bancos" if clase == "Activo" else "Por pagar"
+    return "Efectivo y bancos" if clase == "Activo" else "Otra"
 
 
 def leer_patrimonio(clase: str, texto: str):
@@ -362,8 +365,14 @@ class Bot:
             self._presupuesto(chat, arg)
         elif cmd == "/patrimonio":
             self.decir(chat, I.texto_patrimonio(self.notion, self.bases))
+        elif cmd == "/deuda" and DEUDAS in self.bases:
+            self._deuda(chat, arg)
         elif cmd in ("/activo", "/deuda"):
             self._patrimonio(chat, "Activo" if cmd == "/activo" else "Pasivo", arg)
+        elif cmd == "/deudas":
+            self.decir(chat, I.texto_deudas(self.notion, self.bases))
+        elif cmd in ("/pago", "/pagar"):
+            self._pago(chat, arg)
         elif cmd == "/metas":
             self.decir(chat, I.texto_metas(self.notion, self.bases))
         elif cmd == "/meta":
@@ -429,6 +438,47 @@ class Bot:
         _, _, net, _ = F.neto(F.patrimonio(self.notion, self.bases))
         self.decir(chat, "%s %s · %s: %s%s\n🏦 Patrimonio neto: <b>%s</b>" % (
             "🟢" if clase == "Activo" else "🔻", esc(nombre), esc(tipo), F.s(ahora), cambio, F.s(net)))
+
+    def _deuda(self, chat, arg: str) -> None:
+        if not arg:
+            self.decir(chat, "Escribe el nombre y lo que debes hoy: <code>/deuda Tarjeta Ripley 1200</code> · "
+                             "<code>/deuda Préstamo BCP 15000</code> · <code>/deuda Juan 200 usd</code>")
+            return
+        try:
+            nombre, saldo, moneda, tipo = leer_patrimonio("Pasivo", arg)
+        except NoEntendi as exc:
+            self.decir(chat, esc(str(exc).replace("/activo Interbank 5200", "/deuda Tarjeta Ripley 1200")))
+            return
+        _, antes = F.fijar_deuda(self.notion, self.bases, nombre, tipo, saldo, moneda)
+        ahora = F.soles(saldo, moneda)
+        cambio = ""
+        if antes is not None:
+            d = ahora - float(antes)
+            cambio = " (antes %s, %s%s)" % (F.s(antes), "+" if d >= 0 else "", F.s(d))
+        total = sum(x["saldo_s"] for x in F.deudas(self.notion, self.bases))
+        self.decir(chat, "💳 %s · %s: %s%s\nTotal de deudas: <b>%s</b>\n"
+                         "<i>En Notion (Deudas) puedes poner la tasa, la cuota y el día de pago.</i>" % (
+                             esc(nombre), esc(tipo), F.s(ahora), cambio, F.s(total)))
+
+    def _pago(self, chat, arg: str) -> None:
+        lista = F.deudas(self.notion, self.bases)
+        m = re.match(r"(.+?)\s+(\d[\d.,]*)(\s*k)?(?:\s+(\S+))?\s*$", arg)
+        if not m:
+            nombres = ", ".join(d["deuda"] for d in lista) or "aún no tienes deudas (usa /deuda)"
+            self.decir(chat, "Escribe la deuda y cuánto pagaste: <code>/pago Ripley 300</code>\nTus deudas: %s" % esc(nombres))
+            return
+        d = F.buscar_deuda(lista, m.group(1))
+        if not d:
+            self.decir(chat, "No encuentro la deuda «%s». Mira /deudas." % esc(m.group(1)))
+            return
+        moneda = MONEDAS.get(C.normal(m.group(4) or ""), None)
+        monto = _numero(m.group(2)) * (1000 if m.group(3) else 1)
+        nuevo = F.pagar_deuda(self.notion, d, monto, moneda)
+        if nuevo <= 0:
+            self.decir(chat, "🎉 ¡%s pagada por completo! Ya no aparece en tus deudas." % esc(d["deuda"]))
+            return
+        extra = "" if d["moneda"] == "PEN" else " (%s %s)" % (d["moneda"], "{:,.2f}".format(nuevo))
+        self.decir(chat, "✅ Pago a %s. Te queda: <b>%s</b>%s" % (esc(d["deuda"]), F.s(F.soles(nuevo, d["moneda"])), extra))
 
     def _meta(self, chat, arg: str) -> None:
         m = re.match(r"(.+?)\s+(\d[\d.,]*)(\s*k)?\s*$", arg)

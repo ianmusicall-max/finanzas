@@ -186,7 +186,9 @@ def _num(formato: str = "number") -> dict:
 
 
 MOVIMIENTOS, PRESUPUESTO, PATRIMONIO, METAS, RESUMENES = "Movimientos", "Presupuesto", "Patrimonio", "Metas", "Resúmenes"
-ICONOS = {MOVIMIENTOS: "💸", PRESUPUESTO: "🧾", PATRIMONIO: "🏦", METAS: "🎯", RESUMENES: "📊"}
+DEUDAS = "Deudas"
+ICONOS = {MOVIMIENTOS: "💸", PRESUPUESTO: "🧾", PATRIMONIO: "🏦", METAS: "🎯", RESUMENES: "📊", DEUDAS: "💳"}
+TIPOS_DEUDA = ["Tarjeta de crédito", "Préstamo", "Hipoteca", "Persona", "Otra"]
 
 
 def esquemas() -> dict:
@@ -247,6 +249,22 @@ def esquemas() -> dict:
             "Principales gastos": {"rich_text": {}},
             "Alertas": {"rich_text": {}},
         },
+        DEUDAS: {
+            "Deuda": {"title": {}},
+            "Tipo": _sel(TIPOS_DEUDA),
+            "Acreedor": {"rich_text": {}},
+            "Monto original": _num(),
+            "Saldo": _num(),
+            "Moneda": _sel(C.MONEDAS),
+            "Saldo S/": _num(),
+            "Tasa anual": _num("percent"),
+            "Cuota mensual": _num(),
+            "Día de pago": _num(),
+            "Inicio": {"date": {}},
+            "Estado": _sel(["Activa", "Pagada"]),
+            "Actualizado": {"date": {}},
+            "Notas": {"rich_text": {}},
+        },
     }
 
 
@@ -279,7 +297,7 @@ def buscar_base_bajo(notion: Notion, titulo: str, parent: str) -> Optional[str]:
 
 
 def crear_bases(notion: Notion, parent: str = NOTION_PARENT_PAGE_ID, log=print) -> dict:
-    """Crea las cinco bases debajo de la pagina padre. Se puede correr varias
+    """Crea las bases debajo de la pagina padre. Se puede correr varias
     veces: lo que ya existe se respeta, y a lo existente se le agregan las
     propiedades nuevas del esquema (nunca se borra una columna)."""
     ids = cargar_bases()

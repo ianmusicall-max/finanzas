@@ -12,7 +12,7 @@ from typing import Optional
 
 import categorias as C
 from config import AJUSTES, DATA, TC_EUR, TC_RUB, TC_USD, hoy
-from notion import (METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, p_date, p_number, p_select, p_text, p_title)
+from notion import (DEUDAS, METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, p_date, p_number, p_select, p_text, p_title)
 
 MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre",
          "octubre", "noviembre", "diciembre"]
@@ -273,9 +273,12 @@ def estado_presupuesto(gastado: dict, plan: dict, avance_mes: float) -> list:
 # ---------------------------------------------------------------- patrimonio
 
 def patrimonio(notion, bases: dict) -> list:
+    """Cuentas y bienes de Patrimonio mas las deudas activas de Deudas (como Pasivo)."""
+    out = [{"id": d["id"], "nombre": d["deuda"], "clase": "Pasivo", "tipo": d["tipo"], "valor": d["saldo"],
+            "moneda": d["moneda"], "valor_s": d["saldo_s"], "actualizado": d["actualizado"], "tasa": d["tasa"]}
+           for d in deudas(notion, bases) if d["saldo_s"] > 0]
     if PATRIMONIO not in bases:
-        return []
-    out = []
+        return out
     for f in notion.consultar(bases[PATRIMONIO], limite=300):
         valor_s = f.get("Valor S/")
         if valor_s is None:
@@ -303,6 +306,64 @@ def fijar_patrimonio(notion, bases: dict, nombre: str, clase: str, tipo: str, va
         antes = existentes[0].get("Valor S/")
         return notion.editar_pagina(existentes[0]["_id"], props), antes
     return notion.crear_pagina(bases[PATRIMONIO], props), None
+
+
+# ---------------------------------------------------------------- deudas
+
+def deudas(notion, bases: dict, todas: bool = False) -> list:
+    """Deudas de la base Deudas, la mas grande primero. Sin todas=True solo las activas."""
+    if DEUDAS not in bases:
+        return []
+    out = []
+    for f in notion.consultar(bases[DEUDAS], limite=200):
+        estado = f.get("Estado") or "Activa"
+        if estado != "Activa" and not todas:
+            continue
+        saldo, moneda = float(f.get("Saldo") or 0), f.get("Moneda") or "PEN"
+        saldo_s = f.get("Saldo S/")
+        out.append({"id": f["_id"], "deuda": f.get("Deuda") or "?", "tipo": f.get("Tipo") or "Otra",
+                    "saldo": saldo, "moneda": moneda,
+                    "saldo_s": float(saldo_s if saldo_s is not None else soles(saldo, moneda)),
+                    "original": f.get("Monto original"), "tasa": f.get("Tasa anual"),
+                    "cuota": f.get("Cuota mensual"), "dia": f.get("Día de pago"),
+                    "estado": estado, "actualizado": f.get("Actualizado")})
+    return sorted(out, key=lambda d: -d["saldo_s"])
+
+
+def buscar_deuda(lista: list, texto: str) -> Optional[dict]:
+    t = C.normal(texto).strip()
+    if not t:
+        return None
+    for d in lista:
+        if C.normal(d["deuda"]) == t:
+            return d
+    for d in lista:
+        if t in C.normal(d["deuda"]) or C.normal(d["deuda"]) in t:
+            return d
+    return None
+
+
+def fijar_deuda(notion, bases: dict, nombre: str, tipo: str, saldo: float, moneda: str = "PEN") -> tuple:
+    """Crea la deuda o actualiza su saldo. Devuelve (pagina, saldo anterior en soles o None)."""
+    existente = buscar_deuda(deudas(notion, bases, todas=True), nombre)
+    props = {"Saldo": p_number(saldo), "Moneda": p_select(moneda), "Saldo S/": p_number(soles(saldo, moneda)),
+             "Estado": p_select("Activa" if saldo > 0 else "Pagada"), "Actualizado": p_date(hoy())}
+    if existente:
+        return notion.editar_pagina(existente["id"], props), existente["saldo_s"]
+    props.update({"Deuda": p_title(nombre), "Tipo": p_select(tipo), "Monto original": p_number(saldo),
+                  "Inicio": p_date(hoy())})
+    return notion.crear_pagina(bases[DEUDAS], props), None
+
+
+def pagar_deuda(notion, deuda: dict, monto: float, moneda: Optional[str] = None) -> float:
+    """Baja el saldo con un pago (en la moneda de la deuda si no se dice otra). Devuelve el saldo nuevo."""
+    moneda = moneda or deuda["moneda"]
+    pago = monto if moneda == deuda["moneda"] else soles(monto, moneda) / tipo_de_cambio(deuda["moneda"])
+    nuevo = round(max(deuda["saldo"] - pago, 0), 2)
+    notion.editar_pagina(deuda["id"], {
+        "Saldo": p_number(nuevo), "Saldo S/": p_number(soles(nuevo, deuda["moneda"])),
+        "Estado": p_select("Activa" if nuevo > 0 else "Pagada"), "Actualizado": p_date(hoy())})
+    return nuevo
 
 
 # ---------------------------------------------------------------- metas
@@ -408,6 +469,10 @@ def consejos(r: Resumen, plan: dict = None, items: list = None, gasto_mensual: f
         tarjetas = sum(i["valor_s"] for i in items if i["tipo"] == "Tarjeta de crédito")
         if tarjetas > 0:
             out.append("💳 Debes %s en tarjetas. Pagar el total cada mes evita intereses de 40%% a 90%% al año; es la mejor \"inversión\" que tienes." % s(tarjetas))
+        con_tasa = [i for i in items if i["clase"] == "Pasivo" and i.get("tasa") and i["valor_s"] > 0]
+        if len(con_tasa) > 1:
+            cara = max(con_tasa, key=lambda i: i["tasa"])
+            out.append("❄️ Método avalancha: paga el mínimo en todas y lo extra a %s (%s al año), la deuda más cara." % (cara["nombre"], pct(cara["tasa"])))
         if act > 0 and pas / act > 0.5:
             out.append("⚠️ Tus deudas son el %s de lo que tienes. Prioriza bajarlas antes de nuevas compras grandes." % pct(pas / act))
     return out
