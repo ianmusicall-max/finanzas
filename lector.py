@@ -145,7 +145,8 @@ def interpretar(texto: str, tipo: Optional[str] = None, base: Optional[date] = N
     if medio not in C.TARJETAS:
         tarjeta = None
     if medio:
-        desc = re.sub(r"(?i)\s*\b(con|por|via|desde)?\s*%s\b" % re.escape(medio), " ", desc)
+        for nombre in [medio] + [al for al, m in C.ALIAS_MEDIOS.items() if m == medio]:
+            desc = re.sub(r"(?i)\s*\b(con|por|via|desde)?\s*%s\b" % re.escape(nombre), " ", desc)
         desc = " ".join(desc.split())
 
     if not tipo:

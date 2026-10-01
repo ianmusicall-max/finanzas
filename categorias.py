@@ -43,7 +43,7 @@ INGRESOS = {
     "Facebook": ("📘", ["facebook", "meta", "fb", "monetizacion", "estrellas", "reels"]),
     "Freshtunes": ("🎵", ["freshtunes"]),
     "Routenote": ("🎶", ["routenote"]),
-    "Criptomonedas": ("🪙", ["usdt", "binance", "cripto", "bitcoin", "btc", "earn", "paxful"]),
+    "Criptomonedas": ("🪙", ["usdt", "binance", "cripto", "bitcoin", "btc", "earn", "kucoin"]),
     "Ventas": ("🛍", ["venta", "vendi", "cliente", "plantilla"]),
     "Sueldo": ("💼", ["sueldo", "salario", "planilla", "quincena", "gratificacion", "cts"]),
     "Retiro de ahorro": ("🐷", ["retiro de ahorro", "saque del ahorro"]),
@@ -68,22 +68,24 @@ INVERSIONES = {
 CUENTAS = ["Gastos", "Salud", "Inversión", "Educación", "Export Latam", "Facebook"]
 MONEDAS = ["PEN", "RUB", "USD", "EUR"]
 
-# Medios de pago, en el orden en que mas se usaron en 2025.
-MEDIOS = ["Tinkoff", "CMR", "Interbank", "Ripley", "Scotiabank", "Binance", "PayPal", "Sberbank", "Payoneer",
-          "Paxful", "Efectivo", "Tarjeta OH", "BBVA", "BCP", "Yape", "Plin"]
+# Medios de pago, en el orden en que mas se usan.
+MEDIOS = ["T-Bank", "Falabella", "Interbank", "Binance", "PayPal", "Sberbank", "Payoneer", "SIP", "KuCoin",
+          "Efectivo", "Tarjeta OH", "BBVA", "BCP", "Yape", "Plin"]
 # Medios que pueden ser tarjeta de credito o de debito: el formulario de gasto pregunta cual.
-TARJETAS = ["Tinkoff", "CMR", "Interbank", "Ripley", "Scotiabank", "Sberbank", "Tarjeta OH", "BBVA", "BCP"]
+TARJETAS = ["T-Bank", "Falabella", "Interbank", "Sberbank", "SIP", "Tarjeta OH", "BBVA", "BCP"]
 # Nombre de la deuda (base Deudas) donde se acumula lo que se compra a credito con cada tarjeta.
-DEUDA_TARJETA = {"CMR": "Tarjeta Falabella", "Tinkoff": "Tarjeta T-Bank", "Tarjeta OH": "Tarjeta OH"}
-BANCO_TARJETA = {"CMR": "Banco Falabella", "Tinkoff": "T-Bank (Tinkoff)", "Tarjeta OH": "Financiera OH"}
+DEUDA_TARJETA = {"Tarjeta OH": "Tarjeta OH"}
+BANCO_TARJETA = {"Falabella": "Banco Falabella", "T-Bank": "T-Bank (Tinkoff)", "Tarjeta OH": "Financiera OH",
+                 "SIP": "Banco SIP"}
 
 
 def deuda_de_tarjeta(medio: str) -> str:
     return DEUDA_TARJETA.get(medio) or "Tarjeta " + medio
 
 
-# Como estaban escritos en la hoja y como se llaman aca.
-ALIAS_MEDIOS = {"tinkoft": "Tinkoff", "tinkof": "Tinkoff", "tbank": "Tinkoff", "t-bank": "Tinkoff",
+# Otras formas de escribirlos (y como se llamaban en la hoja de 2025).
+ALIAS_MEDIOS = {"tinkoff": "T-Bank", "tinkoft": "T-Bank", "tinkof": "T-Bank", "tbank": "T-Bank", "t bank": "T-Bank",
+                "cmr": "Falabella", "saga": "Falabella", "kucoin": "KuCoin", "ku coin": "KuCoin",
                 "oh": "Tarjeta OH", "sber": "Sberbank"}
 
 # Clases de patrimonio: (clase, tipo)

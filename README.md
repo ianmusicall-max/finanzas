@@ -47,7 +47,7 @@ Toca **➖ Gasto**, **➕ Ingreso** o **🐷 Ahorro** en el menú (o escribe `/g
 
 Al final muestra el resumen con **Guardar**, **Corregir** (vuelves a cualquier pregunta) y **Cancelar**. Nada se
 guarda hasta tocar Guardar. Lo último que elegiste en cada pregunta sale primero la próxima vez (si siempre pagas
-con Tinkoff, Tinkoff queda arriba). Las monedas son PEN, RUB, USD y EUR; todo se suma en soles con el tipo de
+con T-Bank, T-Bank queda arriba). Las monedas son PEN, RUB, USD y EUR; todo se suma en soles con el tipo de
 cambio de `/tc`. Un gasto con cuenta **Inversión** se cuenta como inversión en los resúmenes, no como gasto.
 
 ### O rápido, escribiendo como hablas
@@ -55,15 +55,15 @@ cambio de `/tc`. Un gasto con cuenta **Inversión** se cuenta como inversión en
 | Mensaje | Queda como |
 |---|---|
 | `45 almuerzo` | gasto · Comida y restaurantes · S/ 45 |
-| `1200 rub pyaterochka tinkoff` | gasto en rublos · Supermercado · Tinkoff |
+| `1200 rub pyaterochka tbank` | gasto en rublos · Supermercado · T-Bank |
 | `12.50 taxi yape ayer` | gasto · Movilidad · Yape · fecha de ayer |
 | `netflix 44.90` | gasto · Suscripciones |
 | `+1943 usd facebook` | ingreso en dólares · Facebook |
 | `ahorro 500 emergencia` | ahorro, y suma S/ 500 a la meta "Fondo de emergencia" |
-| `120 zapatillas cmr credito` | gasto a crédito: además suma S/ 120 a la deuda "Tarjeta Falabella" |
+| `120 zapatillas falabella credito` | gasto a crédito: además suma S/ 120 a la deuda "Tarjeta Falabella" |
 
-En el formulario de gasto, si eliges un banco o tarjeta (CMR, Ripley, OH, Tinkoff, Interbank, BBVA, BCP,
-Scotiabank, Sberbank) el bot pregunta **¿Crédito o débito?**. Si es crédito, el gasto cuenta como gasto
+En el formulario de gasto, si eliges un banco o tarjeta (Falabella, T-Bank, OH, Interbank, BBVA, BCP,
+SIP, Sberbank) el bot pregunta **¿Crédito o débito?**. Si es crédito, el gasto cuenta como gasto
 y además se suma a la deuda de esa tarjeta en **Deudas** (si no existe, la crea: "Tarjeta BBVA"). Cuando
 pagas la tarjeta usas `/pago`, que baja la deuda sin contar otro gasto. Deshacer el gasto también la descuenta.
 
@@ -77,9 +77,9 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
 | `/presupuesto comida 800` | fija el tope mensual de una categoría |
 | `/patrimonio` | lo que tienes, lo que debes y tu patrimonio neto |
 | `/activo Interbank 5200` · `/activo Binance 800 usd` · `/activo Auto 45000` | crea o actualiza un activo |
-| `/deuda Tarjeta Ripley 1200` · `/deuda Préstamo BCP 15000` | crea una deuda o actualiza su saldo (base **Deudas**) |
+| `/deuda Tarjeta Falabella 1200` · `/deuda Préstamo BCP 15000` | crea una deuda o actualiza su saldo (base **Deudas**) |
 | `/deudas` | cuánto debes, a quién, tasa, cuota y cuánto llevas pagado |
-| `/pago Ripley 300` · `/pago Juan 50 usd` | registra un pago: baja el saldo; en 0 la marca como pagada |
+| `/pago Falabella 300` · `/pago Juan 50 usd` | registra un pago: baja el saldo; en 0 la marca como pagada |
 | `/metas` · `/meta Auto 100000` | ver metas / crear o cambiar el objetivo |
 | `/consejos` | qué mejorar según tus números del mes |
 | `/metodos` | formas de manejar tu dinero (50/30/20, págate primero, sobres, base cero, deudas) |

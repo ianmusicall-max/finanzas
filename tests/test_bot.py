@@ -275,7 +275,7 @@ class Formularios(Base):
         self.toca("Ayer")
         self.assertIn("cuenta", self.tg.ultimo)
         self.toca("Salud")
-        self.toca("Tinkoff")
+        self.toca("T-Bank")
         self.assertIn("¿Crédito o débito?", self.tg.ultimo)
         self.toca("Débito")
         self.toca("Medicina")
@@ -291,7 +291,7 @@ class Formularios(Base):
         self.toca("Guardar")
         f = self.movs[0]
         self.assertEqual((f["Tipo"], f["Cuenta"], f["Medio de pago"], f["Categoría"], f["Moneda"], f["Monto"], f["Descripción"]),
-                         ("Gasto", "Salud", "Tinkoff", "Medicina", "RUB", 1250.5, "Pastillas para la gripe"))
+                         ("Gasto", "Salud", "T-Bank", "Medicina", "RUB", 1250.5, "Pastillas para la gripe"))
         self.assertEqual(f["Fecha"], (F.hoy() - F.timedelta(days=1)).isoformat())
         self.assertAlmostEqual(f["Monto S/"], round(1250.5 * F.tipo_de_cambio("RUB"), 2))
         self.assertIn("cuenta Salud", self.tg.ultimo)
@@ -313,12 +313,12 @@ class Formularios(Base):
         self.di("/gasto")
         self.toca("Hoy")
         self.toca("Gastos")
-        self.toca("Ripley")
+        self.toca("KuCoin")
         self.toca("Cancelar")
         self.di("/gasto")
         self.toca("Hoy")
         self.toca("Gastos")
-        self.assertTrue(self.tg.botones()[0][0].startswith("Ripley"))
+        self.assertTrue(self.tg.botones()[0][0].startswith("KuCoin"))
 
     def test_ingreso_y_fecha_escrita(self):
         self.di("/ingreso")
@@ -379,7 +379,7 @@ class Formularios(Base):
 
     def test_credito_suma_a_la_deuda_de_la_tarjeta(self):
         self.di("/deuda Tarjeta Falabella 10900")
-        t = self._gasto("CMR", "Crédito")
+        t = self._gasto("Falabella", "Crédito")
         self.assertIn("se sumó a Tarjeta Falabella. Ahora debes S/ 11,000.00", t)
         self.assertEqual(self.movs[0]["Tarjeta"], "Crédito")
         self.assertEqual(len(self.n.dbs["db-deu"]), 1)
@@ -402,7 +402,7 @@ class Formularios(Base):
         self.di("/deuda Tarjeta T-Bank 1000 rub")
         self.di("/pago t-bank 1000")
         self.assertEqual(self.n.dbs["db-deu"][0]["Estado"], "Pagada")
-        self._gasto("Tinkoff", "Crédito", "10", "PEN")        # S/ 10 = 200 RUB
+        self._gasto("T-Bank", "Crédito", "10", "PEN")        # S/ 10 = 200 RUB
         d = self.n.dbs["db-deu"][0]
         self.assertEqual((d["Saldo"], d["Estado"]), (200, "Activa"))
 
@@ -423,13 +423,13 @@ class Formularios(Base):
         self.toca("Corregir")
         self.assertNotIn("Tarjeta", [t for t, _ in self.tg.botones()])
         self.toca("Medio de pago")
-        self.toca("Ripley")
+        self.toca("SIP")
         self.assertIn("¿Crédito o débito?", self.tg.ultimo)
         t = self.toca("Crédito")
         self.assertIn("revisa antes de guardar", t)
         self.assertIn("Tarjeta: <b>Crédito</b>", t)
         self.toca("Guardar")
-        self.assertEqual(self.n.dbs["db-deu"][0]["Deuda"], "Tarjeta Ripley")
+        self.assertEqual(self.n.dbs["db-deu"][0]["Deuda"], "Tarjeta SIP")
 
     def test_rapido_con_la_palabra_credito(self):
         t = self.di("45 almuerzo cmr credito")
@@ -437,6 +437,18 @@ class Formularios(Base):
         self.assertEqual(self.movs[0]["Descripción"], "Almuerzo")
         self.di("30 taxi credito")                          # sin tarjeta: no hay a que deuda sumarlo
         self.assertEqual(len(self.n.dbs["db-deu"]), 1)
+
+    def test_medios_nuevos(self):
+        self.di("/gasto")
+        self.toca("Hoy")
+        self.toca("Gastos")
+        nombres = [t for t, _ in self.tg.botones()]
+        for m in ("T-Bank", "Falabella", "SIP", "KuCoin"):
+            self.assertIn(m, nombres)
+        for m in ("CMR", "Tinkoff", "Ripley", "Scotiabank", "Paxful"):
+            self.assertNotIn(m, nombres)
+        self.toca("KuCoin")
+        self.assertIn("¿Qué categoría?", self.tg.ultimo)    # KuCoin no es tarjeta
 
     def test_menu_tiene_los_formularios(self):
         self.di("/start")

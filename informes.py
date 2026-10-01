@@ -169,7 +169,7 @@ def texto_patrimonio(notion, bases: dict) -> str:
     if not items:
         return ("🏦 <b>Patrimonio</b>\n\nAún no registras cuentas ni deudas. Por ejemplo:\n"
                 "<code>/activo Interbank 5200</code>\n<code>/activo Binance 800 usd</code>\n"
-                "<code>/activo Auto 45000 vehiculo</code>\n<code>/deuda Tarjeta Ripley 1200</code>")
+                "<code>/activo Auto 45000 vehiculo</code>\n<code>/deuda Tarjeta Falabella 1200</code>")
     act, pas, net, liq = F.neto(items)
     l = ["🏦 <b>Patrimonio neto: %s</b>" % F.s(net), ""]
     for clase, titulo in (("Activo", "Lo que tienes"), ("Pasivo", "Lo que debes")):
@@ -203,7 +203,7 @@ def texto_deudas(notion, bases: dict) -> str:
     lista = F.deudas(notion, bases)
     if not lista:
         return ("💳 <b>Deudas</b>\n\nNo tienes deudas activas. 🎉\nSi tienes una, anótala con:\n"
-                "<code>/deuda Tarjeta Ripley 1200</code>\n<code>/deuda Préstamo BCP 15000</code>")
+                "<code>/deuda Tarjeta Falabella 1200</code>\n<code>/deuda Préstamo BCP 15000</code>")
     total = sum(d["saldo_s"] for d in lista)
     cuotas = sum(F.soles(d["cuota"], d["moneda"]) for d in lista if d["cuota"])
     l = ["💳 <b>Deudas: %s</b>" % F.s(total), ""]

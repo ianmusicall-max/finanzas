@@ -29,7 +29,7 @@ AYUDA = (
     "<b>O rápido</b>, escribiendo como hablas:\n"
     "<code>45 almuerzo</code> · gasto\n"
     "<code>12.50 taxi yape ayer</code> · con medio de pago y fecha\n"
-    "<code>120 zapatillas cmr credito</code> · a crédito: se suma a la deuda de la tarjeta\n"
+    "<code>120 zapatillas falabella credito</code> · a crédito: se suma a la deuda de la tarjeta\n"
     "<code>+3500 sueldo</code> · ingreso\n"
     "<code>+200 usd facebook</code> · ingreso en dólares\n"
     "<code>ahorro 500 emergencia</code> · suma a esa meta\n"
@@ -45,8 +45,8 @@ AYUDA = (
     "/ultimos · lo último que anotaste\n\n"
     "<b>Ajustar</b>\n"
     "<code>/presupuesto comida 800</code>\n"
-    "<code>/activo Interbank 5200</code> · <code>/deuda Tarjeta Ripley 1200</code>\n"
-    "<code>/pago Ripley 300</code> · baja el saldo de una deuda\n"
+    "<code>/activo Interbank 5200</code> · <code>/deuda Tarjeta Falabella 1200</code>\n"
+    "<code>/pago Falabella 300</code> · baja el saldo de una deuda\n"
     "<code>/meta Auto 100000</code>\n"
     "<code>/tc 3.72</code> · <code>/tc rub 0.046</code> · tipo de cambio\n"
     "/deshacer · borra lo último que anotaste"
@@ -108,10 +108,10 @@ TIPOS_ACTIVO = [
     ("Inmueble", ["inmueble", "casa", "depa", "departamento", "terreno", "local"]),
     ("Vehículo", ["vehiculo", "auto", "carro", "moto", "camioneta"]),
     ("Por cobrar", ["cobrar", "me deben", "prestamo a"]),
-    ("Efectivo y bancos", ["banco", "efectivo", "cuenta", "ahorros", "interbank", "bcp", "bbva", "scotiabank", "yape", "paypal", "payoneer"]),
+    ("Efectivo y bancos", ["banco", "efectivo", "cuenta", "ahorros", "interbank", "bcp", "bbva", "sip", "yape", "paypal", "payoneer"]),
 ]
 TIPOS_DEUDA = [
-    ("Tarjeta de crédito", ["tarjeta", "ripley", "cmr", "oh", "visa", "mastercard", "amex"]),
+    ("Tarjeta de crédito", ["tarjeta", "falabella", "cmr", "oh", "visa", "mastercard", "amex"]),
     ("Hipoteca", ["hipoteca", "hipotecario"]),
     ("Préstamo", ["prestamo", "credito", "banco"]),
     ("Persona", ["amigo", "amiga", "mama", "papa", "hermano", "hermana", "tio", "tia", "primo", "prima"]),
@@ -436,7 +436,7 @@ class Bot:
 
     def _patrimonio(self, chat, clase: str, arg: str) -> None:
         if not arg:
-            ej = "/activo Interbank 5200 · /activo Binance 800 usd · /activo Auto 45000" if clase == "Activo" else "/deuda Tarjeta Ripley 1200 · /deuda Préstamo BCP 15000"
+            ej = "/activo Interbank 5200 · /activo Binance 800 usd · /activo Auto 45000" if clase == "Activo" else "/deuda Tarjeta Falabella 1200 · /deuda Préstamo BCP 15000"
             self.decir(chat, "Escribe el nombre y el valor actual: <code>%s</code>" % esc(ej))
             return
         try:
@@ -456,13 +456,13 @@ class Bot:
 
     def _deuda(self, chat, arg: str) -> None:
         if not arg:
-            self.decir(chat, "Escribe el nombre y lo que debes hoy: <code>/deuda Tarjeta Ripley 1200</code> · "
+            self.decir(chat, "Escribe el nombre y lo que debes hoy: <code>/deuda Tarjeta Falabella 1200</code> · "
                              "<code>/deuda Préstamo BCP 15000</code> · <code>/deuda Juan 200 usd</code>")
             return
         try:
             nombre, saldo, moneda, tipo = leer_patrimonio("Pasivo", arg)
         except NoEntendi as exc:
-            self.decir(chat, esc(str(exc).replace("/activo Interbank 5200", "/deuda Tarjeta Ripley 1200")))
+            self.decir(chat, esc(str(exc).replace("/activo Interbank 5200", "/deuda Tarjeta Falabella 1200")))
             return
         _, antes = F.fijar_deuda(self.notion, self.bases, nombre, tipo, saldo, moneda)
         ahora = F.soles(saldo, moneda)
@@ -480,7 +480,7 @@ class Bot:
         m = re.match(r"(.+?)\s+(\d[\d.,]*)(\s*k)?(?:\s+(\S+))?\s*$", arg)
         if not m:
             nombres = ", ".join(d["deuda"] for d in lista) or "aún no tienes deudas (usa /deuda)"
-            self.decir(chat, "Escribe la deuda y cuánto pagaste: <code>/pago Ripley 300</code>\nTus deudas: %s" % esc(nombres))
+            self.decir(chat, "Escribe la deuda y cuánto pagaste: <code>/pago Falabella 300</code>\nTus deudas: %s" % esc(nombres))
             return
         d = F.buscar_deuda(lista, m.group(1))
         if not d:

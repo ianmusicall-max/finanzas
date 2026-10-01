@@ -65,7 +65,7 @@ class Gastos(unittest.TestCase):
     def test_rublos_y_tinkoff(self):
         for t in ("1200 rub pyaterochka tinkoff", "1200₽ pyaterochka tinkoff", "1200 rublos pyaterochka tinkoft"):
             m = leer(t)
-            self.assertEqual((m.monto, m.moneda, m.categoria, m.medio), (1200, "RUB", "Supermercado", "Tinkoff"), t)
+            self.assertEqual((m.monto, m.moneda, m.categoria, m.medio), (1200, "RUB", "Supermercado", "T-Bank"), t)
 
     def test_sin_monto(self):
         with self.assertRaises(NoEntendi):
@@ -104,3 +104,11 @@ class OtrosTipos(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MediosNuevos(unittest.TestCase):
+    def test_alias(self):
+        for texto, medio in (("50 taxi cmr", "Falabella"), ("50 taxi falabella", "Falabella"),
+                             ("50 taxi t bank", "T-Bank"), ("50 taxi tbank", "T-Bank"), ("50 taxi tinkoff", "T-Bank"),
+                             ("50 comision kucoin", "KuCoin"), ("50 cuota sip", "SIP")):
+            self.assertEqual(interpretar(texto).medio, medio, texto)
