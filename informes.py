@@ -64,15 +64,15 @@ class Informe:
             l.append("Sin movimientos registrados." if p.tipo != "Diario" else "Hoy no registraste movimientos. ¿Seguro que no gastaste nada? 🙂")
         else:
             l.append("")
-            l.append("💸 Gastos: <b>%s</b>%s" % (F.s(r.gastos), variacion(r.gastos, self.prev.gastos) if self.prev else ""))
+            l.append("💸 Gastos: <b>%s</b>%s" % (F.s3(r.gastos), variacion(r.gastos, self.prev.gastos) if self.prev else ""))
             if r.ingresos:
-                l.append("💰 Ingresos: <b>%s</b>%s" % (F.s(r.ingresos), variacion(r.ingresos, self.prev.ingresos) if self.prev else ""))
+                l.append("💰 Ingresos: <b>%s</b>%s" % (F.s3(r.ingresos), variacion(r.ingresos, self.prev.ingresos) if self.prev else ""))
             if r.ahorro:
                 l.append("🐷 Ahorro: %s" % F.s(r.ahorro))
             if r.inversion:
                 l.append("📈 Inversión: %s" % F.s(r.inversion))
             if r.ingresos:
-                l.append("⚖️ Balance: <b>%s</b> · tasa de ahorro %s" % (F.s(r.balance), F.pct(r.tasa_ahorro)))
+                l.append("⚖️ Balance: <b>%s</b> · tasa de ahorro %s" % (F.s3(r.balance), F.pct(r.tasa_ahorro)))
             if p.tipo != "Diario" and r.gastos:
                 l.append("   necesidades %s · deseos %s" % (F.pct(r.parte("Necesidad")), F.pct(r.parte("Deseo"))))
             if p.tipo == "Diario":
@@ -98,7 +98,7 @@ class Informe:
                 l.append("🧾 En el mes llevas %s gastados." % F.s(gastado))
         if self.items and p.tipo != "Diario":
             l.append("")
-            l.append("🏦 Patrimonio neto: <b>%s</b> (activos %s · deudas %s)" % (F.s(self.neto), F.s(self.activos), F.s(self.pasivos)))
+            l.append("🏦 Patrimonio neto: <b>%s</b> (activos %s · deudas %s)" % (F.s3(self.neto), F.s(self.activos), F.s(self.pasivos)))
         if self.consejos and (p.tipo != "Diario" or any(c[0] in "🔴🟠" for c in self.consejos)):
             l.append("")
             l.append("<b>Para tener en cuenta</b>")
@@ -171,7 +171,7 @@ def texto_patrimonio(notion, bases: dict) -> str:
                 "<code>/activo Interbank 5200</code>\n<code>/activo Binance 800 usd</code>\n"
                 "<code>/activo Auto 45000 vehiculo</code>\n<code>/deuda Tarjeta Falabella 1200</code>")
     act, pas, net, liq = F.neto(items)
-    l = ["🏦 <b>Patrimonio neto: %s</b>" % F.s(net), ""]
+    l = ["🏦 <b>Patrimonio neto: %s</b>" % F.s3(net), ""]
     for clase, titulo in (("Activo", "Lo que tienes"), ("Pasivo", "Lo que debes")):
         grupo = [i for i in items if i["clase"] == clase]
         if not grupo:
@@ -206,10 +206,10 @@ def texto_deudas(notion, bases: dict) -> str:
                 "<code>/deuda Tarjeta Falabella 1200</code>\n<code>/deuda Préstamo BCP 15000</code>")
     total = sum(d["saldo_s"] for d in lista)
     cuotas = sum(F.soles(d["cuota"], d["moneda"]) for d in lista if d["cuota"])
-    l = ["💳 <b>Deudas: %s</b>" % F.s(total), ""]
+    l = ["💳 <b>Deudas: %s</b>" % F.s3(total), ""]
     for d in lista:
-        extra = "" if d["moneda"] == "PEN" else " (%s %s)" % (d["moneda"], "{:,.2f}".format(d["saldo"]))
-        l.append("<b>%s</b> · %s%s <i>%s</i>" % (esc(d["deuda"]), F.s(d["saldo_s"]), extra, esc(d["tipo"])))
+        extra = "" if d["moneda"] in ("PEN", "USD", "RUB") else " (%s %s)" % (d["moneda"], "{:,.2f}".format(d["saldo"]))
+        l.append("<b>%s</b> · %s%s <i>%s</i>" % (esc(d["deuda"]), F.s3(d["saldo_s"]), extra, esc(d["tipo"])))
         det = []
         if d["original"]:
             pagado = 1 - d["saldo"] / d["original"] if d["original"] > 0 else 0

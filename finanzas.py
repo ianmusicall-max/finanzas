@@ -58,6 +58,21 @@ def s(n: Optional[float]) -> str:
     return ("-" if n < 0 else "") + "S/ {:,.2f}".format(abs(n))
 
 
+def en_dolares(soles_: float) -> float:
+    return round(float(soles_ or 0) / tipo_de_cambio("USD"), 2)
+
+
+def en_rublos(soles_: float) -> float:
+    return round(float(soles_ or 0) / tipo_de_cambio("RUB"), 0)
+
+
+def s3(n: Optional[float]) -> str:
+    """El mismo monto en soles, dolares y rublos: S/ 1,000.00 · $ 296.03 · ₽ 23,385"""
+    n = float(n or 0)
+    signo = "-" if n < 0 else ""
+    return "%s · %s$ {:,.2f} · %s₽ {:,.0f}".format(abs(en_dolares(n)), abs(en_rublos(n))) % (s(n), signo, signo)
+
+
 def pct(x: Optional[float]) -> str:
     return "—" if x is None else "{:.0f}%".format(x * 100)
 
@@ -131,6 +146,8 @@ def propiedades_movimiento(mov, origen: str = "Telegram") -> dict:
         "Moneda": p_select(mov.moneda),
         "Tipo de cambio": p_number(tc),
         "Monto S/": p_number(mov.monto * tc),
+        "Monto USD": p_number(en_dolares(mov.monto * tc)),
+        "Monto RUB": p_number(en_rublos(mov.monto * tc)),
         "Medio de pago": p_select(mov.medio),
         "Tarjeta": p_select(getattr(mov, "tarjeta", None)),
         "Fecha": p_date(mov.fecha),
@@ -327,9 +344,10 @@ def deudas(notion, bases: dict, todas: bool = False) -> list:
         if estado == "Activa" and saldo <= 0 and f.get("Saldo") is not None:
             estado = "Pagada"
         cambios = {}
-        guardado = f.get("Saldo S/")
-        if guardado is None or abs(float(guardado) - saldo_s) > 0.01:
-            cambios["Saldo S/"] = p_number(saldo_s)
+        for col, valor in (("Saldo S/", saldo_s), ("Saldo USD", en_dolares(saldo_s)), ("Saldo RUB", en_rublos(saldo_s))):
+            guardado = f.get(col)
+            if guardado is None or abs(float(guardado) - valor) > 0.01:
+                cambios[col] = p_number(valor)
         if estado != f.get("Estado"):
             cambios["Estado"] = p_select(estado)
         if cambios:

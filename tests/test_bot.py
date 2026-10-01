@@ -124,7 +124,7 @@ class AhorroYMetas(Base):
 
 class Presupuesto(Base):
     def test_fijar_y_avisar(self):
-        self.assertIn("S/ 100.00 al mes", self.di("/presupuesto comida 100"))
+        self.assertIn("S/ 100.00 · $ 26.67 · ₽ 2,222 al mes", self.di("/presupuesto comida 100"))
         self.assertIn("🟡", self.di("85 almuerzo"))
         self.assertIn("Pasaste el presupuesto", self.di("20 cafe"))
         t = self.di("/presupuesto")
@@ -140,7 +140,7 @@ class Patrimonio(Base):
         self.di("/deuda Tarjeta Ripley 1200")
         t = self.di("/activo Interbank 6000")
         self.assertIn("antes S/ 5,200.00", t)
-        self.assertIn("Patrimonio neto: <b>S/ 4,800.00</b>", t)
+        self.assertIn("Patrimonio neto: <b>S/ 4,800.00 · $ 1,280.00 · ₽ 106,667</b>", t)
         self.assertIn("Lo que debes", self.di("/patrimonio"))
 
     def test_leer_patrimonio(self):
@@ -156,7 +156,7 @@ class Deudas(Base):
 
     def test_deuda_va_a_la_base_deudas(self):
         t = self.di("/deuda Tarjeta Ripley 1200")
-        self.assertIn("Total de deudas: <b>S/ 1,200.00</b>", t)
+        self.assertIn("Total de deudas: <b>S/ 1,200.00 · $ 320.00 · ₽ 26,667</b>", t)
         d = self.deudas[0]
         self.assertEqual((d["Deuda"], d["Tipo"], d["Saldo"], d["Monto original"], d["Estado"]),
                          ("Tarjeta Ripley", "Tarjeta de crédito", 1200, 1200, "Activa"))
@@ -175,7 +175,7 @@ class Deudas(Base):
     def test_pago_baja_el_saldo_hasta_pagarla(self):
         self.di("/deuda Tarjeta Ripley 1000")
         t = self.di("/pago ripley 300")
-        self.assertIn("Te queda: <b>S/ 700.00</b>", t)
+        self.assertIn("Te queda: <b>S/ 700.00 · $ ", t)
         self.assertEqual(self.deudas[0]["Saldo"], 700)
         self.assertEqual(self.movs, [])  # pagar una deuda no es un gasto nuevo
         t = self.di("/pago ripley 700")
@@ -231,6 +231,19 @@ class Deudas(Base):
         self.assertEqual((fal["Saldo S/"], luis["Estado"]), (400, "Pagada"))
         self.assertEqual((self.n.dbs["db-deu"][2]["Saldo S/"], self.n.dbs["db-deu"][2]["Estado"]), (300, "Activa"))
 
+    def test_tres_monedas(self):
+        F.fijar_tipo_de_cambio("USD", 3.38)
+        F.fijar_tipo_de_cambio("RUB", 0.0428)
+        self.assertEqual(F.s3(1000), "S/ 1,000.00 · $ 295.86 · ₽ 23,364")
+        self.assertEqual(F.s3(-20), "-S/ 20.00 · -$ 5.92 · -₽ 467")
+        t = self.di("+100 usd facebook")
+        self.assertIn("USD 100.00 = S/ 338.00 · $ 100.00 · ₽ 7,897", t)
+        self.assertEqual((self.movs[0]["Monto USD"], self.movs[0]["Monto RUB"]), (100, 7897))
+        self.di("/deuda Luis 2941")
+        self.di("/deudas")
+        d = self.n.dbs["db-deu"][0]
+        self.assertEqual((d["Saldo USD"], d["Saldo RUB"]), (870.12, 68715))
+
     def test_menu_tiene_deudas(self):
         self.di("/start")
         self.assertIn("No tienes deudas activas", self.toca("Deudas"))
@@ -241,7 +254,7 @@ class Resumenes(Base):
         self.di("+3000 sueldo")
         self.di("45 almuerzo")
         self.assertIn("S/ 45.00", self.di("/hoy"))
-        self.assertIn("Gastos: <b>S/ 45.00</b>", self.di("/semana"))
+        self.assertIn("Gastos: <b>S/ 45.00 · $ 12.00 · ₽ 1,000</b>", self.di("/semana"))
         self.assertIn("tasa de ahorro 98%", self.di("/mes"))
         self.bot.procesar(boton("m:presupuesto"))
         self.assertIn("Presupuesto", self.tg.ultimo)

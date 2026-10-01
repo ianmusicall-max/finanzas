@@ -249,10 +249,10 @@ class Bot:
         pid = _pid(pag["id"])
         self._ultimo[chat] = pid
         l = ["%s <b>%s</b> · %s" % (C.emoji(mov.tipo, mov.categoria), esc(mov.tipo), esc(mov.categoria))]
-        monto = F.s(F.soles(mov.monto, mov.moneda))
+        monto = F.s3(F.soles(mov.monto, mov.moneda))
         if mov.moneda != "PEN":
-            monto = "%s %s = %s (TC %s)" % (mov.moneda, "{:,.2f}".format(mov.monto), monto, F.tipo_de_cambio(mov.moneda))
-        l.append("%s · %s" % (monto, esc(mov.descripcion)))
+            monto = "%s %s = %s" % (mov.moneda, "{:,.2f}".format(mov.monto), monto)
+        l.append("%s\n%s" % (monto, esc(mov.descripcion)))
         extra = []
         if getattr(mov, "cuenta", None) and mov.cuenta != "Gastos":
             extra.append("cuenta " + mov.cuenta)
@@ -265,9 +265,7 @@ class Bot:
         if mov.tipo == "Gasto" and getattr(mov, "tarjeta", None) == "Crédito" and DEUDAS in self.bases:
             d = F.cargar_a_tarjeta(self.notion, self.bases, mov.medio, mov.monto, mov.moneda)
             self._credito_de[pid] = (d["id"], d["cargo"])
-            debe = F.s(F.soles(d["saldo"], d["moneda"]))
-            if d["moneda"] != "PEN":
-                debe += " (%s %s)" % (d["moneda"], "{:,.2f}".format(d["saldo"]))
+            debe = F.s3(F.soles(d["saldo"], d["moneda"]))
             l.append("🧾 A crédito: %s %s. Ahora debes %s." % (
                 "creé la deuda" if d["nueva"] else "se sumó a", esc(d["deuda"]), debe))
         if meta:
@@ -432,7 +430,7 @@ class Bot:
             return
         monto = _numero(m.group(2))
         F.fijar_presupuesto(self.notion, self.bases, cat, monto)
-        self.decir(chat, "🧾 Presupuesto de %s %s: %s al mes." % (C.emoji("Gasto", cat), esc(cat), F.s(monto)))
+        self.decir(chat, "🧾 Presupuesto de %s %s: %s al mes." % (C.emoji("Gasto", cat), esc(cat), F.s3(monto)))
 
     def _patrimonio(self, chat, clase: str, arg: str) -> None:
         if not arg:
@@ -452,7 +450,7 @@ class Bot:
             cambio = " (antes %s, %s%s)" % (F.s(antes), "+" if d >= 0 else "", F.s(d))
         _, _, net, _ = F.neto(F.patrimonio(self.notion, self.bases))
         self.decir(chat, "%s %s · %s: %s%s\n🏦 Patrimonio neto: <b>%s</b>" % (
-            "🟢" if clase == "Activo" else "🔻", esc(nombre), esc(tipo), F.s(ahora), cambio, F.s(net)))
+            "🟢" if clase == "Activo" else "🔻", esc(nombre), esc(tipo), F.s3(ahora), cambio, F.s3(net)))
 
     def _deuda(self, chat, arg: str) -> None:
         if not arg:
@@ -473,7 +471,7 @@ class Bot:
         total = sum(x["saldo_s"] for x in F.deudas(self.notion, self.bases))
         self.decir(chat, "💳 %s · %s: %s%s\nTotal de deudas: <b>%s</b>\n"
                          "<i>En Notion (Deudas) puedes poner la tasa, la cuota y el día de pago.</i>" % (
-                             esc(nombre), esc(tipo), F.s(ahora), cambio, F.s(total)))
+                             esc(nombre), esc(tipo), F.s3(ahora), cambio, F.s3(total)))
 
     def _pago(self, chat, arg: str) -> None:
         lista = F.deudas(self.notion, self.bases)
@@ -492,8 +490,7 @@ class Bot:
         if nuevo <= 0:
             self.decir(chat, "🎉 ¡%s pagada por completo! Ya no aparece en tus deudas." % esc(d["deuda"]))
             return
-        extra = "" if d["moneda"] == "PEN" else " (%s %s)" % (d["moneda"], "{:,.2f}".format(nuevo))
-        self.decir(chat, "✅ Pago a %s. Te queda: <b>%s</b>%s" % (esc(d["deuda"]), F.s(F.soles(nuevo, d["moneda"])), extra))
+        self.decir(chat, "✅ Pago a %s. Te queda: <b>%s</b>" % (esc(d["deuda"]), F.s3(F.soles(nuevo, d["moneda"]))))
 
     def _meta(self, chat, arg: str) -> None:
         m = re.match(r"(.+?)\s+(\d[\d.,]*)(\s*k)?\s*$", arg)
@@ -503,7 +500,7 @@ class Bot:
         objetivo = _numero(m.group(2)) * (1000 if m.group(3) else 1)
         F.fijar_meta(self.notion, self.bases, m.group(1).strip(), objetivo)
         self.decir(chat, "🎯 Meta «%s»: %s.\nCuando ahorres escribe <code>ahorro 500 %s</code>" % (
-            esc(m.group(1).strip()), F.s(objetivo), esc(m.group(1).strip().split()[0].lower())))
+            esc(m.group(1).strip()), F.s3(objetivo), esc(m.group(1).strip().split()[0].lower())))
 
     def _tc(self, chat, arg: str) -> None:
         if not arg:

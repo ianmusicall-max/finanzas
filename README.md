@@ -89,6 +89,10 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
 
 ## Cálculos
 
+- **Tres monedas**: los totales salen en soles, dólares y rublos (`S/ 1,000.00 · $ 295.86 · ₽ 23,364`), con el
+  tipo de cambio de `/tc`. En Notion, Movimientos tiene `Monto S/`, `Monto USD` y `Monto RUB`; Deudas tiene
+  `Saldo S/`, `Saldo USD` y `Saldo RUB`.
+
 - **Balance** = ingresos − gastos. El **ahorro y la inversión no cuentan como gasto**: son lo que haces con
   el balance. (En la hoja de 2025 el ahorro se sumaba como gasto y por eso el presupuesto marcaba 1145%.)
 - **Tasa de ahorro** = balance ÷ ingresos. Meta sana: 20% o más.
