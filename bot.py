@@ -51,7 +51,10 @@ AYUDA = (
 
 MENU = [[("➖ Gasto", "m:gasto"), ("➕ Ingreso", "m:ingreso"), ("🐷 Ahorro", "m:ahorro")],
         [("📅 Hoy", "m:hoy"), ("🗓 Semana", "m:semana"), ("📆 Mes", "m:mes")],
-        [("👁 Ver", "m:ver"), ("⚙️ Ajustar", "m:ajustar")]]
+        [("📏 Límite", "m:limite"), ("🧾 Presupuesto", "m:presupuesto"), ("💳 Deudas", "m:deudas")],
+        [("🏦 Patrimonio", "m:patrimonio"), ("🎯 Metas", "m:metas"), ("🔁 Suscripciones", "m:suscripciones")],
+        [("📊 Excel", "m:excel"), ("💡 Consejos", "m:consejos"), ("🧾 Últimos", "m:ultimos")],
+        [("💱 Tipo de cambio", "m:tc"), ("⚙️ Ajustar", "m:ajustar")]]
 
 MENU_VER = [[("📏 Límite", "m:limite"), ("🧾 Presupuesto", "m:presupuesto")],
             [("💳 Deudas", "m:deudas"), ("🏦 Patrimonio", "m:patrimonio")],

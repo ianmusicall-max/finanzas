@@ -267,7 +267,6 @@ class Deudas(Base):
 
     def test_menu_tiene_deudas(self):
         self.di("/start")
-        self.toca("Ver")
         self.assertIn("No tienes deudas activas", self.toca("Deudas"))
 
 
@@ -609,7 +608,6 @@ class Excel(Base):
 
     def test_boton_excel(self):
         self.di("/start")
-        self.toca("Ver")
         self.toca("Excel")
         self.assertEqual(len(self.tg.documentos), 1)
 
@@ -866,8 +864,7 @@ class Suscripciones(Base):
 
 class VerYAjustar(Base):
     def test_ver_muestra_las_opciones(self):
-        self.di("/start")
-        self.toca("Ver")
+        self.di("/start")                                     # todo esta en la pantalla principal
         nombres = [t for t, _ in self.tg.botones()]
         for x in ("Límite", "Presupuesto", "Deudas", "Patrimonio", "Metas", "Suscripciones", "Excel", "Consejos"):
             self.assertTrue(any(x in n for n in nombres), x)
