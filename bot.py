@@ -26,16 +26,8 @@ from telegram import Telegram, TelegramError, esc, guardar_offset, leer_offset, 
 
 AYUDA = (
     "💰 <b>Finanzas</b> · todo queda en Notion\n\n"
-    "<b>Anotar con formulario</b> (botones, como tus Google Forms):\n"
+    "<b>Anotar</b> (con botones):\n"
     "/gasto · /ingreso · /ahorro · /inversion\n\n"
-    "<b>O rápido</b>, escribiendo como hablas:\n"
-    "<code>45 almuerzo</code> · gasto\n"
-    "<code>12.50 taxi yape ayer</code> · con medio de pago y fecha\n"
-    "<code>120 zapatillas falabella credito</code> · a crédito: se suma a la deuda de la tarjeta\n"
-    "<code>+3500 sueldo</code> · ingreso\n"
-    "<code>+200 usd facebook</code> · ingreso en dólares\n"
-    "<code>ahorro 500 emergencia</code> · suma a esa meta\n"
-    "<code>inversion 1000 fondo mutuo</code>\n\n"
     "<b>Ver</b>\n"
     "/hoy · /ayer · /semana · /mes · resúmenes\n"
     "/presupuesto · cuánto llevas de cada categoría\n"
@@ -577,7 +569,9 @@ class Bot:
         cmd = C.normal(partes[0].split("@")[0])
         arg = partes[1].strip() if len(partes) > 1 else ""
         forzar = {"/gasto": "Gasto", "/ingreso": "Ingreso", "/ahorro": "Ahorro", "/inversion": "Inversión"}
-        if cmd in ("/start", "/ayuda", "/help", "/menu"):
+        if cmd in ("/start", "/menu", "/inicio"):
+            self.decir(chat, self._inicio(), MENU)
+        elif cmd in ("/ayuda", "/help", "/comandos"):
             self.decir(chat, AYUDA, MENU)
         elif cmd == "/id":
             self.decir(chat, "Tu chat es <code>%s</code>." % esc(chat))
@@ -686,6 +680,36 @@ class Bot:
         _, _, net, _ = F.neto(F.patrimonio(self.notion, self.bases))
         self.decir(chat, "%s %s · %s: %s%s\n🏦 Patrimonio neto: <b>%s</b>" % (
             "🟢" if clase == "Activo" else "🔻", esc(nombre), esc(tipo), F.s3(ahora), cambio, F.s3(net)))
+
+    def _inicio(self) -> str:
+        """La pantalla de inicio: arriba, cuanto puedes gastar y cuanto llevas; despues lo importante."""
+        hoy = F.hoy()
+        l = ["💰 <b>Finanzas</b> · %s %d de %s" % (["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"][hoy.weekday()],
+                                               hoy.day, F.MESES[hoy.month - 1].lower()), ""]
+        try:
+            lim = F.estado_limite(self.notion, self.bases)
+            if lim:
+                l.append("📏 <b>Para gastar en el día a día</b>")
+                l.extend(I.lineas_limite(lim))
+            else:
+                l.append("📏 Fija cuánto puedes gastar por día y aquí verás cuánto te queda hoy, en la semana y en el mes: "
+                         "<code>/limite 1500 rub</code>")
+            deudas = F.deudas(self.notion, self.bases)
+            if deudas:
+                cuotas = sum(F.soles(d["cuota"], d["moneda"]) for d in deudas if d["cuota"])
+                l.append("")
+                l.append("💳 Deudas: <b>%s</b>%s" % (F.s3(sum(d["saldo_s"] for d in deudas)),
+                                                    " · cuotas %s al mes" % F.s(cuotas) if cuotas else ""))
+            metas = [m for m in F.metas(self.notion, self.bases) if m["avance"] < 1]
+            if metas:
+                l.append("🎯 " + " · ".join("%s %s" % (esc(m["meta"]), F.pct(m["avance"])) for m in metas[:4]))
+            for x in F.renovaciones(self.notion, self.bases, hoy, 3):
+                l.append("🔁 %s se renueva el %s" % (esc(x["nombre"]), "/".join(reversed(x["proximo"][5:10].split("-")))))
+        except NotionError:
+            l.append("<i>⚠️ Notion no respondió; prueba /start en un rato.</i>")
+        l.append("")
+        l.append("Anotar: /gasto · /ingreso · /ahorro · /inversion\nTodos los comandos: /ayuda")
+        return "\n".join(l)
 
     def _limite(self, chat, arg: str) -> None:
         if not arg:

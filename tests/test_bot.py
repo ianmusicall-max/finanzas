@@ -694,6 +694,23 @@ class LimiteDiaADia(Base):
         self.assertIn("Día a día", self.di("/hoy"))
         self.assertIn("Semana: ₽ 1,700 de ₽ 10,500", self.di("/semana"))
 
+    def test_inicio_muestra_el_limite_arriba(self):
+        t = self.di("/start")
+        self.assertIn("/limite 1500 rub", t)
+        self.assertNotIn("como hablas", t)
+        self.di("/limite 1500 rub")
+        self.di("1200 rub supermercado")
+        self.di("/deuda Banco SIP 16224")
+        self.di("/meta Pasajes 10140")
+        t = self.di("/start")
+        primeras = t.split("\n")[:5]
+        self.assertIn("Para gastar en el día a día", primeras[2])
+        self.assertIn("Hoy: ₽ 1,200 de ₽ 1,500", primeras[3])
+        self.assertIn("Deudas: <b>S/ 16,224.00", t)
+        self.assertIn("Pasajes 0%", t)
+        self.assertTrue(any("Deudas" in x for x, _ in self.tg.botones()))   # el menu sigue abajo
+        self.assertIn("/gasto", self.di("/ayuda"))
+
     def test_quitar(self):
         self.di("/limite 64")
         self.assertIn("S/ 64.00 por día", self.di("/limite"))
