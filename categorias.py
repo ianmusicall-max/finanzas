@@ -71,6 +71,17 @@ MONEDAS = ["PEN", "RUB", "USD", "EUR"]
 # Medios de pago, en el orden en que mas se usaron en 2025.
 MEDIOS = ["Tinkoff", "CMR", "Interbank", "Ripley", "Scotiabank", "Binance", "PayPal", "Sberbank", "Payoneer",
           "Paxful", "Efectivo", "Tarjeta OH", "BBVA", "BCP", "Yape", "Plin"]
+# Medios que pueden ser tarjeta de credito o de debito: el formulario de gasto pregunta cual.
+TARJETAS = ["Tinkoff", "CMR", "Interbank", "Ripley", "Scotiabank", "Sberbank", "Tarjeta OH", "BBVA", "BCP"]
+# Nombre de la deuda (base Deudas) donde se acumula lo que se compra a credito con cada tarjeta.
+DEUDA_TARJETA = {"CMR": "Tarjeta Falabella", "Tinkoff": "Tarjeta T-Bank", "Tarjeta OH": "Tarjeta OH"}
+BANCO_TARJETA = {"CMR": "Banco Falabella", "Tinkoff": "T-Bank (Tinkoff)", "Tarjeta OH": "Financiera OH"}
+
+
+def deuda_de_tarjeta(medio: str) -> str:
+    return DEUDA_TARJETA.get(medio) or "Tarjeta " + medio
+
+
 # Como estaban escritos en la hoja y como se llaman aca.
 ALIAS_MEDIOS = {"tinkoft": "Tinkoff", "tinkof": "Tinkoff", "tbank": "Tinkoff", "t-bank": "Tinkoff",
                 "oh": "Tarjeta OH", "sber": "Sberbank"}

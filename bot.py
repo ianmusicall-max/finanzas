@@ -29,6 +29,7 @@ AYUDA = (
     "<b>O rápido</b>, escribiendo como hablas:\n"
     "<code>45 almuerzo</code> · gasto\n"
     "<code>12.50 taxi yape ayer</code> · con medio de pago y fecha\n"
+    "<code>120 zapatillas cmr credito</code> · a crédito: se suma a la deuda de la tarjeta\n"
     "<code>+3500 sueldo</code> · ingreso\n"
     "<code>+200 usd facebook</code> · ingreso en dólares\n"
     "<code>ahorro 500 emergencia</code> · suma a esa meta\n"
@@ -160,6 +161,7 @@ class Bot:
         self._avisados = set()     # chats desconocidos a los que ya se les dijo que no
         self._ultimo = {}          # chat -> page_id del ultimo movimiento anotado
         self._metas_de = {}        # page_id de un ahorro -> (meta_id, monto) para poder deshacer
+        self._credito_de = {}      # page_id de un gasto a credito -> (deuda_id, cargo) para poder deshacer
         self.form = Formularios(metas=self._nombres_metas)
 
     def _nombres_metas(self) -> list:
@@ -255,11 +257,19 @@ class Bot:
         if getattr(mov, "cuenta", None) and mov.cuenta != "Gastos":
             extra.append("cuenta " + mov.cuenta)
         if mov.medio:
-            extra.append(mov.medio)
+            extra.append(mov.medio + (" · " + mov.tarjeta.lower() if getattr(mov, "tarjeta", None) else ""))
         if mov.fecha != F.hoy():
             extra.append(mov.fecha.strftime("%d/%m/%Y"))
         if extra:
             l.append("<i>%s</i>" % esc(" · ".join(extra)))
+        if mov.tipo == "Gasto" and getattr(mov, "tarjeta", None) == "Crédito" and DEUDAS in self.bases:
+            d = F.cargar_a_tarjeta(self.notion, self.bases, mov.medio, mov.monto, mov.moneda)
+            self._credito_de[pid] = (d["id"], d["cargo"])
+            debe = F.s(F.soles(d["saldo"], d["moneda"]))
+            if d["moneda"] != "PEN":
+                debe += " (%s %s)" % (d["moneda"], "{:,.2f}".format(d["saldo"]))
+            l.append("🧾 A crédito: %s %s. Ahora debes %s." % (
+                "creé la deuda" if d["nueva"] else "se sumó a", esc(d["deuda"]), debe))
         if meta:
             nuevo = F.sumar_a_meta(self.notion, meta, F.soles(mov.monto, mov.moneda))
             self._metas_de[pid] = (meta, F.soles(mov.monto, mov.moneda))
@@ -338,6 +348,11 @@ class Bot:
             meta, monto = self._metas_de.pop(pid)
             actual = F.buscar_meta(F.metas(self.notion, self.bases), meta["meta"]) or meta
             F.sumar_a_meta(self.notion, actual, -monto)
+        if pid in self._credito_de:
+            deuda_id, cargo = self._credito_de.pop(pid)
+            d = next((x for x in F.deudas(self.notion, self.bases, todas=True) if _pid(x["id"]) == _pid(deuda_id)), None)
+            if d:
+                F.pagar_deuda(self.notion, d, cargo)
         if self._ultimo.get(chat) == pid:
             self._ultimo.pop(chat, None)
         self.decir(chat, "↩️ Borrado. (Queda en la papelera de Notion por 30 días.)")

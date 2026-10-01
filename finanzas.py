@@ -132,6 +132,7 @@ def propiedades_movimiento(mov, origen: str = "Telegram") -> dict:
         "Tipo de cambio": p_number(tc),
         "Monto S/": p_number(mov.monto * tc),
         "Medio de pago": p_select(mov.medio),
+        "Tarjeta": p_select(getattr(mov, "tarjeta", None)),
         "Fecha": p_date(mov.fecha),
         "Origen": p_select(origen),
     }
@@ -353,6 +354,28 @@ def fijar_deuda(notion, bases: dict, nombre: str, tipo: str, saldo: float, moned
     props.update({"Deuda": p_title(nombre), "Tipo": p_select(tipo), "Monto original": p_number(saldo),
                   "Inicio": p_date(hoy())})
     return notion.crear_pagina(bases[DEUDAS], props), None
+
+
+def cargar_a_tarjeta(notion, bases: dict, medio: str, monto: float, moneda: str) -> dict:
+    """Una compra a credito: suma el monto a la deuda de esa tarjeta, y la crea si no existe.
+    Devuelve la deuda como quedo, con "cargo" = lo sumado en la moneda de la deuda y "nueva"."""
+    nombre = C.deuda_de_tarjeta(medio)
+    existente = next((d for d in deudas(notion, bases, todas=True) if C.normal(d["deuda"]) == C.normal(nombre)), None)
+    if not existente:
+        props = {"Deuda": p_title(nombre), "Tipo": p_select("Tarjeta de crédito"),
+                 "Acreedor": p_text(C.BANCO_TARJETA.get(medio, medio)), "Monto original": p_number(monto),
+                 "Saldo": p_number(monto), "Moneda": p_select(moneda), "Saldo S/": p_number(soles(monto, moneda)),
+                 "Inicio": p_date(hoy()), "Estado": p_select("Activa"), "Actualizado": p_date(hoy())}
+        pag = notion.crear_pagina(bases[DEUDAS], props)
+        return {"id": pag["id"], "deuda": nombre, "saldo": round(monto, 2), "moneda": moneda,
+                "cargo": round(monto, 2), "nueva": True}
+    cargo = monto if moneda == existente["moneda"] else soles(monto, moneda) / tipo_de_cambio(existente["moneda"])
+    nuevo = round(existente["saldo"] + cargo, 2)
+    notion.editar_pagina(existente["id"], {
+        "Saldo": p_number(nuevo), "Saldo S/": p_number(soles(nuevo, existente["moneda"])),
+        "Estado": p_select("Activa"), "Actualizado": p_date(hoy())})
+    return {"id": existente["id"], "deuda": existente["deuda"], "saldo": nuevo, "moneda": existente["moneda"],
+            "cargo": round(cargo, 2), "nueva": False}
 
 
 def pagar_deuda(notion, deuda: dict, monto: float, moneda: Optional[str] = None) -> float:

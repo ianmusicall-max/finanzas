@@ -45,7 +45,8 @@ class Movimiento:
     medio: Optional[str] = None
     fecha: date = field(default_factory=hoy)
     adivinada: bool = True
-    cuenta: Optional[str] = None   # Gastos, Salud, Inversion... (formulario de gastos)   # False si la categoria cayo en "otros"
+    cuenta: Optional[str] = None   # Gastos, Salud, Inversion... (formulario de gastos)
+    tarjeta: Optional[str] = None  # "Crédito" o "Débito" si se pago con tarjeta
 
 
 class NoEntendi(ValueError):
@@ -135,7 +136,14 @@ def interpretar(texto: str, tipo: Optional[str] = None, base: Optional[date] = N
     moneda = moneda or "PEN"
     desc = " ".join(limpio)
 
+    tarjeta = None
+    for w, valor in (("credito", "Crédito"), ("debito", "Débito")):
+        if re.search(r"\b%s\b" % w, C.normal(desc)):
+            tarjeta = valor
+            desc = " ".join(x for x in desc.split() if C.normal(x).strip(".,") not in ("credito", "debito"))
     medio = C.buscar_medio(desc)
+    if medio not in C.TARJETAS:
+        tarjeta = None
     if medio:
         desc = re.sub(r"(?i)\s*\b(con|por|via|desde)?\s*%s\b" % re.escape(medio), " ", desc)
         desc = " ".join(desc.split())
@@ -147,7 +155,8 @@ def interpretar(texto: str, tipo: Optional[str] = None, base: Optional[date] = N
     desc = desc.strip(" -,.") or (cat or tipo)
     return Movimiento(tipo=tipo, monto=round(monto, 2), moneda=moneda, descripcion=desc[:1].upper() + desc[1:],
                       categoria=cat or C.otros(tipo), medio=medio, fecha=fecha, adivinada=adivinada,
-                      cuenta="Gastos" if tipo == "Gasto" else None)
+                      cuenta="Gastos" if tipo == "Gasto" else None,
+                      tarjeta=tarjeta if tipo == "Gasto" else None)
 
 
 def _suena_a_ingreso(desc: str) -> bool:

@@ -1,7 +1,8 @@
 """Los formularios del bot: las mismas preguntas que tenian los Google Forms
 "Gastos 2025" e "Ingresos 2025", una por mensaje, con botones.
 
-    Gasto:   fecha, cuenta, medio de pago, categoria, moneda, descripcion, importe
+    Gasto:   fecha, cuenta, medio de pago, credito o debito (solo si es tarjeta),
+             categoria, moneda, descripcion, importe
     Ingreso: fecha, medio de pago, categoria, moneda, descripcion, importe
     Ahorro:  fecha, meta, medio de pago, moneda, importe
     Inversion: fecha, categoria, medio de pago, moneda, descripcion, importe
@@ -27,6 +28,7 @@ PASOS = {
     "cuenta": ("🗂 ¿A qué cuenta va?", "opciones"),
     "medio": ("💳 ¿Con qué pagaste?", "opciones"),
     "medio_in": ("🏦 ¿Dónde entró el dinero?", "opciones"),
+    "tarjeta": ("💳 ¿Crédito o débito?\n<i>Si es crédito, se suma a la deuda de esa tarjeta.</i>", "opciones"),
     "categoria": ("🏷 ¿Qué categoría?", "opciones"),
     "meta": ("🎯 ¿Para qué meta es?", "opciones"),
     "moneda": ("💱 ¿En qué moneda?", "opciones"),
@@ -35,14 +37,16 @@ PASOS = {
 }
 
 FORMULARIOS = {
-    "gasto": ("Gasto", ["fecha", "cuenta", "medio", "categoria", "moneda", "descripcion", "importe"]),
+    "gasto": ("Gasto", ["fecha", "cuenta", "medio", "tarjeta", "categoria", "moneda", "descripcion", "importe"]),
     "ingreso": ("Ingreso", ["fecha", "medio_in", "categoria", "moneda", "descripcion", "importe"]),
     "ahorro": ("Ahorro", ["fecha", "meta", "medio", "moneda", "importe"]),
     "inversion": ("Inversión", ["fecha", "categoria", "medio", "moneda", "descripcion", "importe"]),
 }
 TITULOS = {"gasto": "➖ Nuevo gasto", "ingreso": "➕ Nuevo ingreso", "ahorro": "🐷 Nuevo ahorro",
            "inversion": "📈 Nueva inversión"}
+TIPOS_TARJETA = ["Débito", "Crédito"]
 ETIQUETAS = {"fecha": "Fecha", "cuenta": "Cuenta", "medio": "Medio de pago", "medio_in": "Medio de pago",
+             "tarjeta": "Tarjeta",
              "categoria": "Categoría", "meta": "Meta", "moneda": "Moneda", "descripcion": "Descripción",
              "importe": "Importe"}
 SIN_META = "Sin meta (ahorro general)"
@@ -99,9 +103,20 @@ class Formularios:
         self.estado[chat] = {"forma": forma, "i": 0, "datos": {}, "corrigiendo": False}
         return [{"texto": "<b>%s</b>" % TITULOS[forma]}] + self._preguntar(chat)
 
+    def _aplica(self, chat, paso: str) -> bool:
+        """Crédito o débito solo se pregunta si se pagó con un banco o tarjeta."""
+        if paso == "tarjeta":
+            return self.estado[chat]["datos"].get("medio") in C.TARJETAS
+        return True
+
+    def _pasos(self, chat) -> list:
+        return [p for p in FORMULARIOS[self.estado[chat]["forma"]][1] if self._aplica(chat, p)]
+
     def _paso(self, chat) -> Optional[str]:
         e = self.estado[chat]
         pasos = FORMULARIOS[e["forma"]][1]
+        while e["i"] < len(pasos) and not self._aplica(chat, pasos[e["i"]]):
+            e["i"] += 1
         return pasos[e["i"]] if e["i"] < len(pasos) else None
 
     def opciones(self, chat, paso: str) -> list:
@@ -115,6 +130,8 @@ class Formularios:
             lista = C.nombres(tipo)
         elif paso == "moneda":
             lista = list(C.MONEDAS)
+        elif paso == "tarjeta":
+            lista = list(TIPOS_TARJETA)
         elif paso == "meta":
             lista = list(self.metas()) + [SIN_META]
         else:
@@ -139,6 +156,8 @@ class Formularios:
                 if paso == "categoria":
                     etiqueta = "%s %s" % (C.emoji(tipo, o), o)
                 pares.append((etiqueta, "f:%s:%d" % (paso, k)))
+            if paso == "tarjeta":
+                pares = [("💳 " + o if o == "Débito" else "🧾 " + o, d) for (o, d) in pares]
             por_fila = 4 if paso == "moneda" else 3 if paso in ("cuenta", "medio", "medio_in") else 2
             return [{"texto": pregunta, "botones": _botones(pares, por_fila) + [CANCELAR]}]
         if clase == "fecha":
@@ -229,9 +248,12 @@ class Formularios:
 
     def _avanzar(self, chat) -> list:
         e = self.estado[chat]
-        if e["corrigiendo"]:
+        pasos = FORMULARIOS[e["forma"]][1]
+        if e["corrigiendo"] and pasos[e["i"]] == "medio" and "tarjeta" in pasos and self._aplica(chat, "tarjeta"):
+            e["i"] = pasos.index("tarjeta")   # cambio a un banco: falta saber si es credito o debito
+        elif e["corrigiendo"]:
             e["corrigiendo"] = False
-            e["i"] = len(FORMULARIOS[e["forma"]][1])
+            e["i"] = len(pasos)
         else:
             e["i"] += 1
         return self._preguntar(chat)
@@ -242,7 +264,7 @@ class Formularios:
         d = e["datos"]
         tipo = FORMULARIOS[e["forma"]][0]
         l = ["<b>%s</b> · revisa antes de guardar" % TITULOS[e["forma"]], ""]
-        for paso in FORMULARIOS[e["forma"]][1]:
+        for paso in self._pasos(chat):
             v = d.get(paso)
             if paso == "fecha":
                 v = _fecha_texto(v)
@@ -257,7 +279,7 @@ class Formularios:
 
     def _menu_corregir(self, chat) -> list:
         e = self.estado[chat]
-        pares = [(ETIQUETAS[p], "f:edit:" + p) for p in FORMULARIOS[e["forma"]][1]]
+        pares = [(ETIQUETAS[p], "f:edit:" + p) for p in self._pasos(chat)]
         return [{"texto": "¿Qué quieres corregir?", "botones": _botones(pares, 3)}]
 
     def terminar(self, chat):
@@ -279,7 +301,8 @@ class Formularios:
         mov = Movimiento(tipo=tipo, monto=d["importe"], moneda=d.get("moneda", "PEN"),
                          descripcion=descripcion[:1].upper() + descripcion[1:], categoria=categoria,
                          medio=d.get("medio") or d.get("medio_in"), fecha=d.get("fecha") or hoy(),
-                         cuenta=d.get("cuenta"))
+                         cuenta=d.get("cuenta"),
+                         tarjeta=d.get("tarjeta") if d.get("medio") in C.TARJETAS and tipo == "Gasto" else None)
         return mov, meta
 
     def listo(self, chat) -> bool:

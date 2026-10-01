@@ -205,6 +205,7 @@ def esquemas() -> dict:
             "Tipo de cambio": _num(),
             "Monto S/": _num(),
             "Medio de pago": _sel(C.MEDIOS),
+            "Tarjeta": _sel(["Débito", "Crédito"]),
             "Fecha": {"date": {}},
             "Origen": _sel(["Telegram", "Hoja 2025", "Manual"]),
             "Creado": {"created_time": {}},

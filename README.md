@@ -60,6 +60,12 @@ cambio de `/tc`. Un gasto con cuenta **Inversión** se cuenta como inversión en
 | `netflix 44.90` | gasto · Suscripciones |
 | `+1943 usd facebook` | ingreso en dólares · Facebook |
 | `ahorro 500 emergencia` | ahorro, y suma S/ 500 a la meta "Fondo de emergencia" |
+| `120 zapatillas cmr credito` | gasto a crédito: además suma S/ 120 a la deuda "Tarjeta Falabella" |
+
+En el formulario de gasto, si eliges un banco o tarjeta (CMR, Ripley, OH, Tinkoff, Interbank, BBVA, BCP,
+Scotiabank, Sberbank) el bot pregunta **¿Crédito o débito?**. Si es crédito, el gasto cuenta como gasto
+y además se suma a la deuda de esa tarjeta en **Deudas** (si no existe, la crea: "Tarjeta BBVA"). Cuando
+pagas la tarjeta usas `/pago`, que baja la deuda sin contar otro gasto. Deshacer el gasto también la descuenta.
 
 Después de guardar (por formulario o rápido) aparecen dos botones: **Cambiar categoría** y **Deshacer**. Si el
 gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avisa en ese mismo momento.
