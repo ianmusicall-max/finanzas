@@ -11,6 +11,7 @@ import argparse
 import re
 import sys
 import time
+from typing import Optional
 from datetime import timedelta
 
 import categorias as C
@@ -166,6 +167,7 @@ class Bot:
         self._credito_de = {}      # page_id de un gasto a credito -> (deuda_id, cargo) para poder deshacer
         self._cuenta_de = {}       # page_id de un movimiento -> (cuenta_id, delta) para poder deshacer
         self._por_ahorrar = {}     # chat -> ingreso recien anotado, mientras se elige cuanto separar
+        self._pagando = {}         # chat -> pago de deuda en curso (con botones)
         self.form = Formularios(metas=self._nombres_metas)
 
     def _nombres_metas(self) -> list:
@@ -214,6 +216,8 @@ class Bot:
                 self._comando(chat, texto)
             elif (self._por_ahorrar.get(chat) or {}).get("esperando"):
                 self._monto_a_ahorrar(chat, texto)
+            elif (self._pagando.get(chat) or {}).get("esperando"):
+                self._monto_pagado(chat, texto)
             elif self.form.activo(chat):
                 self._responder(chat, self.form.texto(chat, texto))
             else:
@@ -417,6 +421,9 @@ class Bot:
                 F.cambiar_categoria(self.notion, partes[1], tipo, cat)
                 aviso = self._aviso_presupuesto(cat) if tipo == "Gasto" else ""
                 self.decir(chat, "🏷 Listo: %s %s%s" % (C.emoji(tipo, cat), esc(cat), "\n" + aviso if aviso else ""))
+            elif partes[0] in ("pg", "pm", "pc"):
+                self.tg.quitar_botones(chat, message_id)
+                self._boton_pago(chat, partes[0], ":".join(partes[1:]))
             elif partes[0] == "a":
                 self.tg.quitar_botones(chat, message_id)
                 self._boton_ahorro(chat, data[2:])
@@ -476,7 +483,7 @@ class Bot:
         elif cmd in ("/activo", "/deuda"):
             self._patrimonio(chat, "Activo" if cmd == "/activo" else "Pasivo", arg)
         elif cmd == "/deudas":
-            self.decir(chat, I.texto_deudas(self.notion, self.bases))
+            self.decir(chat, I.texto_deudas(self.notion, self.bases), self._botones_pagar())
         elif cmd in ("/pago", "/pagar"):
             self._pago(chat, arg)
         elif cmd == "/metas":
@@ -503,7 +510,9 @@ class Bot:
             else:
                 self._deshacer(chat, pid)
         elif cmd == "/cancelar":
-            if self._por_ahorrar.pop(chat, None):
+            if self._pagando.pop(chat, None):
+                self.decir(chat, "👌 No registré ningún pago.")
+            elif self._por_ahorrar.pop(chat, None):
                 self.decir(chat, "👌 No separo nada esta vez.")
             elif self.form.activo(chat):
                 self._responder(chat, self.form.cancelar(chat))
@@ -584,8 +593,11 @@ class Bot:
         lista = F.deudas(self.notion, self.bases)
         m = re.match(r"(.+?)\s+(\d[\d.,]*)(\s*k)?(?:\s+(\S+))?\s*$", arg)
         if not m:
-            nombres = ", ".join(d["deuda"] for d in lista) or "aún no tienes deudas (usa /deuda)"
-            self.decir(chat, "Escribe la deuda y cuánto pagaste: <code>/pago Falabella 300</code>\nTus deudas: %s" % esc(nombres))
+            if not lista:
+                self.decir(chat, "No tienes deudas activas. 🎉")
+                return
+            self.decir(chat, "💸 ¿A qué deuda le pagaste?\n<i>También puedes escribir: <code>/pago Falabella 300</code></i>",
+                       self._botones_pagar(lista))
             return
         d = F.buscar_deuda(lista, m.group(1))
         if not d:
@@ -593,11 +605,76 @@ class Bot:
             return
         moneda = MONEDAS.get(C.normal(m.group(4) or ""), None)
         monto = _numero(m.group(2)) * (1000 if m.group(3) else 1)
+        self._registrar_pago(chat, d, monto, moneda)
+
+    # ---- pagar una deuda con botones: deuda -> cuanto -> de que cuenta salio
+    def _botones_pagar(self, lista=None) -> list:
+        lista = F.deudas(self.notion, self.bases) if lista is None else lista
+        return [[("💸 Pagar %s" % d["deuda"], "pg:" + _pid(d["id"]))] for d in lista[:12]]
+
+    def _boton_pago(self, chat, clave: str, valor: str) -> None:
+        if clave == "pg":
+            d = next((x for x in F.deudas(self.notion, self.bases) if _pid(x["id"]) == valor), None)
+            if not d:
+                self.decir(chat, "Esa deuda ya no está activa. Mira /deudas.")
+                return
+            self._pagando[chat] = {"deuda": d}
+            botones = []
+            if d["cuota"]:
+                botones.append(("Cuota (%s)" % self._en(d["cuota"], d["moneda"]), "pm:c"))
+            botones.append(("Todo (%s)" % self._en(d["saldo"], d["moneda"]), "pm:t"))
+            self.decir(chat, "💸 <b>%s</b>: debes %s\n¿Cuánto pagaste?" % (esc(d["deuda"]), F.s3(d["saldo_s"])),
+                       [botones, [("✏️ Otro monto", "pm:x"), ("✖️ Cancelar", "pm:no")]])
+            return
+        p = self._pagando.get(chat)
+        if not p:
+            self.decir(chat, "Ese botón ya no sirve. Toca 💳 Deudas de nuevo.")
+            return
+        d = p["deuda"]
+        if clave == "pm":
+            if valor == "no":
+                self._pagando.pop(chat, None)
+                self.decir(chat, "👌 No registré ningún pago.")
+            elif valor == "x":
+                p["esperando"] = True
+                self.decir(chat, "✏️ ¿Cuánto pagaste a %s? Escribe solo el número, en %s." % (esc(d["deuda"]), d["moneda"]))
+            else:
+                self._pagando.pop(chat, None)
+                self._registrar_pago(chat, d, d["cuota"] if valor == "c" else d["saldo"])
+        elif clave == "pc":
+            self._pagando.pop(chat, None)
+            if valor == "no":
+                self.decir(chat, "👌 Listo, no toqué ninguna cuenta.")
+                return
+            c = p["cuentas"][int(valor)]
+            nuevo = F.mover_cuenta(self.notion, c, -round(p["pago_s"] / F.tipo_de_cambio(c["moneda"]), 2))
+            self.decir(chat, "🏦 %s ahora tiene %s" % (esc(c["nombre"]), F.s3(F.soles(nuevo, c["moneda"]))))
+
+    def _monto_pagado(self, chat, texto: str) -> None:
+        p = self._pagando[chat]
+        try:
+            n = _numero(texto.replace(" ", "").lstrip("S/$€₽").strip())
+        except ValueError:
+            n = 0
+        if n <= 0:
+            self.decir(chat, "Escribe solo el número, por ejemplo <code>500</code>.", [[("✖️ Cancelar", "pm:no")]])
+            return
+        self._pagando.pop(chat, None)
+        self._registrar_pago(chat, p["deuda"], n)
+
+    def _registrar_pago(self, chat, d: dict, monto: float, moneda: Optional[str] = None) -> None:
+        """Baja la deuda y pregunta de que cuenta salio la plata (para bajar tambien esa cuenta)."""
         nuevo = F.pagar_deuda(self.notion, d, monto, moneda)
         if nuevo <= 0:
             self.decir(chat, "🎉 ¡%s pagada por completo! Ya no aparece en tus deudas." % esc(d["deuda"]))
-            return
-        self.decir(chat, "✅ Pago a %s. Te queda: <b>%s</b>" % (esc(d["deuda"]), F.s3(F.soles(nuevo, d["moneda"]))))
+        else:
+            self.decir(chat, "✅ Pago a %s. Te queda: <b>%s</b>" % (esc(d["deuda"]), F.s3(F.soles(nuevo, d["moneda"]))))
+        cuentas = F.cuentas(self.notion, self.bases)
+        if cuentas:
+            self._pagando[chat] = {"deuda": d, "pago_s": F.soles(monto, moneda or d["moneda"]), "cuentas": cuentas}
+            botones = [[("🏦 %s (%s)" % (c["nombre"], self._en(c["valor"], c["moneda"])), "pc:%d" % k)]
+                       for k, c in enumerate(cuentas[:10])]
+            self.decir(chat, "¿De qué cuenta salió el pago?", botones + [[("No descontar", "pc:no")]])
 
     def _meta(self, chat, arg: str) -> None:
         m = re.match(r"(.+?)\s+(\d[\d.,]*)(\s*k)?\s*$", arg)

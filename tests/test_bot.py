@@ -201,7 +201,8 @@ class Deudas(Base):
         self.assertIn("tasa 18%", t)
         self.assertIn("Cuotas al mes: S/ 800.00", t)
         self.assertIn("No encuentro", self.di("/pago visa 10"))
-        self.assertIn("Tus deudas", self.di("/pago"))
+        self.assertIn("¿A qué deuda le pagaste?", self.di("/pago"))
+        self.assertIn("Pagar Préstamo BCP", [t for t, _ in self.tg.botones()][0])
         self.assertIn("Escribe el nombre", self.di("/deuda"))
 
     def test_avalancha_en_consejos(self):
@@ -596,3 +597,60 @@ class Excel(Base):
         self.di("/start")
         self.toca("Excel")
         self.assertEqual(len(self.tg.documentos), 1)
+
+
+class PagarConBotones(Base):
+    def deuda(self, nombre):
+        return next(f for f in self.n.dbs["db-deu"] if f["Deuda"] == nombre)
+
+    def cuenta(self, nombre):
+        return next(f for f in self.n.dbs["db-pat"] if f["Nombre"] == nombre)
+
+    def test_cuota_y_cuenta_de_donde_salio(self):
+        self.di("/deuda Banco Falabella 15751")
+        self.deuda("Banco Falabella")["Cuota mensual"] = 1374
+        self.di("/activo Interbank soles 2000")
+        self.di("/deudas")
+        self.toca("Pagar Banco Falabella")
+        self.assertIn("¿Cuánto pagaste?", self.tg.ultimo)
+        self.toca("Cuota")
+        self.assertIn("Te queda: <b>S/ 14,377.00", self.tg.enviados[-2][1])
+        self.assertIn("¿De qué cuenta salió el pago?", self.tg.ultimo)
+        self.toca("Interbank soles")
+        self.assertIn("Interbank soles ahora tiene S/ 626.00", self.tg.ultimo)
+        self.assertEqual((self.deuda("Banco Falabella")["Saldo"], self.cuenta("Interbank soles")["Valor"]), (14377, 626))
+        self.assertEqual(self.movs, [])                       # pagar una deuda no es un gasto nuevo
+
+    def test_otro_monto_desde_cuenta_en_dolares(self):
+        F.fijar_tipo_de_cambio("USD", 3.38)
+        self.di("/deuda Multa por no ir a votar 200")
+        self.di("/activo Interbank dólares 1497 usd")
+        self.di("/pago")
+        self.toca("Pagar Multa")
+        self.toca("Otro monto")
+        self.assertIn("número", self.di("mucho"))
+        self.di("200")
+        self.assertIn("pagada por completo", self.tg.enviados[-2][1])
+        self.toca("Interbank dólares")
+        self.assertEqual(self.cuenta("Interbank dólares")["Valor"], round(1497 - 200 / 3.38, 2))
+
+    def test_todo_sin_descontar_y_cancelar(self):
+        self.di("/deuda Luis 2941")
+        self.di("/activo SIP 51")
+        self.di("/deudas")
+        self.toca("Pagar Luis")
+        self.toca("Cancelar")
+        self.assertEqual(self.deuda("Luis")["Saldo"], 2941)
+        self.di("/deudas")
+        self.toca("Pagar Luis")
+        self.toca("Todo")
+        self.toca("No descontar")
+        self.assertEqual((self.deuda("Luis")["Estado"], self.cuenta("SIP")["Valor"]), ("Pagada", 51))
+
+    def test_escrito_tambien_pregunta_la_cuenta(self):
+        self.di("/deuda Janet 3800")
+        self.di("/activo Interbank soles 463")
+        self.di("/pago janet 300")
+        self.assertIn("¿De qué cuenta salió el pago?", self.tg.ultimo)
+        self.di("45 almuerzo")                                 # seguir anotando no se rompe
+        self.assertEqual(self.movs[-1]["Tipo"], "Gasto")

@@ -80,6 +80,7 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
 | `/deuda Tarjeta Falabella 1200` · `/deuda Préstamo BCP 15000` | crea una deuda o actualiza su saldo (base **Deudas**) |
 | `/deudas` | cuánto debes, a quién, tasa, cuota y cuánto llevas pagado |
 | `/pago Falabella 300` · `/pago Juan 50 usd` | registra un pago: baja el saldo; en 0 la marca como pagada |
+| 💳 Deudas → **💸 Pagar …** (o `/pago` solo) | lo mismo con botones: eliges la deuda, cuánto (la cuota, todo u otro monto) y de qué cuenta salió el dinero, que también baja |
 | `/metas` · `/meta Auto 100000` | ver metas / crear o cambiar el objetivo |
 | `/consejos` | qué mejorar según tus números del mes |
 | `/metodos` | formas de manejar tu dinero (50/30/20, págate primero, sobres, base cero, deudas) |
