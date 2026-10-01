@@ -38,6 +38,7 @@ AYUDA = (
     "/limite · cuánto llevas gastado hoy, en la semana y en el mes\n"
     "/suscripciones · tus suscripciones y cuándo se renuevan\n"
     "/pagos · pagos y recordatorios del mes (servicios, bancos, retiros)\n"
+    "/retirar · sacaste efectivo de un banco: baja la cuenta y sube tu efectivo (no es gasto)\n"
     "/proyeccion · cómo cierras el mes si no entra más dinero\n"
     "/plan · cuándo terminas de pagar tus deudas (y con extra: /plan 300 usd)\n"
     "/ingresos · cuánto deja cada fuente, mes a mes\n"
@@ -55,6 +56,7 @@ AYUDA = (
 )
 
 MENU = [[("➖ Gasto", "m:gasto"), ("➕ Ingreso", "m:ingreso"), ("🐷 Ahorro", "m:ahorro")],
+        [("🏧 Retirar efectivo", "m:retirar")],
         [("📅 Hoy", "m:hoy"), ("🗓 Semana", "m:semana"), ("📆 Mes", "m:mes")],
         [("📏 Límite", "m:limite"), ("🧾 Presupuesto", "m:presupuesto"), ("💳 Deudas", "m:deudas")],
         [("🏦 Patrimonio", "m:patrimonio"), ("🎯 Metas", "m:metas"), ("🔁 Suscripciones", "m:suscripciones")],
@@ -192,6 +194,8 @@ class Bot:
         self._pagando = {}         # chat -> pago de deuda en curso (con botones)
         self._suscribiendo = {}    # chat -> pago de una suscripcion nueva, mientras se elige cada cuanto se paga
         self._ajustando = {}       # chat -> comando que espera el dato que se escriba (botones de Ajustar)
+        self._retirando = {}       # chat -> retiro de efectivo en curso (cuenta elegida, esperando el monto)
+        self._retiro_de = {}       # chat -> ultimo retiro (banco_id, efectivo_id, monto) para poder deshacer
         self.form = Formularios(metas=self._nombres_metas, anuales=self._categorias_anuales)
 
     def _categorias_anuales(self) -> set:
@@ -251,6 +255,8 @@ class Bot:
                 self._monto_a_ahorrar(chat, texto)
             elif (self._pagando.get(chat) or {}).get("esperando"):
                 self._monto_pagado(chat, texto)
+            elif (self._retirando.get(chat) or {}).get("esperando"):
+                self._monto_retiro(chat, texto)
             elif (self._suscribiendo.get(chat) or {}).get("esperando"):
                 self._meses_suscripcion(chat, texto)
             elif self.form.activo(chat):
@@ -579,6 +585,9 @@ class Bot:
             elif partes[0] in ("pg", "pm", "pc"):
                 self.tg.quitar_botones(chat, message_id)
                 self._boton_pago(chat, partes[0], ":".join(partes[1:]))
+            elif partes[0] == "rt":
+                self.tg.quitar_botones(chat, message_id)
+                self._boton_retiro(chat, partes[1])
             elif partes[0] == "a":
                 self.tg.quitar_botones(chat, message_id)
                 self._boton_ahorro(chat, data[2:])
@@ -641,6 +650,8 @@ class Bot:
             self._patrimonio(chat, "Activo" if cmd == "/activo" else "Pasivo", arg)
         elif cmd == "/deudas":
             self.decir(chat, I.texto_deudas(self.notion, self.bases), self._botones_pagar())
+        elif cmd in ("/retirar", "/retiro", "/efectivo"):
+            self._retirar(chat)
         elif cmd in ("/pago", "/pagar"):
             self._pago(chat, arg)
         elif cmd == "/metas":
@@ -681,7 +692,9 @@ class Bot:
             else:
                 self._deshacer(chat, pid)
         elif cmd == "/cancelar":
-            if self._suscribiendo.pop(chat, None):
+            if self._retirando.pop(chat, None):
+                self.decir(chat, "👌 No retiré nada.")
+            elif self._suscribiendo.pop(chat, None):
                 self.decir(chat, "👌 Queda como un pago único.")
             elif self._pagando.pop(chat, None):
                 self.decir(chat, "👌 No registré ningún pago.")
@@ -968,6 +981,65 @@ class Bot:
             botones = [[("🏦 %s (%s)" % (c["nombre"], self._en(c["valor"], c["moneda"])), "pc:%d" % k)]
                        for k, c in enumerate(cuentas[:10])]
             self.decir(chat, "¿De qué cuenta salió el pago?", botones + [[("No descontar", "pc:no")]])
+
+    # ---- retirar efectivo: de que cuenta -> cuanto. Baja el banco y sube "Efectivo" (no es gasto)
+    def _retirar(self, chat) -> None:
+        bancos = [c for c in F.cuentas(self.notion, self.bases) if not F.es_efectivo(c)]
+        if not bancos:
+            self.decir(chat, "🏧 Primero registra el saldo de tus cuentas: <code>/activo Interbank soles 463</code>")
+            return
+        self._retirando[chat] = {"cuentas": bancos}
+        botones = [[("🏦 %s (%s)" % (c["nombre"], self._en(c["valor"], c["moneda"])), "rt:%d" % k)]
+                   for k, c in enumerate(bancos[:10])]
+        self.decir(chat, "🏧 <b>Retirar efectivo</b>\n¿De qué cuenta sacaste la plata?", botones + [[("✖️ Cancelar", "rt:no")]])
+
+    def _boton_retiro(self, chat, valor: str) -> None:
+        if valor == "u":
+            self._deshacer_retiro(chat)
+            return
+        r = self._retirando.get(chat)
+        if valor == "no" or not r:
+            self._retirando.pop(chat, None)
+            self.decir(chat, "👌 No retiré nada." if valor == "no" else "Ese botón ya no sirve. Toca 🏧 Retirar efectivo de nuevo.")
+            return
+        c = r["cuentas"][int(valor)]
+        self._retirando[chat] = {"cuenta": c, "esperando": True}
+        self.decir(chat, "🏧 ¿Cuánto retiraste de %s? Escribe solo el número, en %s." % (esc(c["nombre"]), c["moneda"]),
+                   [[("✖️ Cancelar", "rt:no")]])
+
+    def _monto_retiro(self, chat, texto: str) -> None:
+        c = self._retirando[chat]["cuenta"]
+        try:
+            n = _numero(texto.replace(" ", "").lstrip("S/$€₽").strip())
+        except ValueError:
+            n = 0
+        if n <= 0:
+            self.decir(chat, "Escribe solo el número, por ejemplo <code>200</code>.", [[("✖️ Cancelar", "rt:no")]])
+            return
+        self._retirando.pop(chat, None)
+        banco, ef, efectivo = F.retirar_efectivo(self.notion, self.bases, c, n)
+        self._retiro_de[chat] = (c["id"], ef["id"], n)
+        l = ["🏧 Retiraste <b>%s</b> de %s" % (self._en(n, c["moneda"]), esc(c["nombre"])),
+             "🏦 %s ahora tiene %s" % (esc(c["nombre"]), F.s3(F.soles(banco, c["moneda"]))),
+             "💵 %s ahora tiene %s" % (esc(ef["nombre"]), F.s3(F.soles(efectivo, c["moneda"]))),
+             "<i>No cuenta como gasto. Cuando pagues en efectivo, elige el medio Efectivo y se descuenta de ahí.</i>"]
+        if banco < 0:
+            l.insert(2, "⚠️ El saldo de %s quedó en negativo; corrígelo con <code>/activo %s monto</code>." % (
+                esc(c["nombre"]), esc(c["nombre"])))
+        self.decir(chat, "\n".join(l), [[("↩️ Deshacer retiro", "rt:u")]])
+
+    def _deshacer_retiro(self, chat) -> None:
+        ult = self._retiro_de.pop(chat, None)
+        if not ult:
+            self.decir(chat, "No hay ningún retiro para deshacer.")
+            return
+        banco_id, ef_id, n = ult
+        todas = {_pid(x["id"]): x for x in F.cuentas(self.notion, self.bases)}
+        if _pid(banco_id) in todas:
+            F.mover_cuenta(self.notion, todas[_pid(banco_id)], n)
+        if _pid(ef_id) in todas:
+            F.mover_cuenta(self.notion, todas[_pid(ef_id)], -n)
+        self.decir(chat, "↩️ Retiro deshecho: la plata volvió a la cuenta.")
 
     def _meta(self, chat, arg: str) -> None:
         m = re.match(r"(.+?)\s+(\d[\d.,]*)(\s*k)?\s*$", arg)

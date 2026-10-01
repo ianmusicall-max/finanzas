@@ -117,6 +117,10 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
   saldo de la cuenta donde entró; un **gasto** con débito o efectivo lo resta; un gasto **a crédito** no toca
   la cuenta (va a la deuda de la tarjeta). Deshacer lo revierte. Si la cuenta no existe, el bot sugiere
   crearla con `/activo T-Bank 25000 rub` y el saldo de hoy.
+- **🏧 Retirar efectivo** (botón del menú o `/retirar`): eliges la cuenta del banco y escribes cuánto sacaste.
+  Baja esa cuenta y sube la cuenta **Efectivo** de la misma moneda ("Efectivo", "Efectivo dólares",
+  "Efectivo rublos"; se crea sola la primera vez). No es un gasto: tu patrimonio no cambia. Cuando pagas con
+  medio *Efectivo*, se descuenta de ahí. El botón *Deshacer retiro* devuelve la plata al banco.
 - **Págate primero**: después de cada ingreso el bot pregunta *¿Separas algo para ahorro?* con botones
   10% · 20% · otro monto · no esta vez, y luego la meta (o ahorro general). El ahorro no sale de la
   cuenta: es una parte del dinero que queda marcada para esa meta.

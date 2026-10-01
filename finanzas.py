@@ -532,6 +532,28 @@ def mover_cuenta(notion, cuenta: dict, delta: float) -> float:
     return nuevo
 
 
+def nombre_efectivo(moneda: str) -> str:
+    """La cuenta de la billetera en cada moneda: "Efectivo", "Efectivo dólares", "Efectivo rublos"."""
+    return "Efectivo" if moneda == "PEN" else "Efectivo " + {"USD": "dólares", "RUB": "rublos", "EUR": "euros"}.get(moneda, moneda)
+
+
+def es_efectivo(cuenta: dict) -> bool:
+    return C.normal(cuenta["nombre"]).split()[:1] == ["efectivo"]
+
+
+def retirar_efectivo(notion, bases: dict, cuenta: dict, monto: float) -> tuple:
+    """Saca plata de un banco y la pasa al efectivo de la misma moneda (no es un gasto: el patrimonio no cambia).
+    Crea la cuenta de efectivo si no existe. Devuelve (saldo del banco, cuenta de efectivo, saldo del efectivo)."""
+    banco = mover_cuenta(notion, cuenta, -monto)
+    nombre = nombre_efectivo(cuenta["moneda"])
+    ef = next((c for c in cuentas(notion, bases)
+               if c["moneda"] == cuenta["moneda"] and C.normal(c["nombre"]) == C.normal(nombre)), None)
+    if ef:
+        return banco, ef, mover_cuenta(notion, ef, monto)
+    pag, _ = fijar_patrimonio(notion, bases, nombre, "Activo", "Efectivo y bancos", monto, cuenta["moneda"])
+    return banco, {"id": pag["id"], "nombre": nombre, "valor": monto, "moneda": cuenta["moneda"]}, monto
+
+
 # ---------------------------------------------------------------- recordatorios y pagos del mes
 
 def dia_del_mes(dia: int, d: date) -> int:

@@ -531,6 +531,41 @@ class CuentasYAhorro(Base):
         self.assertIn("/activo BBVA 1000 pen", t)
         self.assertEqual(len(self.n.dbs["db-pat"]), 1)
 
+    def test_retirar_efectivo_pasa_del_banco_al_efectivo(self):
+        F.fijar_tipo_de_cambio("USD", 3.38)
+        self.di("/activo Interbank soles 463")
+        self.di("/activo Interbank dólares 1497 usd")
+        self.di("/start")
+        self.toca("Retirar efectivo")
+        self.toca("Interbank soles")
+        self.di("200")
+        self.assertEqual(self.cuenta("Interbank soles")["Valor"], 263)
+        self.assertEqual(self.cuenta("Efectivo")["Valor"], 200)
+        self.assertEqual(self.cuenta("Efectivo")["Tipo"], "Efectivo y bancos")
+        self.assertEqual(len(self.movs), 0)                                  # no es un gasto
+        self.di("/retirar")
+        self.toca("Interbank soles")
+        self.di("50")
+        self.assertEqual(self.cuenta("Efectivo")["Valor"], 250)
+        self.di("/retirar")
+        self.assertFalse(any(t.startswith("🏦 Efectivo") for t, _ in self.tg.botones()))   # no se retira del efectivo
+        self.toca("Interbank dólares")
+        self.di("100")
+        self.assertEqual(self.cuenta("Interbank dólares")["Valor"], 1397)
+        self.assertEqual(self.cuenta("Efectivo dólares")["Valor"], 100)
+        self.toca("Deshacer retiro")
+        self.assertEqual(self.cuenta("Interbank dólares")["Valor"], 1497)
+        self.assertEqual(self.cuenta("Efectivo dólares")["Valor"], 0)
+        t = self.di("30 almuerzo efectivo")
+        self.assertIn("Efectivo ahora tiene S/ 220.00", t)
+
+    def test_retirar_sin_cuentas_y_cancelar(self):
+        self.assertIn("/activo", self.di("/retirar"))
+        self.di("/activo BCP 100")
+        self.di("/retirar")
+        self.toca("Cancelar")
+        self.assertEqual(self.cuenta("BCP")["Valor"], 100)
+
     def test_pagate_primero_20_por_ciento_a_una_meta(self):
         self.di("/meta Emergencia 10000")
         self.di("+3000 sueldo")
