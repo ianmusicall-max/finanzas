@@ -34,6 +34,9 @@ TELEGRAM_USUARIOS = _ids(os.environ.get("TELEGRAM_USUARIOS", ""))
 TC_USD = _num(os.environ.get("TC_USD", ""), 3.75)
 TC_EUR = _num(os.environ.get("TC_EUR", ""), 4.10)
 TC_RUB = _num(os.environ.get("TC_RUB", ""), 0.045)
+# Si es 1 (lo normal), el tipo de cambio del dia se baja solo de internet; los de arriba
+# quedan de respaldo por si no hay conexion. Con /tc 3.38 se fija uno a mano.
+TC_AUTO = os.environ.get("TC_AUTO", "1").strip() not in ("0", "no", "false", "")
 
 # Hora de Lima sin depender de tzdata: Peru no tiene horario de verano.
 LIMA = timezone(timedelta(hours=-5), "America/Lima")

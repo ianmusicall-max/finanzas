@@ -155,3 +155,73 @@ class InformeCompleto(ConTC):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TipoDeCambioAutomatico(unittest.TestCase):
+    """El del dia se baja de internet (aca simulado); a mano manda; sin internet queda el de respaldo."""
+
+    def setUp(self):
+        import config
+        self._tmp = tempfile.TemporaryDirectory()
+        self._aj, self._auto, self._get = F.AJUSTES, config.TC_AUTO, F.requests.get
+        F.AJUSTES = Path(self._tmp.name) / "ajustes.json"
+        config.TC_AUTO = True
+        self.llamadas = []
+
+    def tearDown(self):
+        import config
+        F.AJUSTES, config.TC_AUTO, F.requests.get = self._aj, self._auto, self._get
+        self._tmp.cleanup()
+
+    def internet(self, *respuestas):
+        """Cada llamada a requests.get devuelve la siguiente respuesta (un dict, o una excepcion)."""
+        cola = list(respuestas)
+
+        class R:
+            def __init__(self, j):
+                self.j = j
+
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return self.j
+
+        def get(url, timeout=None):
+            self.llamadas.append(url)
+            r = cola.pop(0)
+            if isinstance(r, Exception):
+                raise r
+            return R(r)
+        F.requests.get = get
+
+    def test_baja_el_del_dia_y_lo_guarda_6_horas(self):
+        self.internet({"rates": {"PEN": 3.38, "EUR": 0.85, "RUB": 79.0}})
+        self.assertEqual(F.tipo_de_cambio("USD"), 3.38)
+        self.assertAlmostEqual(F.tipo_de_cambio("RUB"), 3.38 / 79, places=5)
+        self.assertAlmostEqual(F.tipo_de_cambio("EUR"), round(3.38 / 0.85, 4))
+        F.soles(100, "USD")
+        self.assertEqual(len(self.llamadas), 1)          # no vuelve a internet en cada calculo
+
+    def test_segunda_fuente_si_la_primera_falla(self):
+        self.internet(F.requests.ConnectionError(), {"usd": {"pen": 3.5, "eur": 0.9, "rub": 80}})
+        self.assertEqual(F.tipo_de_cambio("USD"), 3.5)
+        self.assertEqual(len(self.llamadas), 2)
+
+    def test_sin_internet_usa_el_de_respaldo_y_no_insiste(self):
+        self.internet(F.requests.ConnectionError(), F.requests.Timeout())
+        self.assertEqual(F.tipo_de_cambio("USD"), F.TC_USD)
+        F.tipo_de_cambio("RUB")
+        self.assertEqual(len(self.llamadas), 2)          # no reintenta antes de 30 minutos
+
+    def test_datos_absurdos_se_descartan(self):
+        self.internet({"rates": {"PEN": 0, "EUR": 0.9, "RUB": 80}}, {"usd": {"pen": 3.4, "eur": 0.9, "rub": 80000}})
+        self.assertEqual(F.tipo_de_cambio("USD"), F.TC_USD)
+
+    def test_a_mano_manda_y_auto_lo_quita(self):
+        self.internet({"rates": {"PEN": 3.38, "EUR": 0.85, "RUB": 79.0}}, {"rates": {"PEN": 3.40, "EUR": 0.85, "RUB": 79.0}})
+        F.fijar_tipo_de_cambio("USD", 3.5)
+        self.assertEqual(F.tipo_de_cambio("USD"), 3.5)
+        self.assertAlmostEqual(F.tipo_de_cambio("RUB"), 3.38 / 79, places=5)   # el rublo sigue automatico
+        F.tc_a_automatico()
+        self.assertEqual(F.tipo_de_cambio("USD"), 3.40)  # vuelve a bajarlo al momento

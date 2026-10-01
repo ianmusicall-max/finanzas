@@ -244,6 +244,17 @@ class Deudas(Base):
         d = self.n.dbs["db-deu"][0]
         self.assertEqual((d["Saldo USD"], d["Saldo RUB"]), (870.12, 68715))
 
+    def test_comando_tc(self):
+        self.assertIn("de respaldo", self.di("/tc"))
+        self.assertIn("fijo desde ahora", self.di("/tc 3.38"))
+        t = self.di("/tc")
+        self.assertIn("1 dólar = S/ 3.38 · <i>fijado por ti</i>", t)
+        self.di("/tc rub 0.0428")
+        self.assertIn("1 dólar = ₽ 78.97", self.di("/tc"))
+        t = self.di("/tc auto")
+        self.assertIn("vuelve a ser automático", t)
+        self.assertNotIn("fijado por ti", t)
+
     def test_menu_tiene_deudas(self):
         self.di("/start")
         self.assertIn("No tienes deudas activas", self.toca("Deudas"))

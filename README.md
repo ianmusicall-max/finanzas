@@ -90,7 +90,11 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
 ## Cálculos
 
 - **Tres monedas**: los totales salen en soles, dólares y rublos (`S/ 1,000.00 · $ 295.86 · ₽ 23,364`), con el
-  tipo de cambio de `/tc`. En Notion, Movimientos tiene `Monto S/`, `Monto USD` y `Monto RUB`; Deudas tiene
+  tipo de cambio del día.
+- **Tipo de cambio automático**: el bot baja el del día de internet (open.er-api.com, y de respaldo
+  fawazahmed0/currency-api) cada 6 horas; cada movimiento guarda el que se usó, así lo anotado antes no
+  cambia. `/tc` lo muestra; `/tc 3.38` o `/tc rub 0.0428` lo fija a mano (por ejemplo, el de tu banco) y
+  `/tc auto` vuelve a automático. Sin internet usa `TC_USD`, `TC_EUR` y `TC_RUB` del `.env`. En Notion, Movimientos tiene `Monto S/`, `Monto USD` y `Monto RUB`; Deudas tiene
   `Saldo S/`, `Saldo USD` y `Saldo RUB`.
 
 - **Balance** = ingresos − gastos. El **ahorro y la inversión no cuentan como gasto**: son lo que haces con

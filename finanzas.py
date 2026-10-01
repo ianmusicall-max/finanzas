@@ -5,13 +5,17 @@ Toda la aritmetica esta aca y no en Notion, para que el resumen de Telegram y
 el que queda en la base Resumenes digan exactamente lo mismo.
 """
 import json
+import time
 from calendar import monthrange
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Optional
 
 import categorias as C
-from config import AJUSTES, DATA, TC_EUR, TC_RUB, TC_USD, hoy
+import requests
+
+import config
+from config import AJUSTES, DATA, TC_EUR, TC_RUB, TC_USD, ahora, hoy
 from notion import (DEUDAS, METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, NotionError, p_date, p_number, p_select, p_text, p_title)
 
 MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre",
@@ -28,24 +32,85 @@ def ajustes() -> dict:
         return {}
 
 
-def tipo_de_cambio(moneda: str) -> float:
-    if moneda == "PEN":
-        return 1.0
+# Tipo de cambio del dia: dos fuentes gratuitas sin clave, la segunda de respaldo.
+# Las dos dan cuanto vale 1 dolar en cada moneda; de ahi sale cuantos soles vale 1 USD, 1 EUR o 1 RUB.
+FUENTES_TC = [
+    ("https://open.er-api.com/v6/latest/USD", lambda j: j["rates"]),
+    ("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json",
+     lambda j: {k.upper(): v for k, v in j["usd"].items()}),
+]
+VIGENCIA_TC = 6 * 3600      # se vuelve a bajar cada 6 horas
+REINTENTO_TC = 30 * 60      # si no hubo internet, no se reintenta antes de 30 minutos
+DEFECTO_TC = {"USD": TC_USD, "EUR": TC_EUR, "RUB": TC_RUB}
+
+
+def _guardar_ajustes(a: dict) -> None:
+    DATA.mkdir(parents=True, exist_ok=True)
+    AJUSTES.write_text(json.dumps(a, indent=2, ensure_ascii=False))
+
+
+def _descargar_tc() -> Optional[dict]:
+    """{"USD": soles por dolar, "EUR": ..., "RUB": ...} o None si ninguna fuente respondio bien."""
+    for url, leer in FUENTES_TC:
+        try:
+            r = requests.get(url, timeout=8)
+            r.raise_for_status()
+            por_usd = leer(r.json())
+            pen, eur, rub = float(por_usd["PEN"]), float(por_usd["EUR"]), float(por_usd["RUB"])
+            tc = {"USD": round(pen, 4), "EUR": round(pen / eur, 4), "RUB": round(pen / rub, 6)}
+        except (requests.RequestException, ValueError, KeyError, TypeError, ZeroDivisionError):
+            continue
+        if 2 < tc["USD"] < 6 and 2 < tc["EUR"] < 7 and 0.01 < tc["RUB"] < 0.2:   # descarta datos absurdos
+            return tc
+    return None
+
+
+def tc_automatico() -> dict:
+    """El tipo de cambio del dia guardado en ajustes; lo baja de nuevo si tiene mas de 6 horas."""
     a = ajustes()
-    if moneda == "USD":
-        return float(a.get("USD") or TC_USD)
-    if moneda == "EUR":
-        return float(a.get("EUR") or TC_EUR)
-    if moneda == "RUB":
-        return float(a.get("RUB") or TC_RUB)
-    return 1.0
+    auto = a.get("auto") or {}
+    t = time.time()
+    if config.TC_AUTO and t - auto.get("ts", 0) > VIGENCIA_TC and t - a.get("intento_tc", 0) > REINTENTO_TC:
+        nuevo = _descargar_tc()
+        a = ajustes()
+        if nuevo:
+            nuevo.update({"ts": t, "fecha": ahora().strftime("%d/%m %H:%M")})
+            a["auto"] = auto = nuevo
+        a["intento_tc"] = t
+        try:
+            _guardar_ajustes(a)
+        except OSError:
+            pass
+    return auto
+
+
+def tc_fijo(moneda: str) -> Optional[float]:
+    """El que se fijo a mano con /tc, si hay."""
+    v = ajustes().get(moneda)
+    return float(v) if v else None
+
+
+def tipo_de_cambio(moneda: str) -> float:
+    """Soles por 1 unidad de la moneda: el fijado a mano, si no el del dia, si no el del .env."""
+    if moneda not in DEFECTO_TC:
+        return 1.0
+    return tc_fijo(moneda) or float(tc_automatico().get(moneda) or DEFECTO_TC[moneda])
 
 
 def fijar_tipo_de_cambio(moneda: str, valor: float) -> None:
     a = ajustes()
-    a[moneda] = round(float(valor), 4)
-    DATA.mkdir(parents=True, exist_ok=True)
-    AJUSTES.write_text(json.dumps(a, indent=2))
+    a[moneda] = round(float(valor), 4 if moneda != "RUB" else 6)
+    _guardar_ajustes(a)
+
+
+def tc_a_automatico() -> None:
+    """Quita los tipos de cambio fijados a mano y fuerza a bajar el del dia."""
+    a = ajustes()
+    for m in DEFECTO_TC:
+        a.pop(m, None)
+    a.pop("intento_tc", None)
+    (a.get("auto") or {}).pop("ts", None)
+    _guardar_ajustes(a)
 
 
 def soles(monto: float, moneda: str) -> float:

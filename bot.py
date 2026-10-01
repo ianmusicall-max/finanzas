@@ -251,7 +251,8 @@ class Bot:
         l = ["%s <b>%s</b> · %s" % (C.emoji(mov.tipo, mov.categoria), esc(mov.tipo), esc(mov.categoria))]
         monto = F.s3(F.soles(mov.monto, mov.moneda))
         if mov.moneda != "PEN":
-            monto = "%s %s = %s" % (mov.moneda, "{:,.2f}".format(mov.monto), monto)
+            monto = "%s %s = %s\n<i>💱 1 %s = S/ %s</i>" % (mov.moneda, "{:,.2f}".format(mov.monto), monto,
+                                                          mov.moneda, F.tipo_de_cambio(mov.moneda))
         l.append("%s\n%s" % (monto, esc(mov.descripcion)))
         extra = []
         if getattr(mov, "cuenta", None) and mov.cuenta != "Gastos":
@@ -502,13 +503,34 @@ class Bot:
         self.decir(chat, "🎯 Meta «%s»: %s.\nCuando ahorres escribe <code>ahorro 500 %s</code>" % (
             esc(m.group(1).strip()), F.s3(objetivo), esc(m.group(1).strip().split()[0].lower())))
 
+    def _texto_tc(self) -> str:
+        auto = F.tc_automatico()
+        l = ["💱 <b>Tipo de cambio</b>"]
+        for m, nombre in (("USD", "dólar"), ("RUB", "rublo"), ("EUR", "euro")):
+            fijo = F.tc_fijo(m)
+            if fijo:
+                origen = "fijado por ti"
+            elif auto.get(m):
+                origen = "del día, actualizado %s" % auto.get("fecha", "")
+            else:
+                origen = "de respaldo (no pude bajar el del día)"
+            l.append("1 %s = S/ %s · <i>%s</i>" % (nombre, F.tipo_de_cambio(m), origen))
+        usd, rub = F.tipo_de_cambio("USD"), F.tipo_de_cambio("RUB")
+        l.append("1 dólar = ₽ %s" % "{:,.2f}".format(usd / rub))
+        l.append("")
+        l.append("Se actualiza solo cada 6 horas. Para fijarlo a mano: <code>/tc 3.38</code> · "
+                 "<code>/tc rub 0.0428</code>. Para volver a automático: <code>/tc auto</code>")
+        return "\n".join(l)
+
     def _tc(self, chat, arg: str) -> None:
         if not arg:
-            self.decir(chat, "💱 Tipo de cambio: USD %s · EUR %s · RUB %s\nPara cambiarlo: <code>/tc 3.72</code> · "
-                             "<code>/tc eur 4.05</code> · <code>/tc rub 0.046</code>" % (
-                F.tipo_de_cambio("USD"), F.tipo_de_cambio("EUR"), F.tipo_de_cambio("RUB")))
+            self.decir(chat, self._texto_tc())
             return
         n = C.normal(arg)
+        if n.strip() in ("auto", "automatico", "hoy", "dia"):
+            F.tc_a_automatico()
+            self.decir(chat, "🔄 Listo, vuelve a ser automático.\n\n" + self._texto_tc())
+            return
         moneda = "EUR" if "eur" in n else "RUB" if ("rub" in n or "rublo" in n) else "USD"
         m = re.search(r"\d*[.,]?\d+", arg)
         if not m:
@@ -520,7 +542,8 @@ class Bot:
             self.decir(chat, "Ese tipo de cambio no parece real para %s (%s)." % (moneda, esc(valor)))
             return
         F.fijar_tipo_de_cambio(moneda, valor)
-        self.decir(chat, "💱 Listo: 1 %s = S/ %s desde ahora. Lo anotado antes no cambia." % (moneda, valor))
+        self.decir(chat, "💱 Listo: 1 %s = S/ %s, fijo desde ahora (ya no se actualiza solo; "
+                         "para volver a automático: <code>/tc auto</code>). Lo anotado antes no cambia." % (moneda, valor))
 
     def _ultimos(self, chat) -> None:
         filas = F.ultimos(self.notion, self.bases, 10)
