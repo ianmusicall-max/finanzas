@@ -19,7 +19,7 @@ explicarle en español, simple, con pasos de una sola línea para la Terminal de
 | `bot.py` | Telegram (long polling): comandos, botones, guardar movimientos, cuentas, deudas, pagos, ahorro al cobrar, `/excel` |
 | `formularios.py` | Formularios paso a paso (gasto, ingreso, ahorro, inversión) como los Google Forms de 2025; en gasto con banco pregunta crédito o débito |
 | `lector.py` | Anotación rápida en texto libre (`45 almuerzo falabella credito`) |
-| `categorias.py` | Categorías, medios de pago, tarjetas, alias (`cmr`→Falabella, `tinkoff`→T-Bank) |
+| `categorias.py` | Categorías, medios de pago, tarjetas, alias (`cmr`→Falabella, `tinkoff`→T-Bank), Plin/Yape → banco |
 | `finanzas.py` | Cálculos: tipo de cambio (automático del día, o fijo con `/tc`), soles/dólares/rublos, resúmenes, presupuesto, patrimonio, cuentas, deudas, metas, consejos |
 | `informes.py` | Textos de resúmenes, deudas, patrimonio, metas; guarda Resúmenes en Notion |
 | `excel.py` | Excel con un gráfico por hoja (el plan gratis de Notion permite un solo gráfico) |
@@ -49,6 +49,19 @@ ssh root@TU-SERVIDOR 'cd /opt/finanzas && git pull -q origin main && bash deploy
 ```
 
 Después de correr eso una vez, el timer `finanzas-autoupdate` actualiza solo cada 5 minutos.
+
+## Cuentas, efectivo y billeteras
+
+- **🏧 Retirar efectivo** (`/retirar`): baja la cuenta del banco y sube "Efectivo" / "Efectivo dólares" /
+  "Efectivo rublos" (se crea sola). No es gasto. Un gasto con medio Efectivo descuenta de ahí.
+- **Plin** descuenta de Interbank y **Yape** de BCP (`C.BILLETERA_BANCO`). Debajo de un gasto con Yape sale
+  el botón "🔁 Salió de Interbank" (`C.BILLETERA_OTROS`) para mover el descuento.
+
+## Nube
+
+El usuario pidió (2026-10-02) no gastar créditos de la nube en otra cosa que finanzas: las 5 tareas
+programadas de música (noticias, cumpleaños, aniversarios) quedaron **apagadas**, no borradas. Música y
+salud se trabajan en su sesión local de core-forever. La sesión "Daria proyecto" sí sigue en la nube.
 
 ## Pendiente
 
