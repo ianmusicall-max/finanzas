@@ -97,6 +97,9 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
   cambia. `/tc` lo muestra; `/tc 3.38` o `/tc rub 0.0428` lo fija a mano (por ejemplo, el de tu banco) y
   `/tc auto` vuelve a automático. Sin internet usa `TC_USD`, `TC_EUR` y `TC_RUB` del `.env`. En Notion, Movimientos tiene `Monto S/`, `Monto USD` y `Monto RUB`; Deudas tiene
   `Saldo S/`, `Saldo USD` y `Saldo RUB`.
+- **El bot nunca se queda mudo por el tipo de cambio**: lo baja en los ratos libres, entre mensaje y
+  mensaje, así que tu mensaje se contesta al toque aunque la página del tipo de cambio esté caída o lenta.
+  Si no contesta en 5 segundos, el bot deja de esperarla y usa el de respaldo del `.env`.
 
 - **Balance** = ingresos − gastos. El **ahorro y la inversión no cuentan como gasto**: son lo que haces con
   el balance. (En la hoja de 2025 el ahorro se sumaba como gasto y por eso el presupuesto marcaba 1145%.)

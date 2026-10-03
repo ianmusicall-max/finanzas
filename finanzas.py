@@ -41,6 +41,7 @@ FUENTES_TC = [
 ]
 VIGENCIA_TC = 6 * 3600      # se vuelve a bajar cada 6 horas
 REINTENTO_TC = 30 * 60      # si no hubo internet, no se reintenta antes de 30 minutos
+ESPERA_TC = 5               # por fuente: si cuelga, se corta a los 5 segundos y usa el de respaldo
 DEFECTO_TC = {"USD": TC_USD, "EUR": TC_EUR, "RUB": TC_RUB}
 
 
@@ -53,7 +54,7 @@ def _descargar_tc() -> Optional[dict]:
     """{"USD": soles por dolar, "EUR": ..., "RUB": ...} o None si ninguna fuente respondio bien."""
     for url, leer in FUENTES_TC:
         try:
-            r = requests.get(url, timeout=8)
+            r = requests.get(url, timeout=ESPERA_TC)
             r.raise_for_status()
             por_usd = leer(r.json())
             pen, eur, rub = float(por_usd["PEN"]), float(por_usd["EUR"]), float(por_usd["RUB"])
@@ -71,9 +72,17 @@ def tc_automatico() -> dict:
     auto = a.get("auto") or {}
     t = time.time()
     if config.TC_AUTO and t - auto.get("ts", 0) > VIGENCIA_TC and t - a.get("intento_tc", 0) > REINTENTO_TC:
+        # El intento queda anotado ANTES de salir a internet: si la fuente cuelga y el
+        # servicio se reinicia en ese rato (el timer baja cambios cada 5 minutos), al
+        # arrancar de nuevo no se vuelve a colgar; espera los 30 minutos como corresponde.
+        a["intento_tc"] = t
+        try:
+            _guardar_ajustes(a)
+        except OSError:
+            pass
         nuevo = _descargar_tc()
-        a = ajustes()
         if nuevo:
+            a = ajustes()                                  # por si se fijo uno a mano mientras bajaba
             nuevo.update({"ts": t, "fecha": ahora().strftime("%d/%m %H:%M")})
             a["auto"] = auto = nuevo
             # historial de un valor por dia, para avisar cuando el cambio esta bueno
@@ -81,11 +90,11 @@ def tc_automatico() -> dict:
             h[hoy().isoformat()] = {m: nuevo[m] for m in ("USD", "EUR", "RUB")}
             for viejo in sorted(h)[:-90]:
                 h.pop(viejo, None)
-        a["intento_tc"] = t
-        try:
-            _guardar_ajustes(a)
-        except OSError:
-            pass
+            a["intento_tc"] = t
+            try:
+                _guardar_ajustes(a)
+            except OSError:
+                pass
     return auto
 
 
