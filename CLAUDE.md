@@ -38,6 +38,10 @@ debajo de la página padre (`NOTION_PARENT_PAGE_ID`).
   El bot **no** lo cuenta. El sistema empezó de cero el 01/10/2026.
 - Una cuenta de Patrimonio se reconoce por banco + moneda (medio Interbank + USD → "Interbank dólares").
   Ingreso suma, gasto con débito resta, gasto a crédito va a la deuda de la tarjeta (Falabella → "Banco Falabella").
+- **"Banco Falabella" es la tarjeta de crédito**, no el préstamo. El bot busca ese nombre exacto
+  (`C.DEUDA_TARJETA`) para sumarle las compras a crédito, así que no se renombra. El préstamo quedó aparte
+  como "Préstamo Falabella" (03/10/2026), porque las dos tenían tasas distintas y juntas no se podía decir
+  cuál conviene pagar primero.
 
 ## Servidor
 
@@ -65,9 +69,16 @@ salud se trabajan en su sesión local de core-forever. La sesión "Daria proyect
 
 ## Pendiente
 
-- Confirmar que el servidor ya corrió la actualización (el usuario dijo que actualizaría al final).
-  Probar en Telegram: `/start`, `/deudas` con botones de pagar, `/gasto` con Falabella (pregunta crédito o débito), `/tc`, `/excel`.
-- Faltan datos del usuario: día de pago de SIP y tasas de interés de SIP y Falabella.
+- ~~Confirmar que el servidor se actualiza solo~~: confirmado el 03/10/2026 (`/retirar` responde en Telegram,
+  así que el timer `finanzas-autoupdate` está corriendo). Falta probar el resto: `/deudas` con botones de
+  pagar, `/gasto` con Falabella (pregunta crédito o débito), `/tc`, `/excel`.
+- ~~Faltan las tasas de interés~~: cargadas en Notion el 03/10/2026 (SIP y la tarjeta Falabella, las dos
+  cerca del 79% anual; en Notion `Tasa anual` se guarda como decimal, 0.7899 → el bot muestra 79%).
+  **Queda una duda sin resolver**: el usuario mencionó "12 cuotas desde el 5 de noviembre", pero los números
+  de SIP no cuadran con 12 cuotas a esa tasa (saldría una cuota bastante más alta que la que figura). Hay que
+  preguntarle de qué préstamo era y cuál es la cuota verdadera.
+- La tarjeta Falabella no tiene `Cuota mensual` (el pago es variable según el consumo). Sin ese número el
+  plan de deudas solo le manda lo que sobra; si el usuario decide cuánto ponerle fijo al mes, cargarlo ahí.
 - El tipo de cambio automático sigue sin probarse **bajando datos reales**: la política de red de la sesión
   en la nube deniega `open.er-api.com` y `cdn.jsdelivr.net` (403 del proxy). Lo que sí quedó probado contra
   una caída de red real: usa el respaldo del `.env`, no reintenta antes de 30 min, `/tc` a mano funciona y
