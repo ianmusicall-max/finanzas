@@ -1,3 +1,4 @@
+import json
 import sys
 import tempfile
 import unittest
@@ -217,6 +218,22 @@ class TipoDeCambioAutomatico(unittest.TestCase):
     def test_datos_absurdos_se_descartan(self):
         self.internet({"rates": {"PEN": 0, "EUR": 0.9, "RUB": 80}}, {"usd": {"pen": 3.4, "eur": 0.9, "rub": 80000}})
         self.assertEqual(F.tipo_de_cambio("USD"), F.TC_USD)
+
+    def test_el_intento_queda_anotado_antes_de_salir_a_internet(self):
+        """Si la fuente cuelga y el servicio se reinicia en ese rato, no se vuelve a colgar."""
+        def se_corta(url, timeout=None):
+            self.llamadas.append(url)
+            raise KeyboardInterrupt()          # como si systemd matara el proceso mientras bajaba
+        F.requests.get = se_corta
+        with self.assertRaises(KeyboardInterrupt):
+            F.tipo_de_cambio("USD")
+        self.assertIn("intento_tc", json.loads(F.AJUSTES.read_text()))
+
+        # el servicio arranca de nuevo y lee el mismo ajustes.json: no reintenta antes de 30 minutos
+        self.internet({"rates": {"PEN": 3.38, "EUR": 0.85, "RUB": 79.0}})
+        self.llamadas.clear()
+        self.assertEqual(F.tipo_de_cambio("USD"), F.TC_USD)
+        self.assertEqual(self.llamadas, [])
 
     def test_a_mano_manda_y_auto_lo_quita(self):
         self.internet({"rates": {"PEN": 3.38, "EUR": 0.85, "RUB": 79.0}}, {"rates": {"PEN": 3.40, "EUR": 0.85, "RUB": 79.0}})

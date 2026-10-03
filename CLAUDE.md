@@ -68,4 +68,7 @@ salud se trabajan en su sesión local de core-forever. La sesión "Daria proyect
 - Confirmar que el servidor ya corrió la actualización (el usuario dijo que actualizaría al final).
   Probar en Telegram: `/start`, `/deudas` con botones de pagar, `/gasto` con Falabella (pregunta crédito o débito), `/tc`, `/excel`.
 - Faltan datos del usuario: día de pago de SIP y tasas de interés de SIP y Falabella.
-- El tipo de cambio automático no se pudo probar contra internet real (la sesión en la nube no tenía red).
+- El tipo de cambio automático sigue sin probarse **bajando datos reales**: la política de red de la sesión
+  en la nube deniega `open.er-api.com` y `cdn.jsdelivr.net` (403 del proxy). Lo que sí quedó probado contra
+  una caída de red real: usa el respaldo del `.env`, no reintenta antes de 30 min, `/tc` a mano funciona y
+  nada explota. Para probarlo de verdad hay que mirar `/tc` en Telegram contra el servidor.

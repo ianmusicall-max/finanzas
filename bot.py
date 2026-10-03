@@ -1137,9 +1137,22 @@ class Bot:
         self.decir(chat, "\n".join(l))
 
     # ---- bucle
+    def _refrescar_tc(self) -> None:
+        """Baja el tipo de cambio del dia en el rato libre, no cuando alguien espera respuesta.
+
+        Si la fuente cuelga en vez de fallar, los segundos de espera los pone este rato
+        muerto entre mensaje y mensaje; antes los ponia el usuario, que veia el bot mudo.
+        """
+        try:
+            F.tc_automatico()
+        except Exception as exc:          # nunca puede tumbar el bucle
+            print("  [bot] no pude bajar el tipo de cambio: %s: %s" % (type(exc).__name__, exc))
+
     def correr(self, una_vez: bool = False) -> int:
         offset = leer_offset()
         fallos = 0
+        if not una_vez:
+            self._refrescar_tc()          # al arrancar, para que el primer mensaje no espere
         while True:
             try:
                 updates = self.tg.updates(offset, timeout=0 if una_vez else 30)
@@ -1164,6 +1177,7 @@ class Bot:
                     print("  [bot] error procesando update %s: %s: %s" % (u.get("update_id"), type(exc).__name__, exc))
             if una_vez:
                 return 0
+            self._refrescar_tc()          # ya se contesto todo: ahora si, el rato libre
 
 
 def main() -> int:
