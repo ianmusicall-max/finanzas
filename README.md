@@ -40,7 +40,7 @@ Toca **➖ Gasto**, **➕ Ingreso** o **🐷 Ahorro** en el menú (o escribe `/g
 
 | Formulario | Preguntas |
 |---|---|
-| Gasto | fecha · cuenta (Gastos, Salud, Inversión, Educación, Export Latam, Facebook) · medio de pago · categoría · moneda · descripción · importe |
+| Gasto | fecha · cuenta (Gastos, Salud, Inversión, Educación) · medio de pago · categoría · moneda · descripción · importe |
 | Ingreso | fecha · dónde entró · categoría (Facebook, Freshtunes, Routenote, Criptomonedas, Ventas…) · moneda · descripción · importe |
 | Ahorro | fecha · meta (de la base Metas) · medio de pago · moneda · importe |
 | Inversión | fecha · categoría · medio de pago · moneda · descripción · importe |

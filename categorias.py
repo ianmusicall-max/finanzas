@@ -65,7 +65,7 @@ INVERSIONES = {
 }
 
 # Las cuentas del formulario de gastos: a que bolsillo se carga el gasto.
-CUENTAS = ["Gastos", "Salud", "Inversión", "Educación", "Export Latam", "Facebook"]
+CUENTAS = ["Gastos", "Salud", "Inversión", "Educación"]
 MONEDAS = ["PEN", "RUB", "USD", "EUR"]
 
 # Gastos que se pagan una vez al mes y no cuentan para el limite del dia a dia (/limite).
