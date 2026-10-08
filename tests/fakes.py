@@ -63,6 +63,9 @@ class FakeNotion:
                     return f
         raise KeyError(page_id)
 
+    def pagina(self, page_id):
+        return dict(self._buscar(page_id))
+
     def editar_pagina(self, page_id, propiedades):
         self._buscar(page_id).update(_plano(propiedades))
         return {"id": page_id}

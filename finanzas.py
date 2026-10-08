@@ -325,6 +325,48 @@ def ultimos(notion, bases: dict, n: int = 10) -> list:
     return notion.consultar(bases[MOVIMIENTOS], orden=[{"timestamp": "created_time", "direction": "descending"}], limite=n)
 
 
+def movimiento(notion, bases: dict, page_id: str) -> Optional[dict]:
+    """Un movimiento ya guardado, con lo que hace falta para corregirlo o borrarlo."""
+    try:
+        f = notion.pagina(page_id)
+    except (NotionError, KeyError):
+        return None
+    if not f or f.get("Tipo") is None and f.get("Monto") is None:
+        return None
+    monto, moneda = float(f.get("Monto") or 0), f.get("Moneda") or "PEN"
+    monto_s = f.get("Monto S/")
+    return {"id": f.get("_id") or page_id, "tipo": f.get("Tipo") or "Gasto",
+            "categoria": f.get("Categoría") or "Otros", "descripcion": f.get("Descripción") or "",
+            "monto": monto, "moneda": moneda,
+            "monto_s": float(monto_s if monto_s is not None else soles(monto, moneda)),
+            "medio": f.get("Medio de pago"), "tarjeta": f.get("Tarjeta"), "cuenta": f.get("Cuenta"),
+            "frecuencia": f.get("Frecuencia"), "fecha": (f.get("Fecha") or "")[:10]}
+
+
+def mueve_cuenta(mov: dict) -> bool:
+    """Si ese movimiento sube o baja el saldo de un banco. Una compra a credito no: va a la deuda."""
+    return bool(mov.get("medio")) and (mov["tipo"] == "Ingreso" or
+                                      (mov["tipo"] == "Gasto" and mov.get("tarjeta") != "Crédito"))
+
+
+def va_a_tarjeta(mov: dict) -> bool:
+    return mov["tipo"] == "Gasto" and mov.get("tarjeta") == "Crédito"
+
+
+def delta_cuenta(mov: dict) -> float:
+    """Lo que ese movimiento le hace al saldo: un ingreso suma, un gasto resta."""
+    return mov["monto"] if mov["tipo"] == "Ingreso" else -mov["monto"]
+
+
+def corregir_monto(notion, page_id: str, monto: float, moneda: str) -> dict:
+    """Cambia el monto (y la moneda) de un movimiento ya guardado, con sus columnas en S/, USD y RUB."""
+    tc = tipo_de_cambio(moneda)
+    return notion.editar_pagina(page_id, {
+        "Monto": p_number(monto), "Moneda": p_select(moneda), "Tipo de cambio": p_number(tc),
+        "Monto S/": p_number(monto * tc), "Monto USD": p_number(en_dolares(monto * tc)),
+        "Monto RUB": p_number(en_rublos(monto * tc))})
+
+
 # ---------------------------------------------------------------- resumen
 
 @dataclass
@@ -894,6 +936,14 @@ def cargar_a_tarjeta(notion, bases: dict, medio: str, monto: float, moneda: str)
         "Estado": p_select("Activa"), "Actualizado": p_date(hoy())})
     return {"id": existente["id"], "deuda": existente["deuda"], "saldo": nuevo, "moneda": existente["moneda"],
             "cargo": round(cargo, 2), "nueva": False}
+
+
+def deuda_de_tarjeta(notion, bases: dict, medio: Optional[str]) -> Optional[dict]:
+    """La deuda de esa tarjeta, si ya existe (para deshacer una compra a credito vieja)."""
+    if not medio or DEUDAS not in bases:
+        return None
+    nombre = C.deuda_de_tarjeta(medio)
+    return next((d for d in deudas(notion, bases, todas=True) if C.normal(d["deuda"]) == C.normal(nombre)), None)
 
 
 def pagar_deuda(notion, deuda: dict, monto: float, moneda: Optional[str] = None) -> float:

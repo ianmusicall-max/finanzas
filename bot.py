@@ -45,14 +45,14 @@ AYUDA = (
     "/grafico · imagen con los gastos de la semana\n"
     "/consejos · qué mejorar según tus números\n"
     "/metodos · formas de manejar tu dinero\n"
-    "/ultimos · lo último que anotaste\n\n"
+    "/ultimos · lo último que anotaste, con botones para corregir el monto o borrar\n\n"
     "<b>Ajustar</b>\n"
     "<code>/presupuesto comida 800</code>\n"
     "<code>/activo Interbank 5200</code> · <code>/deuda Tarjeta Falabella 1200</code>\n"
     "<code>/pago Falabella 300</code> · baja el saldo de una deuda\n"
     "<code>/meta Auto 100000</code>\n"
     "<code>/tc 3.72</code> · <code>/tc rub 0.046</code> · tipo de cambio\n"
-    "/deshacer · borra lo último que anotaste"
+    "/deshacer · borra lo último que anotaste (para uno viejo, /ultimos)"
 )
 
 MENU = [[("➖ Gasto", "m:gasto"), ("➕ Ingreso", "m:ingreso"), ("🐷 Ahorro", "m:ahorro")],
@@ -177,6 +177,23 @@ def leer_patrimonio(clase: str, texto: str):
     return nombre[:1].upper() + nombre[1:], valor, moneda, _tipo_patrimonio(clase, nombre + " " + " ".join(extra))
 
 
+def _monto_y_moneda(texto: str) -> tuple:
+    """'45' -> (45.0, None) · '20 usd' -> (20.0, 'USD'). Sin monto valido levanta ValueError."""
+    moneda, numero = None, None
+    for w in texto.replace("S/", " ").split():
+        wn = C.normal(w).strip(".,")
+        if wn in MONEDAS:
+            moneda = MONEDAS[wn]
+            continue
+        try:
+            numero = _numero(w.lstrip("$€₽").strip())
+        except ValueError:
+            continue
+    if numero is None or numero <= 0:
+        raise ValueError(texto)
+    return round(numero, 2), moneda
+
+
 # ---------------------------------------------------------------- bot
 
 class Bot:
@@ -196,6 +213,7 @@ class Bot:
         self._ajustando = {}       # chat -> comando que espera el dato que se escriba (botones de Ajustar)
         self._retirando = {}       # chat -> retiro de efectivo en curso (cuenta elegida, esperando el monto)
         self._retiro_de = {}       # chat -> ultimo retiro (banco_id, efectivo_id, monto) para poder deshacer
+        self._corrigiendo = {}     # chat -> page_id del movimiento al que le esta cambiando el monto
         self.form = Formularios(metas=self._nombres_metas, anuales=self._categorias_anuales)
 
     def _categorias_anuales(self) -> set:
@@ -259,6 +277,8 @@ class Bot:
                 self._monto_retiro(chat, texto)
             elif (self._suscribiendo.get(chat) or {}).get("esperando"):
                 self._meses_suscripcion(chat, texto)
+            elif chat in self._corrigiendo:
+                self._cambiar_monto(chat, texto)
             elif self.form.activo(chat):
                 self._responder(chat, self.form.texto(chat, texto))
             else:
@@ -603,6 +623,18 @@ class Bot:
             elif partes[0] == "x" and len(partes) == 2:
                 self.tg.quitar_botones(chat, message_id)
                 self._deshacer(chat, partes[1])
+            elif partes[0] == "mv" and len(partes) == 2:
+                self._ver_movimiento(chat, partes[1])
+            elif partes[0] == "me" and len(partes) == 2:
+                self.tg.quitar_botones(chat, message_id)
+                self._pedir_monto(chat, partes[1])
+            elif partes[0] == "mb" and len(partes) == 2:
+                self.tg.quitar_botones(chat, message_id)
+                self._deshacer(chat, partes[1])
+            elif partes[0] == "mn":
+                self.tg.quitar_botones(chat, message_id)
+                self._corrigiendo.pop(chat, None)
+                self.decir(chat, "👌 Lo dejo como está.")
         except (ValueError, IndexError):
             self.decir(chat, "Ese botón ya no sirve. Escribe /ayuda.")
         except NotionError as exc:
@@ -629,24 +661,14 @@ class Bot:
         self.decir(chat, "🔁 Listo, salió de %s.\n%s" % (esc(alt["nombre"]), "\n".join(l)))
 
     def _deshacer(self, chat, pid: str) -> None:
+        """Borra el movimiento y deshace lo que movió. Funciona con cualquiera, no solo el último."""
+        mov = F.movimiento(self.notion, self.bases, pid)
         self.notion.archivar(pid)
-        if pid in self._metas_de:
-            meta, monto = self._metas_de.pop(pid)
-            actual = F.buscar_meta(F.metas(self.notion, self.bases), meta["meta"]) or meta
-            F.sumar_a_meta(self.notion, actual, -monto)
-        if pid in self._cuenta_de:
-            cuenta_id, delta = self._cuenta_de.pop(pid)
-            c = next((x for x in F.cuentas(self.notion, self.bases) if _pid(x["id"]) == _pid(cuenta_id)), None)
-            if c:
-                F.mover_cuenta(self.notion, c, -delta)
-        if pid in self._credito_de:
-            deuda_id, cargo = self._credito_de.pop(pid)
-            d = next((x for x in F.deudas(self.notion, self.bases, todas=True) if _pid(x["id"]) == _pid(deuda_id)), None)
-            if d:
-                F.pagar_deuda(self.notion, d, cargo)
+        l = self._quitar_efectos(mov, pid) if mov else []
         if self._ultimo.get(chat) == pid:
             self._ultimo.pop(chat, None)
-        self.decir(chat, "↩️ Borrado. (Queda en la papelera de Notion por 30 días.)")
+        self._corrigiendo.pop(chat, None)
+        self.decir(chat, "\n".join(["🗑 Borrado. (Queda en la papelera de Notion por 30 días.)"] + l))
 
     # ---- comandos
     def _comando(self, chat, texto: str) -> None:
@@ -1128,13 +1150,115 @@ class Bot:
             self.decir(chat, "Aún no anotaste nada. Prueba: <code>45 almuerzo</code>")
             return
         l = ["🧾 <b>Últimos movimientos</b>", ""]
-        for f in filas:
+        botones = []
+        for i, f in enumerate(filas, 1):
             tipo = f.get("Tipo") or "Gasto"
             fecha = (f.get("Fecha") or "")[:10]
-            l.append("%s %s%s · %s <i>%s</i>" % (
-                C.emoji(tipo, f.get("Categoría") or ""), "+" if tipo == "Ingreso" else "",
+            l.append("<b>%d.</b> %s %s%s · %s <i>%s</i>" % (
+                i, C.emoji(tipo, f.get("Categoría") or ""), "+" if tipo == "Ingreso" else "",
                 F.s(f.get("Monto S/")), esc(f.get("Descripción") or ""), "/".join(reversed(fecha[5:].split("-")))))
-        self.decir(chat, "\n".join(l))
+            botones.append((str(i), "mv:" + _pid(f["_id"])))
+        l += ["", "<i>Toca el número del que quieras corregir o borrar.</i>"]
+        self.decir(chat, "\n".join(l), [botones[:5], botones[5:]])
+
+    # ---- corregir o borrar un movimiento ya anotado (no solo el ultimo)
+    def _ver_movimiento(self, chat, pid: str) -> None:
+        mov = F.movimiento(self.notion, self.bases, pid)
+        if not mov:
+            self.decir(chat, "Ese movimiento ya no está. Mira /ultimos otra vez.")
+            return
+        l = ["%s <b>%s</b> · %s" % (C.emoji(mov["tipo"], mov["categoria"]), esc(mov["tipo"]), esc(mov["categoria"])),
+             "%s%s" % (self._en(mov["monto"], mov["moneda"]),
+                       "" if mov["moneda"] == "PEN" else " = " + F.s(mov["monto_s"])),
+             esc(mov["descripcion"])]
+        extra = [x for x in (mov["medio"], (mov["tarjeta"] or "").lower() or None,
+                             "/".join(reversed(mov["fecha"].split("-")))) if x]
+        l.append("<i>%s</i>" % esc(" · ".join(extra)))
+        ti = C.TIPOS.index(mov["tipo"]) if mov["tipo"] in C.TIPOS else 0
+        self.decir(chat, "\n".join(l),
+                   [[("✏️ Cambiar monto", "me:" + pid), ("🏷 Cambiar categoría", "k:%s:%d" % (pid, ti))],
+                    [("🗑 Borrar", "mb:" + pid)]])
+
+    def _pedir_monto(self, chat, pid: str) -> None:
+        mov = F.movimiento(self.notion, self.bases, pid)
+        if not mov:
+            self.decir(chat, "Ese movimiento ya no está. Mira /ultimos otra vez.")
+            return
+        self._corrigiendo[chat] = pid
+        self.decir(chat, "✏️ <b>%s</b> está anotado en %s.\nEscribe el monto correcto, por ejemplo "
+                         "<code>45</code> · <code>20 usd</code>." % (esc(mov["descripcion"]),
+                                                                    self._en(mov["monto"], mov["moneda"])),
+                   [[("✖️ Cancelar", "mn:no")]])
+
+    def _cambiar_monto(self, chat, texto: str) -> None:
+        pid = self._corrigiendo[chat]
+        try:
+            monto, moneda = _monto_y_moneda(texto)
+        except ValueError:
+            self.decir(chat, "Escribe solo el monto, por ejemplo <code>45</code> o <code>20 usd</code>.",
+                       [[("✖️ Cancelar", "mn:no")]])
+            return
+        self._corrigiendo.pop(chat, None)
+        viejo = F.movimiento(self.notion, self.bases, pid)
+        if not viejo:
+            self.decir(chat, "Ese movimiento ya no está. Mira /ultimos otra vez.")
+            return
+        l = self._quitar_efectos(viejo, pid)
+        nuevo = dict(viejo, monto=monto, moneda=moneda or viejo["moneda"])
+        F.corregir_monto(self.notion, pid, nuevo["monto"], nuevo["moneda"])
+        l = [x for x in l if "vuelve a" not in x] + self._poner_efectos(nuevo, pid)
+        self.decir(chat, "\n".join(["✏️ <b>%s</b>: %s → <b>%s</b>" % (
+            esc(nuevo["descripcion"]), self._en(viejo["monto"], viejo["moneda"]),
+            self._en(nuevo["monto"], nuevo["moneda"]))] + l))
+
+    def _quitar_efectos(self, mov: dict, pid: str) -> list:
+        """Deshace lo que un movimiento le hizo al banco y a la tarjeta. Si se anotó en esta corrida
+        usa lo que quedó en memoria; si es viejo lo reconstruye con el medio de pago de la fila."""
+        l = []
+        if pid in self._cuenta_de:
+            cuenta_id, delta = self._cuenta_de.pop(pid)
+            c = next((x for x in F.cuentas(self.notion, self.bases) if _pid(x["id"]) == _pid(cuenta_id)), None)
+        elif F.mueve_cuenta(mov) and PATRIMONIO in self.bases:
+            c, delta = F.buscar_cuenta(self.notion, self.bases, mov["medio"], mov["moneda"]), F.delta_cuenta(mov)
+        else:
+            c = None
+        if c:
+            l.append("🏦 %s vuelve a %s" % (esc(c["nombre"]),
+                                            F.s3(F.soles(F.mover_cuenta(self.notion, c, -delta), c["moneda"]))))
+        if pid in self._credito_de:
+            deuda_id, cargo = self._credito_de.pop(pid)
+            d = next((x for x in F.deudas(self.notion, self.bases, todas=True) if _pid(x["id"]) == _pid(deuda_id)), None)
+            moneda = None
+        elif F.va_a_tarjeta(mov) and DEUDAS in self.bases:
+            d, cargo, moneda = F.deuda_de_tarjeta(self.notion, self.bases, mov["medio"]), mov["monto"], mov["moneda"]
+        else:
+            d = None
+        if d:
+            l.append("💳 %s vuelve a %s" % (esc(d["deuda"]),
+                                            F.s3(F.soles(F.pagar_deuda(self.notion, d, cargo, moneda), d["moneda"]))))
+        if pid in self._metas_de:
+            meta, monto = self._metas_de.pop(pid)
+            actual = F.buscar_meta(F.metas(self.notion, self.bases), meta["meta"]) or meta
+            l.append("🎯 %s vuelve a %s" % (esc(meta["meta"]), F.s(F.sumar_a_meta(self.notion, actual, -monto))))
+        elif mov["tipo"] == "Ahorro" and METAS in self.bases:
+            l.append("<i>Si ese ahorro iba a una meta, bájalo a mano en Notion: no queda anotado a cuál.</i>")
+        return l
+
+    def _poner_efectos(self, mov: dict, pid: str) -> list:
+        """Vuelve a aplicar el movimiento al banco y a la tarjeta (después de corregirle el monto)."""
+        l = []
+        if F.va_a_tarjeta(mov) and DEUDAS in self.bases:
+            d = F.cargar_a_tarjeta(self.notion, self.bases, mov["medio"], mov["monto"], mov["moneda"])
+            self._credito_de[pid] = (d["id"], d["cargo"])
+            l.append("💳 %s: ahora debes %s" % (esc(d["deuda"]), F.s3(F.soles(d["saldo"], d["moneda"]))))
+        if F.mueve_cuenta(mov) and PATRIMONIO in self.bases:
+            c = F.buscar_cuenta(self.notion, self.bases, mov["medio"], mov["moneda"])
+            if c:
+                delta = F.delta_cuenta(mov)
+                self._cuenta_de[pid] = (c["id"], delta)
+                l.append("🏦 %s ahora tiene %s" % (esc(c["nombre"]),
+                                                   F.s3(F.soles(F.mover_cuenta(self.notion, c, delta), c["moneda"]))))
+        return l
 
     # ---- bucle
     def _refrescar_tc(self) -> None:

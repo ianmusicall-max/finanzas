@@ -85,8 +85,26 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
 | `/consejos` | qué mejorar según tus números del mes |
 | `/metodos` | formas de manejar tu dinero (50/30/20, págate primero, sobres, base cero, deudas) |
 | `/tc 3.72` · `/tc eur 4.05` · `/tc rub 0.046` | tipo de cambio para lo que anotes en dólares, euros o rublos |
-| `/ultimos` · `/deshacer` | últimos 10 movimientos / borra el último |
+| `/ultimos` · `/deshacer` | últimos 10 movimientos, numerados / borra el último |
 | `/gasto` `/ingreso` `/ahorro` `/inversion` | abre el formulario; con texto después (`/gasto 45 almuerzo`) anota directo |
+
+## Corregir o borrar un movimiento ya anotado
+
+Debajo de cada cosa que anotas quedan los botones **🏷 Cambiar categoría** y **↩️ Deshacer**, pero solo sirven
+para lo último. Para uno de antes, `/ultimos` los lista **numerados** con un botón por número: lo tocas y
+salen **✏️ Cambiar monto**, **🏷 Cambiar categoría** y **🗑 Borrar**.
+
+Lo importante es que el bot **deshace también lo que ese movimiento movió**, no solo la fila:
+
+- el saldo del banco vuelve a lo que era (y si cambias el monto, se ajusta a la diferencia);
+- una compra a crédito se le resta a la deuda de la tarjeta;
+- un ahorro que fue a una meta se le resta a la meta **si se anotó desde que el bot está prendido**; si es
+  más viejo, el bot te avisa que la meta la bajes a mano, porque en la fila no queda anotado a qué meta fue.
+
+Funciona igual después de reiniciar el servidor: lo que no recuerda, lo reconstruye con el medio de pago de
+la fila. Ojo con un caso: si un Yape salió de BCP y lo cambiaste con el botón *🔁 Salió de BCP*, eso no queda
+guardado en la fila, así que al borrarlo mucho después el bot le devuelve la plata a Interbank. El mensaje
+siempre dice a qué cuenta se la devolvió, y lo corriges con `/activo`.
 
 ## Cálculos
 

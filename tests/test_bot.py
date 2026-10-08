@@ -1072,3 +1072,94 @@ class RecordatoriosYPlan(Base):
         a["historial_tc"] = h
         F._guardar_ajustes(a)
         self.assertIsNone(F.alerta_cambio())
+
+
+class CorregirMovimientos(Base):
+    """Cambiar el monto o borrar cualquier movimiento desde /ultimos, no solo el ultimo."""
+
+    def cuenta(self, nombre):
+        return next(f for f in self.n.dbs["db-pat"] if f["Nombre"] == nombre)
+
+    def deuda(self, nombre):
+        return next(f for f in self.n.dbs["db-deu"] if f["Deuda"] == nombre)
+
+    def reiniciar(self):
+        """Como si el servidor hubiera reiniciado: el bot ya no recuerda nada de lo anotado."""
+        self.bot = Bot(self.tg, self.n, BASES, {YO})
+
+    def test_ultimos_numera_y_abre_el_que_se_toca(self):
+        self.di("45 almuerzo")
+        self.di("20 taxi")
+        t = self.di("/ultimos")
+        self.assertIn("<b>1.</b>", t)
+        self.assertIn("<b>2.</b>", t)
+        self.assertIn("Almuerzo", self.toca("2"))      # el 1 es el mas reciente (el taxi); el 2, el almuerzo
+        self.di("/ultimos")
+        self.assertIn("Taxi", self.toca("1"))
+
+    def test_borrar_un_gasto_viejo_devuelve_la_plata_a_la_cuenta(self):
+        self.di("/activo Interbank soles 500")
+        self.di("45 almuerzo interbank")
+        self.di("20 taxi interbank")
+        self.assertEqual(self.cuenta("Interbank soles")["Valor"], 435)
+        self.reiniciar()                                # el bot ya no recuerda qué movió cada uno
+        self.di("/ultimos")
+        self.toca("2")                                  # el almuerzo, que no es el ultimo
+        t = self.toca("Borrar")
+        self.assertIn("Interbank soles vuelve a S/ 480.00", t)
+        self.assertEqual(self.cuenta("Interbank soles")["Valor"], 480)
+        self.assertEqual([f["Descripción"] for f in self.movs], ["Taxi"])
+
+    def test_borrar_una_compra_a_credito_vieja_baja_la_deuda(self):
+        self.di("250 zapatillas falabella credito")
+        self.assertEqual(self.deuda("Banco Falabella")["Saldo"], 250)
+        self.reiniciar()
+        self.di("/ultimos")
+        self.toca("1")
+        t = self.toca("Borrar")
+        self.assertIn("Banco Falabella vuelve a S/ 0.00", t)
+        self.assertEqual(self.deuda("Banco Falabella")["Saldo"], 0)
+
+    def test_cambiar_el_monto_corrige_la_cuenta(self):
+        self.di("/activo Interbank soles 500")
+        self.di("45 almuerzo interbank")
+        self.reiniciar()
+        self.di("/ultimos")
+        self.toca("1")
+        self.toca("Cambiar monto")
+        t = self.di("54")
+        self.assertIn("S/ 45.00 → <b>S/ 54.00</b>", t)
+        self.assertIn("Interbank soles ahora tiene S/ 446.00", t)
+        self.assertEqual(self.cuenta("Interbank soles")["Valor"], 446)
+        self.assertEqual((self.movs[0]["Monto"], self.movs[0]["Monto S/"]), (54, 54))
+
+    def test_cambiar_el_monto_de_una_compra_a_credito_corrige_la_deuda(self):
+        self.di("250 zapatillas falabella credito")
+        self.reiniciar()
+        self.di("/ultimos")
+        self.toca("1")
+        self.toca("Cambiar monto")
+        t = self.di("199.90")
+        self.assertIn("ahora debes S/ 199.90", t)
+        self.assertEqual(self.deuda("Banco Falabella")["Saldo"], 199.9)
+
+    def test_cambiar_el_monto_a_dolares(self):
+        F.fijar_tipo_de_cambio("USD", 3.40)
+        self.di("/activo Interbank dólares 100 usd")
+        self.di("20 usd almuerzo interbank")
+        self.di("/ultimos")
+        self.toca("1")
+        self.toca("Cambiar monto")
+        t = self.di("25 usd")
+        self.assertIn("USD 20.00 → <b>USD 25.00</b>", t)
+        self.assertEqual(self.cuenta("Interbank dólares")["Valor"], 75)
+        self.assertEqual(self.movs[0]["Monto S/"], 85)
+
+    def test_un_monto_que_no_se_entiende_no_rompe_nada(self):
+        self.di("45 almuerzo")
+        self.di("/ultimos")
+        self.toca("1")
+        self.toca("Cambiar monto")
+        self.assertIn("solo el monto", self.di("como veinte"))
+        self.assertEqual(self.movs[0]["Monto"], 45)
+        self.assertIn("dejo como está", self.toca("Cancelar"))
