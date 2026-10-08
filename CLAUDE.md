@@ -58,8 +58,9 @@ Después de correr eso una vez, el timer `finanzas-autoupdate` actualiza solo ca
 
 - **🏧 Retirar efectivo** (`/retirar`): baja la cuenta del banco y sube "Efectivo" / "Efectivo dólares" /
   "Efectivo rublos" (se crea sola). No es gasto. Un gasto con medio Efectivo descuenta de ahí.
-- **Plin** descuenta de Interbank y **Yape** de BCP (`C.BILLETERA_BANCO`). Debajo de un gasto con Yape sale
-  el botón "🔁 Salió de Interbank" (`C.BILLETERA_OTROS`) para mover el descuento.
+- **Plin** y **Yape** descuentan de Interbank (`C.BILLETERA_BANCO`; hasta el 08/10/2026 Yape descontaba de
+  BCP, pero el usuario dijo que últimamente siempre yapea desde Interbank). Debajo de un gasto con Yape sale
+  el botón "🔁 Salió de BCP" (`C.BILLETERA_OTROS`) para mover el descuento.
 
 ## Nube
 

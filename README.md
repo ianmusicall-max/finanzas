@@ -119,9 +119,9 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
   por el nombre del banco y la moneda: medio *Interbank* + USD → "Interbank dólares". Un **ingreso** suma al
   saldo de la cuenta donde entró; un **gasto** con débito o efectivo lo resta; un gasto **a crédito** no toca
   la cuenta (va a la deuda de la tarjeta). Deshacer lo revierte. Si la cuenta no existe, el bot sugiere
-  crearla con `/activo T-Bank 25000 rub` y el saldo de hoy. **Plin** sale de la cuenta de Interbank y
-  **Yape** de la de BCP (el medio queda guardado como Plin o Yape). Si un Yape salió de Interbank, toca
-  *🔁 Salió de Interbank* debajo del gasto y el bot mueve el descuento a esa cuenta.
+  crearla con `/activo T-Bank 25000 rub` y el saldo de hoy. **Plin** y **Yape** salen de la
+  cuenta de Interbank (el medio queda guardado como Plin o Yape). Si un Yape salió de BCP, toca
+  *🔁 Salió de BCP* debajo del gasto y el bot mueve el descuento a esa cuenta.
 - **🏧 Retirar efectivo** (botón del menú o `/retirar`): eliges la cuenta del banco y escribes cuánto sacaste.
   Baja esa cuenta y sube la cuenta **Efectivo** de la misma moneda ("Efectivo", "Efectivo dólares",
   "Efectivo rublos"; se crea sola la primera vez). No es un gasto: tu patrimonio no cambia. Cuando pagas con

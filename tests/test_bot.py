@@ -559,24 +559,25 @@ class CuentasYAhorro(Base):
         t = self.di("30 almuerzo efectivo")
         self.assertIn("Efectivo ahora tiene S/ 220.00", t)
 
-    def test_plin_sale_de_interbank_y_yape_de_bcp(self):
+    def test_plin_y_yape_salen_de_interbank(self):
         self.di("/activo Interbank soles 463")
         self.di("/activo BCP 300")
         self.assertIn("Interbank soles ahora tiene S/ 443.00", self.di("20 taxi plin"))
-        self.assertIn("BCP ahora tiene S/ 285.00", self.di("15 menu yape"))
+        self.assertIn("Interbank soles ahora tiene S/ 428.00", self.di("15 menu yape"))
         self.assertEqual(self.movs[-1]["Medio de pago"], "Yape")                # el medio queda como Yape
+        self.assertEqual(self.cuenta("BCP")["Valor"], 300)                      # BCP no se toca
 
-    def test_yape_que_salio_de_interbank(self):
+    def test_yape_que_salio_de_bcp(self):
         self.di("/activo Interbank soles 463")
         self.di("/activo BCP 300")
         self.di("15 menu yape")
-        self.assertEqual(self.cuenta("BCP")["Valor"], 285)
-        t = self.toca("Salió de Interbank soles")
-        self.assertIn("BCP vuelve a S/ 300.00", t)
-        self.assertEqual(self.cuenta("BCP")["Valor"], 300)
         self.assertEqual(self.cuenta("Interbank soles")["Valor"], 448)
-        self.di("/deshacer")                                                   # deshacer devuelve a Interbank
+        t = self.toca("Salió de BCP")
+        self.assertIn("Interbank soles vuelve a S/ 463.00", t)
         self.assertEqual(self.cuenta("Interbank soles")["Valor"], 463)
+        self.assertEqual(self.cuenta("BCP")["Valor"], 285)
+        self.di("/deshacer")                                                   # deshacer devuelve a BCP
+        self.assertEqual(self.cuenta("BCP")["Valor"], 300)
         self.di("20 taxi plin")
         self.assertFalse(any("Salió de" in t for t, _ in self.tg.botones()))  # Plin siempre es Interbank
 
