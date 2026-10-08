@@ -323,7 +323,7 @@ def movimientos(notion, bases: dict, desde: date, hasta: date) -> list:
 
 
 def buscar(notion, bases: dict, texto: str, desde: Optional[date] = None,
-            hasta: Optional[date] = None) -> list:
+           hasta: Optional[date] = None) -> list:
     """Los movimientos cuya descripcion, categoria o medio de pago tienen esas palabras.
 
     Busca sin tildes ni mayusculas y pide que esten todas: "uber nov" no sirve, pero "taxi lima"
@@ -568,7 +568,7 @@ def patrimonio(notion, bases: dict) -> list:
     """Cuentas y bienes de Patrimonio mas las deudas activas de Deudas (como Pasivo)."""
     out = [{"id": d["id"], "nombre": d["deuda"], "clase": "Pasivo", "tipo": d["tipo"], "valor": d["saldo"],
             "moneda": d["moneda"], "valor_s": d["saldo_s"], "actualizado": d["actualizado"], "tasa": d["tasa"]}
-           for d in deudas(notion, bases) if d["saldo_s"] > 0]
+           for d in deudas(notion, bases, con_cuotas=False) if d["saldo_s"] > 0]
     if PATRIMONIO not in bases:
         return out
     for f in notion.consultar(bases[PATRIMONIO], limite=300):
@@ -966,7 +966,7 @@ def buscar_deuda(lista: list, texto: str) -> Optional[dict]:
 
 def fijar_deuda(notion, bases: dict, nombre: str, tipo: str, saldo: float, moneda: str = "PEN") -> tuple:
     """Crea la deuda o actualiza su saldo. Devuelve (pagina, saldo anterior en soles o None)."""
-    existente = buscar_deuda(deudas(notion, bases, todas=True), nombre)
+    existente = buscar_deuda(deudas(notion, bases, todas=True, con_cuotas=False), nombre)
     props = {"Saldo": p_number(saldo), "Moneda": p_select(moneda), "Saldo S/": p_number(soles(saldo, moneda)),
              "Estado": p_select("Activa" if saldo > 0 else "Pagada"), "Actualizado": p_date(hoy())}
     if existente:
@@ -980,7 +980,8 @@ def cargar_a_tarjeta(notion, bases: dict, medio: str, monto: float, moneda: str)
     """Una compra a credito: suma el monto a la deuda de esa tarjeta, y la crea si no existe.
     Devuelve la deuda como quedo, con "cargo" = lo sumado en la moneda de la deuda y "nueva"."""
     nombre = C.deuda_de_tarjeta(medio)
-    existente = next((d for d in deudas(notion, bases, todas=True) if C.normal(d["deuda"]) == C.normal(nombre)), None)
+    existente = next((d for d in deudas(notion, bases, todas=True, con_cuotas=False)
+                      if C.normal(d["deuda"]) == C.normal(nombre)), None)
     if not existente:
         props = {"Deuda": p_title(nombre), "Tipo": p_select("Tarjeta de crédito"),
                  "Acreedor": p_text(C.BANCO_TARJETA.get(medio, medio)), "Monto original": p_number(monto),

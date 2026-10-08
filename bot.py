@@ -1307,7 +1307,8 @@ class Bot:
                                             F.s3(F.soles(F.mover_cuenta(self.notion, c, -delta), c["moneda"]))))
         if pid in self._credito_de:
             deuda_id, cargo = self._credito_de.pop(pid)
-            d = next((x for x in F.deudas(self.notion, self.bases, todas=True) if _pid(x["id"]) == _pid(deuda_id)), None)
+            d = next((x for x in F.deudas(self.notion, self.bases, todas=True, con_cuotas=False)
+                      if _pid(x["id"]) == _pid(deuda_id)), None)
             moneda = None
         elif F.va_a_tarjeta(mov) and DEUDAS in self.bases:
             d, cargo, moneda = F.deuda_de_tarjeta(self.notion, self.bases, mov["medio"]), mov["monto"], mov["moneda"]

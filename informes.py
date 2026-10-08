@@ -311,8 +311,10 @@ def texto_limite(notion, bases: dict) -> str:
 
 
 def texto_deudas(notion, bases: dict) -> str:
-    compras = F.compras_en_cuotas(notion, bases)
     lista = F.deudas(notion, bases)
+    # el mismo calendario que usa F.deudas() para la cuota: con el corte, la cuota 1 puede ser de este mes
+    compras = F.compras_en_cuotas(notion, bases, None,
+                                  {d["deuda"]: (d.get("corte"), d["dia"]) for d in lista})
     if not lista:
         return ("💳 <b>Deudas</b>\n\nNo tienes deudas activas. 🎉\nSi tienes una, anótala con:\n"
                 "<code>/deuda Tarjeta Falabella 1200</code>\n<code>/deuda Préstamo BCP 15000</code>")

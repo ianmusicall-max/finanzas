@@ -128,7 +128,8 @@ Qué hace con eso:
 
 - la compra entera se le suma a la deuda de la tarjeta, como siempre (eso es lo que debes);
 - **la cuota mensual de la tarjeta la calcula el bot sumando las cuotas que están corriendo**, y la usa en
-  `/deudas`, en `/plan` y en el botón *Cuota* al pagar. La primera cuota cae el mes siguiente a la compra;
+  `/deudas`, en `/plan` y en el botón *Cuota* al pagar. La primera cuota cae el mes siguiente a la compra, o
+  el mismo mes si ya le dijiste cuándo cierra la tarjeta (ver arriba, `/corte`);
 - en `/deudas`, debajo de la tarjeta sale cada compra: `🧾 Tv · cuota 3 de 12 · S/ 100.00 al mes`;
 - cuando una compra termina de pagarse, **deja de contar sola**: la cuota baja sin que toques nada, porque
   sale de los movimientos y no de un número guardado.
