@@ -347,6 +347,42 @@ def texto_deudas(notion, bases: dict) -> str:
     return "\n".join(l)
 
 
+def texto_comparar(notion, bases: dict, d=None, tope: int = 8) -> str:
+    """📊 Este mes contra el pasado: los totales y en qué categorías cambió."""
+    c = F.comparar_meses(notion, bases, d)
+    a, b = c["a"], c["b"]
+    mes_a, mes_b = c["este"].titulo.split()[0], c["pasado"].titulo.split()[0]
+    l = ["📊 <b>%s contra %s</b>" % (esc(mes_a), esc(mes_b.lower()))]
+    if not c["completo"]:
+        l.append("<i>Los dos hasta el día %d, para que se puedan comparar.</i>" % c["dia"])
+    l.append("")
+    if not a.cantidad and not b.cantidad:
+        return "\n".join(l + ["Todavía no hay movimientos para comparar."])
+    for emoji, nombre, x, y in (("💸", "Gastos", a.gastos, b.gastos), ("💰", "Ingresos", a.ingresos, b.ingresos),
+                                ("🐷", "Ahorro", a.ahorro, b.ahorro), ("📈", "Inversión", a.inversion, b.inversion)):
+        if x or y:
+            l.append("%s %s: <b>%s</b>%s" % (emoji, nombre, F.s(x), variacion(x, y)))
+    if a.ingresos or b.ingresos:
+        l.append("⚖️ Balance: <b>%s</b>%s" % (F.s(a.balance), variacion(a.balance, b.balance)))
+    suben = [x for x in c["cambios"] if abs(x["dif"]) >= 1][:tope]
+    if suben:
+        l += ["", "<b>En qué cambió</b>"]
+        for x in suben:
+            if not x["antes"]:
+                detalle = "nuevo este mes"
+            elif not x["ahora"]:
+                detalle = "antes %s, este mes nada" % F.s(x["antes"])
+            else:
+                detalle = "%s %s · antes %s" % ("↑" if x["dif"] > 0 else "↓", F.pct(abs(x["pct"])), F.s(x["antes"]))
+            l.append("%s %s · <b>%s</b> <i>%s</i>" % (C.emoji("Gasto", x["categoria"]), esc(x["categoria"]),
+                                                      F.s(x["ahora"]), detalle))
+    peor = next((x for x in suben if x["dif"] > 0 and x["antes"]), None)
+    if peor:
+        l += ["", "<i>Lo que más subió es %s: %s más que el mes pasado.</i>" % (
+            esc(peor["categoria"].lower()), F.s(peor["dif"]))]
+    return "\n".join(l)
+
+
 def texto_buscar(notion, bases: dict, texto: str, desde, hasta, cuando: str = "", tope: int = 15) -> str:
     """Lo que encontro /buscar: el total y la lista, del mas nuevo al mas viejo."""
     filas = F.buscar(notion, bases, texto, desde, hasta)

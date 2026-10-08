@@ -1298,3 +1298,48 @@ class Buscar(Base):
         self.assertIn("No encontré nada", self.di("/buscar helicoptero"))
         self.assertIn("Escribe qué buscar", self.di("/buscar"))
         self.assertIn("Falta qué buscar", self.di("/buscar mes"))
+
+
+class Comparar(Base):
+    def anteayer_del_mes_pasado(self, texto):
+        """Anota algo con fecha del mes pasado, el mismo dia de hoy (o el ultimo que exista)."""
+        d = F.hoy()
+        pasado = F.mes(d.replace(day=1) - timedelta(days=1))
+        dia = min(d.day, pasado.hasta.day)
+        return self.di("%s %s/%s" % (texto, dia, pasado.desde.month))
+
+    def test_compara_totales_y_categorias(self):
+        self.anteayer_del_mes_pasado("200 supermercado")
+        self.anteayer_del_mes_pasado("100 taxi")
+        self.di("300 supermercado")
+        t = self.di("/comparar")
+        self.assertIn("Gastos: <b>S/ 300.00</b>", t)
+        self.assertIn("Supermercado · <b>S/ 300.00</b>", t)
+        self.assertIn("↑ 50%", t)
+        self.assertIn("antes S/ 100.00, este mes nada", t)   # el taxi desaparecio
+        self.assertIn("Lo que más subió es supermercado: S/ 100.00 más", t)
+
+    def test_marca_lo_nuevo_del_mes(self):
+        self.anteayer_del_mes_pasado("200 supermercado")
+        self.di("120 dentista")
+        self.assertIn("nuevo este mes", self.di("/comparar"))
+
+    def test_corta_los_dos_meses_el_mismo_dia(self):
+        """El mes pasado se corta hoy mismo: si no, 8 dias contra 30 diria cualquier cosa."""
+        d = F.hoy()
+        pasado = F.mes(d.replace(day=1) - timedelta(days=1))
+        self.anteayer_del_mes_pasado("200 supermercado")
+        self.di("50 supermercado %d/%d" % (pasado.hasta.day, pasado.desde.month))   # fin del mes pasado
+        t = self.di("/comparar")
+        if d.day < pasado.hasta.day:
+            self.assertIn("hasta el día %d" % d.day, t)
+            self.assertIn("antes S/ 200.00", t)            # los 50 del fin de mes quedan fuera
+        self.assertNotIn("antes S/ 250.00", t)
+
+    def test_sin_nada_no_explota(self):
+        self.assertIn("Todavía no hay movimientos", self.di("/comparar"))
+
+    def test_el_boton_del_menu_funciona(self):
+        self.di("45 almuerzo")
+        self.di("/start")
+        self.assertIn("contra", self.toca("Comparar"))

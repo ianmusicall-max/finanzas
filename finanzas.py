@@ -475,6 +475,26 @@ def resumir(movs: list, periodo: Periodo) -> Resumen:
     return r
 
 
+def comparar_meses(notion, bases: dict, d: Optional[date] = None) -> dict:
+    """Este mes contra el pasado, categoria por categoria.
+
+    Los dos se cortan el mismo dia del mes: si hoy es 8, compara del 1 al 8 contra el 1 al 8 del
+    mes pasado. Comparar 8 dias contra 30 diria que gastas mucho menos, que no es verdad."""
+    d = d or hoy()
+    este = mes(d)
+    pasado = mes(este.desde - timedelta(days=1))
+    dia = min(d.day, pasado.hasta.day)
+    a = resumir(movimientos(notion, bases, este.desde, d), este)
+    b = resumir(movimientos(notion, bases, pasado.desde, pasado.desde.replace(day=dia)), pasado)
+    cambios = []
+    for c in set(a.por_categoria) | set(b.por_categoria):
+        ahora, antes = round(a.por_categoria.get(c, 0), 2), round(b.por_categoria.get(c, 0), 2)
+        cambios.append({"categoria": c, "ahora": ahora, "antes": antes, "dif": round(ahora - antes, 2),
+                        "pct": (ahora - antes) / antes if antes else None})
+    return {"este": este, "pasado": pasado, "dia": dia, "completo": d >= este.hasta, "a": a, "b": b,
+            "cambios": sorted(cambios, key=lambda x: (-abs(x["dif"]), x["categoria"]))}
+
+
 # ---------------------------------------------------------------- presupuesto
 
 def presupuesto(notion, bases: dict, columna: str = "Mensual S/") -> dict:

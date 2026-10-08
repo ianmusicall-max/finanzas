@@ -40,6 +40,7 @@ AYUDA = (
     "/suscripciones · tus suscripciones y cuándo se renuevan\n"
     "/pagos · pagos y recordatorios del mes (servicios, bancos, retiros)\n"
     "/retirar · sacaste efectivo de un banco: baja la cuenta y sube tu efectivo (no es gasto)\n"
+    "/comparar · este mes contra el pasado, categoría por categoría\n"
     "/proyeccion · cómo cierras el mes si no entra más dinero\n"
     "/plan · cuándo terminas de pagar tus deudas (y con extra: /plan 300 usd)\n"
     "/ingresos · cuánto deja cada fuente, mes a mes\n"
@@ -63,13 +64,15 @@ MENU = [[("➖ Gasto", "m:gasto"), ("➕ Ingreso", "m:ingreso"), ("🐷 Ahorro",
         [("📏 Límite", "m:limite"), ("🧾 Presupuesto", "m:presupuesto"), ("💳 Deudas", "m:deudas")],
         [("🏦 Patrimonio", "m:patrimonio"), ("🎯 Metas", "m:metas"), ("🔁 Suscripciones", "m:suscripciones")],
         [("🔔 Pagos del mes", "m:pagos"), ("📈 Proyección", "m:proyeccion"), ("📉 Plan deudas", "m:plan")],
-        [("💰 Ingresos", "m:ingresos"), ("📊 Excel", "m:excel"), ("🖼 Gráfico", "m:grafico")],
-        [("💡 Consejos", "m:consejos"), ("💱 Tipo de cambio", "m:tc"), ("⚙️ Ajustar", "m:ajustar")]]
+        [("💰 Ingresos", "m:ingresos"), ("📗 Excel", "m:excel"), ("🖼 Gráfico", "m:grafico")],
+        [("📊 Comparar", "m:comparar"), ("🔍 Buscar", "m:buscar"), ("💡 Consejos", "m:consejos")],
+        [("💱 Tipo de cambio", "m:tc"), ("⚙️ Ajustar", "m:ajustar")]]
 
 MENU_VER = [[("📏 Límite", "m:limite"), ("🧾 Presupuesto", "m:presupuesto")],
             [("💳 Deudas", "m:deudas"), ("🏦 Patrimonio", "m:patrimonio")],
             [("🎯 Metas", "m:metas"), ("🔁 Suscripciones", "m:suscripciones")],
-            [("📊 Excel", "m:excel"), ("💡 Consejos", "m:consejos")],
+            [("📊 Comparar", "m:comparar"), ("💡 Consejos", "m:consejos")],
+            [("📗 Excel", "m:excel"), ("🔍 Buscar", "m:buscar")],
             [("🧾 Últimos", "m:ultimos"), ("💱 Tipo de cambio", "m:tc")]]
 
 # Ajustar: cada boton pide un dato y lo que se escribe despues va a ese comando.
@@ -740,6 +743,8 @@ class Bot:
             self.decir(chat, METODOS)
         elif cmd == "/tc":
             self._tc(chat, arg)
+        elif cmd in ("/comparar", "/compara"):
+            self.decir(chat, I.texto_comparar(self.notion, self.bases))
         elif cmd in ("/buscar", "/busca"):
             self._buscar(chat, arg)
         elif cmd == "/ultimos":

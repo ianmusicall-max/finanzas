@@ -242,3 +242,37 @@ class TipoDeCambioAutomatico(unittest.TestCase):
         self.assertAlmostEqual(F.tipo_de_cambio("RUB"), 3.38 / 79, places=5)   # el rublo sigue automatico
         F.tc_a_automatico()
         self.assertEqual(F.tipo_de_cambio("USD"), 3.40)  # vuelve a bajarlo al momento
+
+
+class CompararMeses(ConTC):
+    """Con fechas fijas, para que no dependa de qué día es hoy."""
+
+    def setUp(self):
+        super().setUp()
+        self.n = FakeNotion()
+        # mayo: el 5 y el 25 ; junio: el 5
+        cargar(self.n, ["200 supermercado 5/5", "500 supermercado 25/5", "100 taxi 5/5"], date(2026, 6, 10))
+        cargar(self.n, ["300 supermercado 5/6", "120 dentista 5/6"], date(2026, 6, 10))
+
+    def test_corta_los_dos_meses_el_mismo_dia(self):
+        c = F.comparar_meses(self.n, BASES, date(2026, 6, 10))
+        self.assertEqual((c["dia"], c["completo"]), (10, False))
+        self.assertEqual(c["a"].gastos, 420)            # junio: 300 + 120
+        self.assertEqual(c["b"].gastos, 300)            # mayo hasta el 10: 200 + 100, no los 500 del 25
+        porcat = {x["categoria"]: x for x in c["cambios"]}
+        self.assertEqual((porcat["Supermercado"]["ahora"], porcat["Supermercado"]["antes"]), (300, 200))
+        self.assertEqual(porcat["Supermercado"]["pct"], 0.5)
+        self.assertEqual((porcat["Citas médicas"]["antes"], porcat["Citas médicas"]["pct"]), (0, None))
+        self.assertEqual((porcat["Movilidad"]["ahora"], porcat["Movilidad"]["antes"]), (0, 100))
+
+    def test_mes_entero_contra_mes_entero(self):
+        c = F.comparar_meses(self.n, BASES, date(2026, 6, 30))
+        self.assertEqual((c["dia"], c["completo"]), (30, True))
+        self.assertEqual(c["b"].gastos, 800)            # mayo entero: 200 + 500 + 100
+        self.assertEqual(c["cambios"][0]["categoria"], "Supermercado")   # el que más cambió, primero
+
+    def test_febrero_contra_enero_sin_dia_31(self):
+        cargar(self.n, ["90 cine 31/1"], date(2026, 2, 28))
+        c = F.comparar_meses(self.n, BASES, date(2026, 2, 28))
+        self.assertEqual(c["dia"], 28)                  # enero tiene 31, pero se corta el 28
+        self.assertEqual(c["b"].gastos, 0)              # el cine del 31 de enero queda fuera
