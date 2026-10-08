@@ -38,6 +38,9 @@ debajo de la página padre (`NOTION_PARENT_PAGE_ID`).
   El bot **no** lo cuenta. El sistema empezó de cero el 01/10/2026.
 - Una cuenta de Patrimonio se reconoce por banco + moneda (medio Interbank + USD → "Interbank dólares").
   Ingreso suma, gasto con débito resta, gasto a crédito va a la deuda de la tarjeta (Falabella → "Banco Falabella").
+- **Día de corte** (columna nueva en Deudas, 08/10/2026): con el corte y el `Día de pago` el bot sabe en qué
+  estado de cuenta cae cada compra a crédito y cuándo se paga (`F.cuando_se_paga`), y la primera cuota de una
+  compra en cuotas cae en el mes verdadero. Se pone con `/corte Falabella 10`. Falta cargar los cortes reales.
 - **"Banco Falabella" es la tarjeta de crédito**, no el préstamo. El bot busca ese nombre exacto
   (`C.DEUDA_TARJETA`) para sumarle las compras a crédito, así que no se renombra. El préstamo quedó aparte
   como "Préstamo Falabella" (03/10/2026), porque las dos tenían tasas distintas y juntas no se podía decir
@@ -58,8 +61,9 @@ Después de correr eso una vez, el timer `finanzas-autoupdate` actualiza solo ca
 
 - **🏧 Retirar efectivo** (`/retirar`): baja la cuenta del banco y sube "Efectivo" / "Efectivo dólares" /
   "Efectivo rublos" (se crea sola). No es gasto. Un gasto con medio Efectivo descuenta de ahí.
-- **Plin** descuenta de Interbank y **Yape** de BCP (`C.BILLETERA_BANCO`). Debajo de un gasto con Yape sale
-  el botón "🔁 Salió de Interbank" (`C.BILLETERA_OTROS`) para mover el descuento.
+- **Plin** y **Yape** descuentan de Interbank (`C.BILLETERA_BANCO`; hasta el 08/10/2026 Yape descontaba de
+  BCP, pero el usuario dijo que últimamente siempre yapea desde Interbank). Debajo de un gasto con Yape sale
+  el botón "🔁 Salió de BCP" (`C.BILLETERA_OTROS`) para mover el descuento.
 
 ## Nube
 
@@ -77,8 +81,10 @@ salud se trabajan en su sesión local de core-forever. La sesión "Daria proyect
   **Queda una duda sin resolver**: el usuario mencionó "12 cuotas desde el 5 de noviembre", pero los números
   de SIP no cuadran con 12 cuotas a esa tasa (saldría una cuota bastante más alta que la que figura). Hay que
   preguntarle de qué préstamo era y cuál es la cuota verdadera.
-- La tarjeta Falabella no tiene `Cuota mensual` (el pago es variable según el consumo). Sin ese número el
-  plan de deudas solo le manda lo que sobra; si el usuario decide cuánto ponerle fijo al mes, cargarlo ahí.
+- ~~La tarjeta Falabella no tiene `Cuota mensual`~~: desde el 08/10/2026 la cuota de una tarjeta la calcula
+  `F.deudas()` sumando las compras en cuotas (`F.compras_en_cuotas`, columna `Cuotas` de Movimientos). **No se
+  escribe en Notion**: `Cuota mensual` sigue siendo del usuario y se usa cuando esa deuda no tiene compras en
+  cuotas (por ejemplo el préstamo SIP). Si el usuario quiere un monto fijo para la tarjeta igual, va ahí.
 - El tipo de cambio automático sigue sin probarse **bajando datos reales**: la política de red de la sesión
   en la nube deniega `open.er-api.com` y `cdn.jsdelivr.net` (403 del proxy). Lo que sí quedó probado contra
   una caída de red real: usa el respaldo del `.env`, no reintenta antes de 30 min, `/tc` a mano funciona y

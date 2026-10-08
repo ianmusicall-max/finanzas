@@ -31,6 +31,8 @@ PASOS = {
     "frecuencia": ("🗓 ¿Es un pago del mes o un pago anual?\n<i>Los anuales (por ejemplo iCloud o la VPN del año) "
                    "cuentan contra el presupuesto anual, no contra el del mes.</i>", "opciones"),
     "tarjeta": ("💳 ¿Crédito o débito?\n<i>Si es crédito, se suma a la deuda de esa tarjeta.</i>", "opciones"),
+    "cuotas": ("🧾 ¿En cuántas cuotas?\n<i>Si lo pagas todo en el próximo estado de cuenta, "
+               "elige «Un solo pago».</i>", "opciones"),
     "categoria": ("🏷 ¿Qué categoría?", "opciones"),
     "meta": ("🎯 ¿Para qué meta es?", "opciones"),
     "moneda": ("💱 ¿En qué moneda?", "opciones"),
@@ -39,7 +41,7 @@ PASOS = {
 }
 
 FORMULARIOS = {
-    "gasto": ("Gasto", ["fecha", "cuenta", "medio", "tarjeta", "categoria", "frecuencia", "moneda", "descripcion", "importe"]),
+    "gasto": ("Gasto", ["fecha", "cuenta", "medio", "tarjeta", "cuotas", "categoria", "frecuencia", "moneda", "descripcion", "importe"]),
     "ingreso": ("Ingreso", ["fecha", "medio_in", "categoria", "moneda", "descripcion", "importe"]),
     "ahorro": ("Ahorro", ["fecha", "meta", "medio", "moneda", "importe"]),
     "inversion": ("Inversión", ["fecha", "categoria", "medio", "moneda", "descripcion", "importe"]),
@@ -47,8 +49,10 @@ FORMULARIOS = {
 TITULOS = {"gasto": "➖ Nuevo gasto", "ingreso": "➕ Nuevo ingreso", "ahorro": "🐷 Nuevo ahorro",
            "inversion": "📈 Nueva inversión"}
 TIPOS_TARJETA = ["Débito", "Crédito"]
+UN_PAGO = "Un solo pago"
+CUOTAS = [UN_PAGO, "3", "6", "9", "12", "18", "24", "36"]
 ETIQUETAS = {"fecha": "Fecha", "cuenta": "Cuenta", "medio": "Medio de pago", "medio_in": "Medio de pago",
-             "tarjeta": "Tarjeta", "frecuencia": "Pago",
+             "tarjeta": "Tarjeta", "cuotas": "Cuotas", "frecuencia": "Pago",
              "categoria": "Categoría", "meta": "Meta", "moneda": "Moneda", "descripcion": "Descripción",
              "importe": "Importe"}
 SIN_META = "Sin meta (ahorro general)"
@@ -111,6 +115,10 @@ class Formularios:
         """Crédito o débito solo se pregunta si se pagó con un banco o tarjeta."""
         if paso == "tarjeta":
             return self.estado[chat]["datos"].get("medio") in C.TARJETAS
+        if paso == "cuotas":
+            # solo tiene sentido si se pago a credito con una tarjeta
+            d = self.estado[chat]["datos"]
+            return d.get("medio") in C.TARJETAS and d.get("tarjeta") == "Crédito"
         if paso == "frecuencia":
             # en Suscripciones la frecuencia la da la lista de suscripciones (el bot pregunta si es nueva)
             cat = self.estado[chat]["datos"].get("categoria")
@@ -140,6 +148,8 @@ class Formularios:
             lista = list(C.MONEDAS)
         elif paso == "tarjeta":
             lista = list(TIPOS_TARJETA)
+        elif paso == "cuotas":
+            return list(CUOTAS)   # sin recordar la ultima: cada compra se pacta aparte
         elif paso == "frecuencia":
             lista = ["Mensual", "Anual"]
         elif paso == "meta":
@@ -168,7 +178,9 @@ class Formularios:
                 pares.append((etiqueta, "f:%s:%d" % (paso, k)))
             if paso == "tarjeta":
                 pares = [("💳 " + o if o == "Débito" else "🧾 " + o, d) for (o, d) in pares]
-            por_fila = 4 if paso == "moneda" else 3 if paso in ("cuenta", "medio", "medio_in") else 2
+            if paso == "cuotas":
+                pares = [(o if o == UN_PAGO else o + " cuotas", d) for (o, d) in pares]
+            por_fila = 4 if paso in ("moneda", "cuotas") else 3 if paso in ("cuenta", "medio", "medio_in") else 2
             return [{"texto": pregunta, "botones": _botones(pares, por_fila) + [CANCELAR]}]
         if clase == "fecha":
             d = hoy()
@@ -316,7 +328,9 @@ class Formularios:
                          cuenta=d.get("cuenta"),
                          tarjeta=d.get("tarjeta") if d.get("medio") in C.TARJETAS and tipo == "Gasto" else None,
                          frecuencia="Anual" if d.get("frecuencia") == "Anual" and categoria in self.anuales()
-                         and categoria != "Suscripciones" else None)
+                         and categoria != "Suscripciones" else None,
+                         cuotas=int(d["cuotas"]) if (d.get("cuotas") or UN_PAGO) != UN_PAGO
+                         and d.get("tarjeta") == "Crédito" and tipo == "Gasto" else None)
         return mov, meta
 
     def listo(self, chat) -> bool:

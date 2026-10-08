@@ -33,6 +33,8 @@ MONEDAS = {"usd": "USD", "$": "USD", "dolar": "USD", "dolares": "USD", "us$": "U
 # 1,234.50 · 1234,50 · 45 · .5 ; con moneda pegada antes o despues
 NUM = re.compile(r"(?<![\w/])(?P<pre>s/\.?|us\$|\$|€|₽)?\s?(?P<n>\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)\s?(?P<suf>usd|eur|pen|rub|\$|€|₽|k)?(?![\w/])", re.I)
 FECHA = re.compile(r"(?<!\d)(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?(?!\d)")
+# "6 cuotas" · "en 6 cuotas" · "3 cuotas sin intereses" · "6 pagos"
+CUOTAS = re.compile(r"\b(?:en\s+)?(?P<n>\d{1,2})\s*(?:cuotas?|pagos)\b(?:\s+sin\s+intereses)?", re.I)
 
 
 @dataclass
@@ -48,6 +50,7 @@ class Movimiento:
     cuenta: Optional[str] = None   # Gastos, Salud, Inversion... (formulario de gastos)
     tarjeta: Optional[str] = None  # "Crédito" o "Débito" si se pago con tarjeta
     frecuencia: Optional[str] = None  # "Anual" si es un pago de una vez al año (cuenta contra el presupuesto anual)
+    cuotas: Optional[int] = None   # compra a credito en varias cuotas: "250 zapatillas falabella credito 6 cuotas"
 
 
 class NoEntendi(ValueError):
@@ -91,6 +94,17 @@ def _fecha(texto: str, base: date):
             f = date(anio - 1, mes, d)   # "28/12" escrito en enero es del año pasado
         return f, texto[:m.start()] + " " + texto[m.end():]
     return base, texto
+
+
+def _cuotas(texto: str) -> tuple:
+    """Devuelve (cuotas, texto sin esa parte): '250 zapatillas en 6 cuotas' -> (6, '250 zapatillas')."""
+    m = CUOTAS.search(texto)
+    if not m:
+        return None, texto
+    n = int(m.group("n"))
+    if not 2 <= n <= 72:
+        return None, texto
+    return n, (texto[:m.start()] + " " + texto[m.end():])
 
 
 def interpretar(texto: str, tipo: Optional[str] = None, base: Optional[date] = None) -> Movimiento:
@@ -137,6 +151,8 @@ def interpretar(texto: str, tipo: Optional[str] = None, base: Optional[date] = N
     moneda = moneda or "PEN"
     desc = " ".join(limpio)
 
+    cuotas, desc = _cuotas(desc)
+
     tarjeta = None
     for w, valor in (("credito", "Crédito"), ("debito", "Débito")):
         if re.search(r"\b%s\b" % w, C.normal(desc)):
@@ -149,6 +165,10 @@ def interpretar(texto: str, tipo: Optional[str] = None, base: Optional[date] = N
     medio = C.buscar_medio(desc)
     if medio not in C.TARJETAS:
         tarjeta = None
+    if cuotas and medio in C.TARJETAS:
+        tarjeta = "Crédito"   # en cuotas solo se compra a credito, no hace falta escribirlo
+    elif cuotas:
+        cuotas = None         # sin tarjeta, "6 cuotas" no quiere decir nada
     if medio:
         for nombre in [medio] + [al for al, m in C.ALIAS_MEDIOS.items() if m == medio]:
             desc = re.sub(r"(?i)\s*\b(con|por|via|desde)?\s*%s\b" % re.escape(nombre), " ", desc)
@@ -163,7 +183,8 @@ def interpretar(texto: str, tipo: Optional[str] = None, base: Optional[date] = N
                       categoria=cat or C.otros(tipo), medio=medio, fecha=fecha, adivinada=adivinada,
                       cuenta="Gastos" if tipo == "Gasto" else None,
                       tarjeta=tarjeta if tipo == "Gasto" else None,
-                      frecuencia=frecuencia if tipo == "Gasto" else None)
+                      frecuencia=frecuencia if tipo == "Gasto" else None,
+                      cuotas=cuotas if tarjeta == "Crédito" and tipo == "Gasto" else None)
 
 
 def _suena_a_ingreso(desc: str) -> bool:

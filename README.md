@@ -85,8 +85,75 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
 | `/consejos` | qué mejorar según tus números del mes |
 | `/metodos` | formas de manejar tu dinero (50/30/20, págate primero, sobres, base cero, deudas) |
 | `/tc 3.72` · `/tc eur 4.05` · `/tc rub 0.046` | tipo de cambio para lo que anotes en dólares, euros o rublos |
-| `/ultimos` · `/deshacer` | últimos 10 movimientos / borra el último |
+| `/ultimos` · `/deshacer` | últimos 10 movimientos, numerados / borra el último |
+| `/corte Falabella 10` | el día que cierra el estado de cuenta de esa tarjeta |
+| `/comparar` | este mes contra el pasado: totales, balance y en qué categorías cambió, con los dos meses cortados el mismo día |
+| `/buscar farmacia` · `/buscar uber mes` | busca en todo el historial por descripción, categoría o medio de pago; da el total, el promedio y la lista. Con `mes`, `semana` o `año` busca solo en ese periodo |
 | `/gasto` `/ingreso` `/ahorro` `/inversion` | abre el formulario; con texto después (`/gasto 45 almuerzo`) anota directo |
+
+## Fecha de corte de las tarjetas
+
+Una tarjeta cierra su estado de cuenta un día fijo del mes (el **corte**) y se paga unos días después. Lo que
+compras **después** del corte no entra en ese estado: se paga un mes más tarde. Dile al bot cuándo cierra cada
+tarjeta y deja de adivinar:
+
+```
+/corte Falabella 10
+```
+
+El día de pago sigue en la columna `Día de pago` de **Deudas** en Notion (o lo pones al crear la deuda). Con
+los dos datos:
+
+- al anotar una compra a crédito el bot te dice **🗓 Entra en el estado de cuenta que cierra el 10/11 y se
+  paga el 30/11**;
+- la **primera cuota** de una compra en cuotas cae donde de verdad cae: si compras antes del corte, este mes;
+  si compras después, el siguiente. Sin fecha de corte el bot asume lo de siempre (el mes que viene);
+- `/deudas` muestra `cierra el día 10 · paga el día 30`, y si una tarjeta no tiene corte te lo pide.
+
+## Compras en cuotas
+
+Las tarjetas peruanas dejan pagar en cuotas, y antes el bot anotaba la compra entera de golpe y no sabía
+que eran varios pagos. Ahora se lo dices al anotar:
+
+```
+300 sofá falabella 6 cuotas
+1200 tv falabella credito 12 cuotas sin intereses
+```
+
+Con «cuotas» ya no hace falta escribir «credito»: en cuotas solo se puede comprar a crédito, así que el bot
+lo asume. En el formulario de `/gasto`, después de elegir **Crédito** aparece la pregunta **¿En cuántas
+cuotas?** con *Un solo pago · 3 · 6 · 9 · 12 · 18 · 24 · 36*.
+
+Qué hace con eso:
+
+- la compra entera se le suma a la deuda de la tarjeta, como siempre (eso es lo que debes);
+- **la cuota mensual de la tarjeta la calcula el bot sumando las cuotas que están corriendo**, y la usa en
+  `/deudas`, en `/plan` y en el botón *Cuota* al pagar. La primera cuota cae el mes siguiente a la compra, o
+  el mismo mes si ya le dijiste cuándo cierra la tarjeta (ver arriba, `/corte`);
+- en `/deudas`, debajo de la tarjeta sale cada compra: `🧾 Tv · cuota 3 de 12 · S/ 100.00 al mes`;
+- cuando una compra termina de pagarse, **deja de contar sola**: la cuota baja sin que toques nada, porque
+  sale de los movimientos y no de un número guardado.
+
+La columna `Cuota mensual` de Notion **no se toca**: sigue siendo tuya, para ponerle un monto fijo a mano a
+un préstamo (SIP) o a una tarjeta. El bot la usa cuando esa deuda no tiene compras en cuotas.
+
+## Corregir o borrar un movimiento ya anotado
+
+Debajo de cada cosa que anotas quedan los botones **🏷 Cambiar categoría** y **↩️ Deshacer**, pero solo sirven
+para lo último. Para uno de antes, `/ultimos` los lista **numerados** con un botón por número: lo tocas y
+salen **✏️ Cambiar monto**, **🏷 Cambiar categoría** y **🗑 Borrar**.
+
+Lo importante es que el bot **deshace también lo que ese movimiento movió**, no solo la fila:
+
+- el saldo del banco vuelve a lo que era (y si cambias el monto, se ajusta a la diferencia);
+- una compra a crédito se le resta a la deuda de la tarjeta;
+- un ahorro que fue a una meta se le resta a la meta **si se anotó desde que el bot está prendido**; si es
+  más viejo, el bot te avisa que la meta la bajes a mano, porque en la fila no queda anotado a qué meta fue.
+
+Funciona igual después de reiniciar el servidor: lo que no recuerda, lo reconstruye con el medio de pago de
+la fila. Ojo con un caso: si un Yape salió de BCP y lo cambiaste con el botón *🔁 Salió de BCP*, eso no queda
+guardado en la fila, así que al borrarlo mucho después el bot le devuelve la plata a Interbank. El mensaje
+siempre dice a qué cuenta se la devolvió, y lo corriges con `/activo`.
 
 ## Cálculos
 
@@ -119,9 +186,9 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
   por el nombre del banco y la moneda: medio *Interbank* + USD → "Interbank dólares". Un **ingreso** suma al
   saldo de la cuenta donde entró; un **gasto** con débito o efectivo lo resta; un gasto **a crédito** no toca
   la cuenta (va a la deuda de la tarjeta). Deshacer lo revierte. Si la cuenta no existe, el bot sugiere
-  crearla con `/activo T-Bank 25000 rub` y el saldo de hoy. **Plin** sale de la cuenta de Interbank y
-  **Yape** de la de BCP (el medio queda guardado como Plin o Yape). Si un Yape salió de Interbank, toca
-  *🔁 Salió de Interbank* debajo del gasto y el bot mueve el descuento a esa cuenta.
+  crearla con `/activo T-Bank 25000 rub` y el saldo de hoy. **Plin** y **Yape** salen de la
+  cuenta de Interbank (el medio queda guardado como Plin o Yape). Si un Yape salió de BCP, toca
+  *🔁 Salió de BCP* debajo del gasto y el bot mueve el descuento a esa cuenta.
 - **🏧 Retirar efectivo** (botón del menú o `/retirar`): eliges la cuenta del banco y escribes cuánto sacaste.
   Baja esa cuenta y sube la cuenta **Efectivo** de la misma moneda ("Efectivo", "Efectivo dólares",
   "Efectivo rublos"; se crea sola la primera vez). No es un gasto: tu patrimonio no cambia. Cuando pagas con

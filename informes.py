@@ -312,6 +312,9 @@ def texto_limite(notion, bases: dict) -> str:
 
 def texto_deudas(notion, bases: dict) -> str:
     lista = F.deudas(notion, bases)
+    # el mismo calendario que usa F.deudas() para la cuota: con el corte, la cuota 1 puede ser de este mes
+    compras = F.compras_en_cuotas(notion, bases, None,
+                                  {d["deuda"]: (d.get("corte"), d["dia"]) for d in lista})
     if not lista:
         return ("💳 <b>Deudas</b>\n\nNo tienes deudas activas. 🎉\nSi tienes una, anótala con:\n"
                 "<code>/deuda Tarjeta Falabella 1200</code>\n<code>/deuda Préstamo BCP 15000</code>")
@@ -330,14 +333,91 @@ def texto_deudas(notion, bases: dict) -> str:
             det.append("tasa %s" % F.pct(d["tasa"]))
         if d["cuota"]:
             det.append("cuota %s" % F.s(F.soles(d["cuota"], d["moneda"])))
+        if d.get("corte"):
+            det.append("cierra el día %d" % int(d["corte"]))
         if d["dia"]:
             det.append("paga el día %d" % int(d["dia"]))
         if det:
             l.append("    " + " · ".join(det))
+        for c in [x for x in compras if C.normal(x["deuda"]) == C.normal(d["deuda"])][:5]:
+            l.append("    🧾 %s · %s · %s al mes" % (
+                esc(c["descripcion"]),
+                "%d cuotas desde %s" % (c["cuotas"], F.mes_texto(c["primera"])) if c["toca"] == 0
+                else "cuota %d de %d" % (c["toca"], c["cuotas"]), F.s(c["cuota_s"])))
     l.append("")
     if cuotas:
         l.append("📅 Cuotas al mes: %s" % F.s(cuotas))
+    sin_corte = [d for d in lista if d["tipo"] == "Tarjeta de crédito" and not d.get("corte")]
+    if sin_corte:
+        l.append("<i>🗓 Para saber en qué estado de cuenta cae lo que compras, dime cuándo cierra: "
+                 "<code>/corte %s 10</code></i>" % esc(sin_corte[0]["deuda"].split()[-1]))
     l.append("Para registrar un pago: <code>/pago %s 300</code>" % esc(lista[0]["deuda"].split()[-1]))
+    return "\n".join(l)
+
+
+def texto_comparar(notion, bases: dict, d=None, tope: int = 8) -> str:
+    """📊 Este mes contra el pasado: los totales y en qué categorías cambió."""
+    c = F.comparar_meses(notion, bases, d)
+    a, b = c["a"], c["b"]
+    mes_a, mes_b = c["este"].titulo.split()[0], c["pasado"].titulo.split()[0]
+    l = ["📊 <b>%s contra %s</b>" % (esc(mes_a), esc(mes_b.lower()))]
+    if not c["completo"]:
+        l.append("<i>Los dos hasta el día %d, para que se puedan comparar.</i>" % c["dia"])
+    l.append("")
+    if not a.cantidad and not b.cantidad:
+        return "\n".join(l + ["Todavía no hay movimientos para comparar."])
+    for emoji, nombre, x, y in (("💸", "Gastos", a.gastos, b.gastos), ("💰", "Ingresos", a.ingresos, b.ingresos),
+                                ("🐷", "Ahorro", a.ahorro, b.ahorro), ("📈", "Inversión", a.inversion, b.inversion)):
+        if x or y:
+            l.append("%s %s: <b>%s</b>%s" % (emoji, nombre, F.s(x), variacion(x, y)))
+    if a.ingresos or b.ingresos:
+        l.append("⚖️ Balance: <b>%s</b>%s" % (F.s(a.balance), variacion(a.balance, b.balance)))
+    suben = [x for x in c["cambios"] if abs(x["dif"]) >= 1][:tope]
+    if suben:
+        l += ["", "<b>En qué cambió</b>"]
+        for x in suben:
+            if not x["antes"]:
+                detalle = "nuevo este mes"
+            elif not x["ahora"]:
+                detalle = "antes %s, este mes nada" % F.s(x["antes"])
+            else:
+                detalle = "%s %s · antes %s" % ("↑" if x["dif"] > 0 else "↓", F.pct(abs(x["pct"])), F.s(x["antes"]))
+            l.append("%s %s · <b>%s</b> <i>%s</i>" % (C.emoji("Gasto", x["categoria"]), esc(x["categoria"]),
+                                                      F.s(x["ahora"]), detalle))
+    peor = next((x for x in suben if x["dif"] > 0 and x["antes"]), None)
+    if peor:
+        l += ["", "<i>Lo que más subió es %s: %s más que el mes pasado.</i>" % (
+            esc(peor["categoria"].lower()), F.s(peor["dif"]))]
+    return "\n".join(l)
+
+
+def texto_buscar(notion, bases: dict, texto: str, desde, hasta, cuando: str = "", tope: int = 15) -> str:
+    """Lo que encontro /buscar: el total y la lista, del mas nuevo al mas viejo."""
+    filas = F.buscar(notion, bases, texto, desde, hasta)
+    titulo = "🔍 <b>%s</b>%s" % (esc(texto), " · " + cuando if cuando else "")
+    if not filas:
+        return "%s\n\nNo encontré nada. Prueba con una palabra sola, o mira /ultimos." % titulo
+    gastos = [f for f in filas if f["tipo"] == "Gasto"]
+    otros = [f for f in filas if f["tipo"] != "Gasto"]
+    l = [titulo, ""]
+    if gastos:
+        total = sum(f["monto_s"] for f in gastos)
+        l.append("<b>%s</b> en %d gasto%s%s" % (F.s3(total), len(gastos), "" if len(gastos) == 1 else "s",
+                                                " · %s cada uno" % F.s(total / len(gastos)) if len(gastos) > 1 else ""))
+    for tipo in ("Ingreso", "Ahorro", "Inversión"):
+        suyos = [f for f in otros if f["tipo"] == tipo]
+        if suyos:
+            l.append("%s en %d de %s" % (F.s(sum(f["monto_s"] for f in suyos)), len(suyos), tipo.lower()))
+    l.append("")
+    for f in filas[:tope]:
+        monto = F.s(f["monto_s"]) if f["moneda"] == "PEN" else "%s (%s %s)" % (
+            F.s(f["monto_s"]), f["moneda"], "{:,.2f}".format(f["monto"]))
+        l.append("%s %s%s · %s <i>%s</i>" % (C.emoji(f["tipo"], f["categoria"]),
+                                             "+" if f["tipo"] == "Ingreso" else "", monto,
+                                             esc(f["descripcion"]), "/".join(reversed(f["fecha"][5:].split("-")))))
+    if len(filas) > tope:
+        l.append("")
+        l.append("<i>Y %d más. Agrega otra palabra para buscar más fino.</i>" % (len(filas) - tope))
     return "\n".join(l)
 
 

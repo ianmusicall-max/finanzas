@@ -1,6 +1,7 @@
 import sys
 import tempfile
 import unittest
+from datetime import date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -414,12 +415,14 @@ class Formularios(Base):
         r = F.resumir(F.movimientos(self.n, BASES, m.desde, m.hasta), m)
         self.assertEqual((r.gastos, r.inversion), (0, 2174))
 
-    def _gasto(self, medio, tarjeta=None, monto="100", moneda="PEN"):
+    def _gasto(self, medio, tarjeta=None, monto="100", moneda="PEN", cuotas="Un solo pago"):
         self.di("/gasto")
         for b in ("Hoy", "Gastos", medio):
             self.toca(b)
         if tarjeta:
             self.toca(tarjeta)
+        if tarjeta == "Crédito":
+            self.toca(cuotas)
         for b in ("Supermercado", moneda, "Omitir"):
             self.toca(b)
         self.di(monto)
@@ -559,24 +562,25 @@ class CuentasYAhorro(Base):
         t = self.di("30 almuerzo efectivo")
         self.assertIn("Efectivo ahora tiene S/ 220.00", t)
 
-    def test_plin_sale_de_interbank_y_yape_de_bcp(self):
+    def test_plin_y_yape_salen_de_interbank(self):
         self.di("/activo Interbank soles 463")
         self.di("/activo BCP 300")
         self.assertIn("Interbank soles ahora tiene S/ 443.00", self.di("20 taxi plin"))
-        self.assertIn("BCP ahora tiene S/ 285.00", self.di("15 menu yape"))
+        self.assertIn("Interbank soles ahora tiene S/ 428.00", self.di("15 menu yape"))
         self.assertEqual(self.movs[-1]["Medio de pago"], "Yape")                # el medio queda como Yape
+        self.assertEqual(self.cuenta("BCP")["Valor"], 300)                      # BCP no se toca
 
-    def test_yape_que_salio_de_interbank(self):
+    def test_yape_que_salio_de_bcp(self):
         self.di("/activo Interbank soles 463")
         self.di("/activo BCP 300")
         self.di("15 menu yape")
-        self.assertEqual(self.cuenta("BCP")["Valor"], 285)
-        t = self.toca("Salió de Interbank soles")
-        self.assertIn("BCP vuelve a S/ 300.00", t)
-        self.assertEqual(self.cuenta("BCP")["Valor"], 300)
         self.assertEqual(self.cuenta("Interbank soles")["Valor"], 448)
-        self.di("/deshacer")                                                   # deshacer devuelve a Interbank
+        t = self.toca("Salió de BCP")
+        self.assertIn("Interbank soles vuelve a S/ 463.00", t)
         self.assertEqual(self.cuenta("Interbank soles")["Valor"], 463)
+        self.assertEqual(self.cuenta("BCP")["Valor"], 285)
+        self.di("/deshacer")                                                   # deshacer devuelve a BCP
+        self.assertEqual(self.cuenta("BCP")["Valor"], 300)
         self.di("20 taxi plin")
         self.assertFalse(any("Salió de" in t for t, _ in self.tg.botones()))  # Plin siempre es Interbank
 
@@ -1071,3 +1075,304 @@ class RecordatoriosYPlan(Base):
         a["historial_tc"] = h
         F._guardar_ajustes(a)
         self.assertIsNone(F.alerta_cambio())
+
+
+class CorregirMovimientos(Base):
+    """Cambiar el monto o borrar cualquier movimiento desde /ultimos, no solo el ultimo."""
+
+    def cuenta(self, nombre):
+        return next(f for f in self.n.dbs["db-pat"] if f["Nombre"] == nombre)
+
+    def deuda(self, nombre):
+        return next(f for f in self.n.dbs["db-deu"] if f["Deuda"] == nombre)
+
+    def reiniciar(self):
+        """Como si el servidor hubiera reiniciado: el bot ya no recuerda nada de lo anotado."""
+        self.bot = Bot(self.tg, self.n, BASES, {YO})
+
+    def test_ultimos_numera_y_abre_el_que_se_toca(self):
+        self.di("45 almuerzo")
+        self.di("20 taxi")
+        t = self.di("/ultimos")
+        self.assertIn("<b>1.</b>", t)
+        self.assertIn("<b>2.</b>", t)
+        self.assertIn("Almuerzo", self.toca("2"))      # el 1 es el mas reciente (el taxi); el 2, el almuerzo
+        self.di("/ultimos")
+        self.assertIn("Taxi", self.toca("1"))
+
+    def test_borrar_un_gasto_viejo_devuelve_la_plata_a_la_cuenta(self):
+        self.di("/activo Interbank soles 500")
+        self.di("45 almuerzo interbank")
+        self.di("20 taxi interbank")
+        self.assertEqual(self.cuenta("Interbank soles")["Valor"], 435)
+        self.reiniciar()                                # el bot ya no recuerda qué movió cada uno
+        self.di("/ultimos")
+        self.toca("2")                                  # el almuerzo, que no es el ultimo
+        t = self.toca("Borrar")
+        self.assertIn("Interbank soles vuelve a S/ 480.00", t)
+        self.assertEqual(self.cuenta("Interbank soles")["Valor"], 480)
+        self.assertEqual([f["Descripción"] for f in self.movs], ["Taxi"])
+
+    def test_borrar_una_compra_a_credito_vieja_baja_la_deuda(self):
+        self.di("250 zapatillas falabella credito")
+        self.assertEqual(self.deuda("Banco Falabella")["Saldo"], 250)
+        self.reiniciar()
+        self.di("/ultimos")
+        self.toca("1")
+        t = self.toca("Borrar")
+        self.assertIn("Banco Falabella vuelve a S/ 0.00", t)
+        self.assertEqual(self.deuda("Banco Falabella")["Saldo"], 0)
+
+    def test_cambiar_el_monto_corrige_la_cuenta(self):
+        self.di("/activo Interbank soles 500")
+        self.di("45 almuerzo interbank")
+        self.reiniciar()
+        self.di("/ultimos")
+        self.toca("1")
+        self.toca("Cambiar monto")
+        t = self.di("54")
+        self.assertIn("S/ 45.00 → <b>S/ 54.00</b>", t)
+        self.assertIn("Interbank soles ahora tiene S/ 446.00", t)
+        self.assertEqual(self.cuenta("Interbank soles")["Valor"], 446)
+        self.assertEqual((self.movs[0]["Monto"], self.movs[0]["Monto S/"]), (54, 54))
+
+    def test_cambiar_el_monto_de_una_compra_a_credito_corrige_la_deuda(self):
+        self.di("250 zapatillas falabella credito")
+        self.reiniciar()
+        self.di("/ultimos")
+        self.toca("1")
+        self.toca("Cambiar monto")
+        t = self.di("199.90")
+        self.assertIn("ahora debes S/ 199.90", t)
+        self.assertEqual(self.deuda("Banco Falabella")["Saldo"], 199.9)
+
+    def test_cambiar_el_monto_a_dolares(self):
+        F.fijar_tipo_de_cambio("USD", 3.40)
+        self.di("/activo Interbank dólares 100 usd")
+        self.di("20 usd almuerzo interbank")
+        self.di("/ultimos")
+        self.toca("1")
+        self.toca("Cambiar monto")
+        t = self.di("25 usd")
+        self.assertIn("USD 20.00 → <b>USD 25.00</b>", t)
+        self.assertEqual(self.cuenta("Interbank dólares")["Valor"], 75)
+        self.assertEqual(self.movs[0]["Monto S/"], 85)
+
+    def test_un_monto_que_no_se_entiende_no_rompe_nada(self):
+        self.di("45 almuerzo")
+        self.di("/ultimos")
+        self.toca("1")
+        self.toca("Cambiar monto")
+        self.assertIn("solo el monto", self.di("como veinte"))
+        self.assertEqual(self.movs[0]["Monto"], 45)
+        self.assertIn("dejo como está", self.toca("Cancelar"))
+
+
+class ComprasEnCuotas(Base):
+    """Una compra a credito en N cuotas: la cuota mensual de la tarjeta sale de las compras."""
+
+    def deuda(self, nombre):
+        return next(f for f in self.n.dbs["db-deu"] if f["Deuda"] == nombre)
+
+    def test_texto_libre_anota_las_cuotas_y_sube_la_deuda(self):
+        t = self.di("300 sofa falabella credito 6 cuotas")
+        self.assertIn("creé la deuda Banco Falabella. Ahora debes S/ 300.00", t)
+        self.assertIn("En 6 cuotas de S/ 50.00, la primera en noviembre", t)
+        self.assertEqual((self.movs[0]["Cuotas"], self.movs[0]["Tarjeta"]), (6, "Crédito"))
+
+    def test_sin_escribir_credito_las_cuotas_ya_lo_dicen(self):
+        self.di("300 sofa falabella 6 cuotas")
+        self.assertEqual(self.movs[0]["Tarjeta"], "Crédito")
+
+    def test_la_cuota_de_la_tarjeta_sale_de_las_compras(self):
+        self.di("600 tv falabella credito 12 cuotas")       # 50 al mes
+        self.di("300 sofa falabella credito 6 cuotas")      # 50 al mes
+        self.di("45 almuerzo falabella credito")            # sin cuotas: no suma
+        t = self.di("/deudas")
+        self.assertIn("cuota S/ 100.00", t)
+        self.assertIn("Tv · 12 cuotas desde noviembre · S/ 50.00 al mes", t)
+        self.assertIn("Sofa · 6 cuotas desde noviembre · S/ 50.00 al mes", t)
+        self.assertIn("Cuotas al mes: S/ 100.00", t)
+        d = next(x for x in F.deudas(self.n, BASES) if x["deuda"] == "Banco Falabella")
+        self.assertEqual(d["cuota"], 100)
+
+    def test_la_cuota_baja_sola_cuando_la_compra_termina(self):
+        self.di("300 sofa falabella credito 6 cuotas")
+        d = F.hoy()
+        def cuotas(fecha):
+            return [(c["descripcion"], c["toca"], c["faltan"]) for c in F.compras_en_cuotas(self.n, BASES, fecha)]
+        self.assertEqual(cuotas(d), [("Sofa", 0, 6)])                      # la primera cae el mes que viene
+        self.assertEqual(cuotas(F.primer_mes_de_cuota(d)), [("Sofa", 1, 6)])
+        self.assertEqual(cuotas(date(d.year if d.month < 7 else d.year + 1,
+                                     d.month + 6 if d.month < 7 else d.month - 6, 1)), [("Sofa", 6, 1)])
+        self.assertEqual(cuotas(date(d.year + 1, d.month, 1)), [])         # ya se terminó de pagar
+
+    def test_no_pisa_la_cuota_que_el_usuario_puso_a_mano(self):
+        self.di("/deuda Préstamo SIP 16224")
+        self.deuda("Préstamo SIP")["Cuota mensual"] = 1500
+        self.di("300 sofa falabella credito 6 cuotas")
+        lista = {x["deuda"]: x["cuota"] for x in F.deudas(self.n, BASES)}
+        self.assertEqual((lista["Préstamo SIP"], lista["Banco Falabella"]), (1500, 50))
+
+    def test_la_columna_de_notion_no_se_toca(self):
+        """La cuota calculada no se guarda: Cuota mensual sigue siendo del usuario."""
+        self.di("300 sofa falabella credito 6 cuotas")
+        self.di("/deudas")
+        self.assertIsNone(self.deuda("Banco Falabella").get("Cuota mensual"))
+
+    def test_el_formulario_pregunta_las_cuotas_solo_a_credito(self):
+        self.di("/gasto")
+        for b in ("Hoy", "Gastos", "Falabella", "Crédito"):
+            self.toca(b)
+        self.assertIn("¿En cuántas cuotas?", self.tg.ultimo)
+        self.toca("6 cuotas")
+        for b in ("Supermercado", "PEN", "Omitir"):
+            self.toca(b)
+        self.di("300")
+        t = self.toca("Guardar")
+        self.assertIn("En 6 cuotas de S/ 50.00", t)
+        self.assertEqual(self.movs[0]["Cuotas"], 6)
+
+    def test_a_debito_no_pregunta_cuotas(self):
+        self.di("/gasto")
+        for b in ("Hoy", "Gastos", "Falabella", "Débito"):
+            self.toca(b)
+        self.assertNotIn("cuántas cuotas", self.tg.ultimo)
+
+    def test_borrar_la_compra_baja_la_cuota(self):
+        self.di("300 sofa falabella credito 6 cuotas")
+        self.assertIn("cuota S/ 50.00", self.di("/deudas"))
+        self.di("/deshacer")
+        t = self.di("/deudas")
+        self.assertEqual(self.deuda("Banco Falabella")["Saldo"], 0)
+        self.assertNotIn("cuota S/", t)
+
+    def test_el_plan_de_deudas_usa_la_cuota_de_las_cuotas(self):
+        self.di("1200 tv falabella credito 12 cuotas")       # 100 al mes, 12 meses
+        t = self.di("/plan")
+        self.assertIn("Solo con las cuotas (S/ 100.00 al mes)", t)
+
+
+class Buscar(Base):
+    def test_encuentra_por_descripcion_y_suma(self):
+        self.di("45 pastillas farmacia")
+        self.di("30 vitaminas farmacia")
+        self.di("20 taxi")
+        t = self.di("/buscar farmacia")
+        self.assertIn("S/ 75.00", t)
+        self.assertIn("en 2 gastos", t)
+        self.assertIn("S/ 37.50 cada uno", t)
+        self.assertIn("Pastillas", t)
+        self.assertNotIn("Taxi", t)
+
+    def test_busca_sin_tildes_ni_mayusculas_y_pide_todas_las_palabras(self):
+        self.di("60 Cafe con Ana")
+        self.di("25 cafe solo")
+        self.assertIn("en 2 gastos", self.di("/buscar CAFÉ"))
+        t = self.di("/buscar cafe ana")
+        self.assertIn("en 1 gasto", t)
+        self.assertNotIn("cada uno", t)
+
+    def test_busca_por_categoria_y_medio_de_pago(self):
+        self.di("45 almuerzo interbank")
+        self.assertIn("Almuerzo", self.di("/buscar interbank"))
+        self.assertIn("Almuerzo", self.di("/buscar restaurantes"))
+
+    def test_separa_ingresos_de_gastos(self):
+        self.di("+1500 pago de facebook")
+        self.di("20 comision facebook")
+        t = self.di("/buscar facebook")
+        self.assertIn("S/ 20.00", t)
+        self.assertIn("en 1 gasto", t)
+        self.assertIn("S/ 1,500.00 en 1 de ingreso", t)
+
+    def test_limita_el_periodo(self):
+        self.di("45 almuerzo 15/08")
+        self.di("30 cena")
+        self.assertIn("en 2 gastos", self.di("/buscar a"))     # las dos tienen "a"
+        self.assertIn("en 1 gasto", self.di("/buscar a mes"))
+        self.assertIn("en 2 gastos", self.di("/buscar a año"))
+
+    def test_sin_resultados_y_sin_palabras(self):
+        self.di("45 almuerzo")
+        self.assertIn("No encontré nada", self.di("/buscar helicoptero"))
+        self.assertIn("Escribe qué buscar", self.di("/buscar"))
+        self.assertIn("Falta qué buscar", self.di("/buscar mes"))
+
+
+class Comparar(Base):
+    def anteayer_del_mes_pasado(self, texto):
+        """Anota algo con fecha del mes pasado, el mismo dia de hoy (o el ultimo que exista)."""
+        d = F.hoy()
+        pasado = F.mes(d.replace(day=1) - timedelta(days=1))
+        dia = min(d.day, pasado.hasta.day)
+        return self.di("%s %s/%s" % (texto, dia, pasado.desde.month))
+
+    def test_compara_totales_y_categorias(self):
+        self.anteayer_del_mes_pasado("200 supermercado")
+        self.anteayer_del_mes_pasado("100 taxi")
+        self.di("300 supermercado")
+        t = self.di("/comparar")
+        self.assertIn("Gastos: <b>S/ 300.00</b>", t)
+        self.assertIn("Supermercado · <b>S/ 300.00</b>", t)
+        self.assertIn("↑ 50%", t)
+        self.assertIn("antes S/ 100.00, este mes nada", t)   # el taxi desaparecio
+        self.assertIn("Lo que más subió es supermercado: S/ 100.00 más", t)
+
+    def test_marca_lo_nuevo_del_mes(self):
+        self.anteayer_del_mes_pasado("200 supermercado")
+        self.di("120 dentista")
+        self.assertIn("nuevo este mes", self.di("/comparar"))
+
+    def test_corta_los_dos_meses_el_mismo_dia(self):
+        """El mes pasado se corta hoy mismo: si no, 8 dias contra 30 diria cualquier cosa."""
+        d = F.hoy()
+        pasado = F.mes(d.replace(day=1) - timedelta(days=1))
+        self.anteayer_del_mes_pasado("200 supermercado")
+        self.di("50 supermercado %d/%d" % (pasado.hasta.day, pasado.desde.month))   # fin del mes pasado
+        t = self.di("/comparar")
+        if d.day < pasado.hasta.day:
+            self.assertIn("hasta el día %d" % d.day, t)
+            self.assertIn("antes S/ 200.00", t)            # los 50 del fin de mes quedan fuera
+        self.assertNotIn("antes S/ 250.00", t)
+
+    def test_sin_nada_no_explota(self):
+        self.assertIn("Todavía no hay movimientos", self.di("/comparar"))
+
+    def test_el_boton_del_menu_funciona(self):
+        self.di("45 almuerzo")
+        self.di("/start")
+        self.assertIn("contra", self.toca("Comparar"))
+
+
+class FechaDeCorte(Base):
+    """El día que cierra el estado de cuenta decide en qué mes se paga lo que compras."""
+
+    def deuda(self, nombre):
+        return next(f for f in self.n.dbs["db-deu"] if f["Deuda"] == nombre)
+
+    def test_corte_se_guarda_y_se_ve_en_deudas(self):
+        self.di("/deuda Banco Falabella 1200")
+        self.deuda("Banco Falabella")["Día de pago"] = 30
+        t = self.di("/corte Falabella 10")
+        self.assertIn("cierra el día 10 de cada mes", t)
+        self.assertEqual(self.deuda("Banco Falabella")["Día de corte"], 10)
+        self.assertIn("cierra el día 10 · paga el día 30", self.di("/deudas"))
+
+    def test_sin_corte_lo_pide(self):
+        self.di("250 ropa falabella credito")
+        self.assertIn("/corte Falabella 10", self.di("/deudas"))
+
+    def test_al_comprar_dice_en_que_estado_de_cuenta_cae(self):
+        self.di("/deuda Banco Falabella 0")
+        self.deuda("Banco Falabella")["Día de pago"] = 30
+        self.di("/corte Falabella 28")
+        t = self.di("250 ropa falabella credito")
+        self.assertIn("estado de cuenta que cierra el 28/", t)
+        self.assertIn("se paga el 30/", t)
+
+    def test_errores_de_escritura(self):
+        self.assertIn("Escribe la tarjeta y el día", self.di("/corte"))
+        self.assertIn("Escribe la tarjeta y el día", self.di("/corte Falabella"))
+        self.assertIn("entre 1 y 31", self.di("/corte Falabella 45"))
+        self.assertIn("No encuentro la deuda", self.di("/corte Scotiabank 10"))
