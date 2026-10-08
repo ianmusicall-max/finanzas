@@ -78,8 +78,10 @@ salud se trabajan en su sesión local de core-forever. La sesión "Daria proyect
   **Queda una duda sin resolver**: el usuario mencionó "12 cuotas desde el 5 de noviembre", pero los números
   de SIP no cuadran con 12 cuotas a esa tasa (saldría una cuota bastante más alta que la que figura). Hay que
   preguntarle de qué préstamo era y cuál es la cuota verdadera.
-- La tarjeta Falabella no tiene `Cuota mensual` (el pago es variable según el consumo). Sin ese número el
-  plan de deudas solo le manda lo que sobra; si el usuario decide cuánto ponerle fijo al mes, cargarlo ahí.
+- ~~La tarjeta Falabella no tiene `Cuota mensual`~~: desde el 08/10/2026 la cuota de una tarjeta la calcula
+  `F.deudas()` sumando las compras en cuotas (`F.compras_en_cuotas`, columna `Cuotas` de Movimientos). **No se
+  escribe en Notion**: `Cuota mensual` sigue siendo del usuario y se usa cuando esa deuda no tiene compras en
+  cuotas (por ejemplo el préstamo SIP). Si el usuario quiere un monto fijo para la tarjeta igual, va ahí.
 - El tipo de cambio automático sigue sin probarse **bajando datos reales**: la política de red de la sesión
   en la nube deniega `open.er-api.com` y `cdn.jsdelivr.net` (403 del proxy). Lo que sí quedó probado contra
   una caída de red real: usa el respaldo del `.env`, no reintenta antes de 30 min, `/tc` a mano funciona y

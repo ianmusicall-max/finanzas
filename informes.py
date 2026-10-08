@@ -311,6 +311,7 @@ def texto_limite(notion, bases: dict) -> str:
 
 
 def texto_deudas(notion, bases: dict) -> str:
+    compras = F.compras_en_cuotas(notion, bases)
     lista = F.deudas(notion, bases)
     if not lista:
         return ("💳 <b>Deudas</b>\n\nNo tienes deudas activas. 🎉\nSi tienes una, anótala con:\n"
@@ -334,6 +335,11 @@ def texto_deudas(notion, bases: dict) -> str:
             det.append("paga el día %d" % int(d["dia"]))
         if det:
             l.append("    " + " · ".join(det))
+        for c in [x for x in compras if C.normal(x["deuda"]) == C.normal(d["deuda"])][:5]:
+            l.append("    🧾 %s · %s · %s al mes" % (
+                esc(c["descripcion"]),
+                "%d cuotas desde %s" % (c["cuotas"], F.mes_texto(c["primera"])) if c["toca"] == 0
+                else "cuota %d de %d" % (c["toca"], c["cuotas"]), F.s(c["cuota_s"])))
     l.append("")
     if cuotas:
         l.append("📅 Cuotas al mes: %s" % F.s(cuotas))

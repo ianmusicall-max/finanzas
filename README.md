@@ -88,6 +88,32 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
 | `/ultimos` · `/deshacer` | últimos 10 movimientos, numerados / borra el último |
 | `/gasto` `/ingreso` `/ahorro` `/inversion` | abre el formulario; con texto después (`/gasto 45 almuerzo`) anota directo |
 
+## Compras en cuotas
+
+Las tarjetas peruanas dejan pagar en cuotas, y antes el bot anotaba la compra entera de golpe y no sabía
+que eran varios pagos. Ahora se lo dices al anotar:
+
+```
+300 sofá falabella 6 cuotas
+1200 tv falabella credito 12 cuotas sin intereses
+```
+
+Con «cuotas» ya no hace falta escribir «credito»: en cuotas solo se puede comprar a crédito, así que el bot
+lo asume. En el formulario de `/gasto`, después de elegir **Crédito** aparece la pregunta **¿En cuántas
+cuotas?** con *Un solo pago · 3 · 6 · 9 · 12 · 18 · 24 · 36*.
+
+Qué hace con eso:
+
+- la compra entera se le suma a la deuda de la tarjeta, como siempre (eso es lo que debes);
+- **la cuota mensual de la tarjeta la calcula el bot sumando las cuotas que están corriendo**, y la usa en
+  `/deudas`, en `/plan` y en el botón *Cuota* al pagar. La primera cuota cae el mes siguiente a la compra;
+- en `/deudas`, debajo de la tarjeta sale cada compra: `🧾 Tv · cuota 3 de 12 · S/ 100.00 al mes`;
+- cuando una compra termina de pagarse, **deja de contar sola**: la cuota baja sin que toques nada, porque
+  sale de los movimientos y no de un número guardado.
+
+La columna `Cuota mensual` de Notion **no se toca**: sigue siendo tuya, para ponerle un monto fijo a mano a
+un préstamo (SIP) o a una tarjeta. El bot la usa cuando esa deuda no tiene compras en cuotas.
+
 ## Corregir o borrar un movimiento ya anotado
 
 Debajo de cada cosa que anotas quedan los botones **🏷 Cambiar categoría** y **↩️ Deshacer**, pero solo sirven

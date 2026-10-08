@@ -27,6 +27,7 @@ from telegram import Telegram, TelegramError, esc, guardar_offset, leer_offset, 
 AYUDA = (
     "💰 <b>Finanzas</b> · todo queda en Notion\n\n"
     "<b>Anotar</b> (con botones):\n"
+    "<code>300 sofá falabella 6 cuotas</code> · compra a crédito en cuotas\n"
     "/gasto · /ingreso · /ahorro · /inversion\n\n"
     "<b>Ver</b>\n"
     "/hoy · /ayer · /semana · /mes · resúmenes\n"
@@ -349,6 +350,10 @@ class Bot:
             debe = F.s3(F.soles(d["saldo"], d["moneda"]))
             l.append("🧾 A crédito: %s %s. Ahora debes %s." % (
                 "creé la deuda" if d["nueva"] else "se sumó a", esc(d["deuda"]), debe))
+            if getattr(mov, "cuotas", None):
+                primera = F.primer_mes_de_cuota(mov.fecha)
+                l.append("📅 En %d cuotas de %s, la primera en %s." % (
+                    mov.cuotas, self._en(round(mov.monto / mov.cuotas, 2), mov.moneda), F.mes_texto(primera)))
         mueve = mov.tipo == "Ingreso" or (mov.tipo == "Gasto" and getattr(mov, "tarjeta", None) != "Crédito")
         if mueve and mov.medio and PATRIMONIO in self.bases:
             cuenta = F.buscar_cuenta(self.notion, self.bases, mov.medio, mov.moneda)
@@ -1172,6 +1177,7 @@ class Bot:
                        "" if mov["moneda"] == "PEN" else " = " + F.s(mov["monto_s"])),
              esc(mov["descripcion"])]
         extra = [x for x in (mov["medio"], (mov["tarjeta"] or "").lower() or None,
+                             "%d cuotas" % mov["cuotas"] if mov.get("cuotas") else None,
                              "/".join(reversed(mov["fecha"].split("-")))) if x]
         l.append("<i>%s</i>" % esc(" · ".join(extra)))
         ti = C.TIPOS.index(mov["tipo"]) if mov["tipo"] in C.TIPOS else 0

@@ -1,6 +1,7 @@
 import sys
 import tempfile
 import unittest
+from datetime import date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -414,12 +415,14 @@ class Formularios(Base):
         r = F.resumir(F.movimientos(self.n, BASES, m.desde, m.hasta), m)
         self.assertEqual((r.gastos, r.inversion), (0, 2174))
 
-    def _gasto(self, medio, tarjeta=None, monto="100", moneda="PEN"):
+    def _gasto(self, medio, tarjeta=None, monto="100", moneda="PEN", cuotas="Un solo pago"):
         self.di("/gasto")
         for b in ("Hoy", "Gastos", medio):
             self.toca(b)
         if tarjeta:
             self.toca(tarjeta)
+        if tarjeta == "Crédito":
+            self.toca(cuotas)
         for b in ("Supermercado", moneda, "Omitir"):
             self.toca(b)
         self.di(monto)
@@ -1163,3 +1166,88 @@ class CorregirMovimientos(Base):
         self.assertIn("solo el monto", self.di("como veinte"))
         self.assertEqual(self.movs[0]["Monto"], 45)
         self.assertIn("dejo como está", self.toca("Cancelar"))
+
+
+class ComprasEnCuotas(Base):
+    """Una compra a credito en N cuotas: la cuota mensual de la tarjeta sale de las compras."""
+
+    def deuda(self, nombre):
+        return next(f for f in self.n.dbs["db-deu"] if f["Deuda"] == nombre)
+
+    def test_texto_libre_anota_las_cuotas_y_sube_la_deuda(self):
+        t = self.di("300 sofa falabella credito 6 cuotas")
+        self.assertIn("creé la deuda Banco Falabella. Ahora debes S/ 300.00", t)
+        self.assertIn("En 6 cuotas de S/ 50.00, la primera en noviembre", t)
+        self.assertEqual((self.movs[0]["Cuotas"], self.movs[0]["Tarjeta"]), (6, "Crédito"))
+
+    def test_sin_escribir_credito_las_cuotas_ya_lo_dicen(self):
+        self.di("300 sofa falabella 6 cuotas")
+        self.assertEqual(self.movs[0]["Tarjeta"], "Crédito")
+
+    def test_la_cuota_de_la_tarjeta_sale_de_las_compras(self):
+        self.di("600 tv falabella credito 12 cuotas")       # 50 al mes
+        self.di("300 sofa falabella credito 6 cuotas")      # 50 al mes
+        self.di("45 almuerzo falabella credito")            # sin cuotas: no suma
+        t = self.di("/deudas")
+        self.assertIn("cuota S/ 100.00", t)
+        self.assertIn("Tv · 12 cuotas desde noviembre · S/ 50.00 al mes", t)
+        self.assertIn("Sofa · 6 cuotas desde noviembre · S/ 50.00 al mes", t)
+        self.assertIn("Cuotas al mes: S/ 100.00", t)
+        d = next(x for x in F.deudas(self.n, BASES) if x["deuda"] == "Banco Falabella")
+        self.assertEqual(d["cuota"], 100)
+
+    def test_la_cuota_baja_sola_cuando_la_compra_termina(self):
+        self.di("300 sofa falabella credito 6 cuotas")
+        d = F.hoy()
+        def cuotas(fecha):
+            return [(c["descripcion"], c["toca"], c["faltan"]) for c in F.compras_en_cuotas(self.n, BASES, fecha)]
+        self.assertEqual(cuotas(d), [("Sofa", 0, 6)])                      # la primera cae el mes que viene
+        self.assertEqual(cuotas(F.primer_mes_de_cuota(d)), [("Sofa", 1, 6)])
+        self.assertEqual(cuotas(date(d.year if d.month < 7 else d.year + 1,
+                                     d.month + 6 if d.month < 7 else d.month - 6, 1)), [("Sofa", 6, 1)])
+        self.assertEqual(cuotas(date(d.year + 1, d.month, 1)), [])         # ya se terminó de pagar
+
+    def test_no_pisa_la_cuota_que_el_usuario_puso_a_mano(self):
+        self.di("/deuda Préstamo SIP 16224")
+        self.deuda("Préstamo SIP")["Cuota mensual"] = 1500
+        self.di("300 sofa falabella credito 6 cuotas")
+        lista = {x["deuda"]: x["cuota"] for x in F.deudas(self.n, BASES)}
+        self.assertEqual((lista["Préstamo SIP"], lista["Banco Falabella"]), (1500, 50))
+
+    def test_la_columna_de_notion_no_se_toca(self):
+        """La cuota calculada no se guarda: Cuota mensual sigue siendo del usuario."""
+        self.di("300 sofa falabella credito 6 cuotas")
+        self.di("/deudas")
+        self.assertIsNone(self.deuda("Banco Falabella").get("Cuota mensual"))
+
+    def test_el_formulario_pregunta_las_cuotas_solo_a_credito(self):
+        self.di("/gasto")
+        for b in ("Hoy", "Gastos", "Falabella", "Crédito"):
+            self.toca(b)
+        self.assertIn("¿En cuántas cuotas?", self.tg.ultimo)
+        self.toca("6 cuotas")
+        for b in ("Supermercado", "PEN", "Omitir"):
+            self.toca(b)
+        self.di("300")
+        t = self.toca("Guardar")
+        self.assertIn("En 6 cuotas de S/ 50.00", t)
+        self.assertEqual(self.movs[0]["Cuotas"], 6)
+
+    def test_a_debito_no_pregunta_cuotas(self):
+        self.di("/gasto")
+        for b in ("Hoy", "Gastos", "Falabella", "Débito"):
+            self.toca(b)
+        self.assertNotIn("cuántas cuotas", self.tg.ultimo)
+
+    def test_borrar_la_compra_baja_la_cuota(self):
+        self.di("300 sofa falabella credito 6 cuotas")
+        self.assertIn("cuota S/ 50.00", self.di("/deudas"))
+        self.di("/deshacer")
+        t = self.di("/deudas")
+        self.assertEqual(self.deuda("Banco Falabella")["Saldo"], 0)
+        self.assertNotIn("cuota S/", t)
+
+    def test_el_plan_de_deudas_usa_la_cuota_de_las_cuotas(self):
+        self.di("1200 tv falabella credito 12 cuotas")       # 100 al mes, 12 meses
+        t = self.di("/plan")
+        self.assertIn("Solo con las cuotas (S/ 100.00 al mes)", t)

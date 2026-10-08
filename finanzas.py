@@ -288,6 +288,7 @@ def propiedades_movimiento(mov, origen: str = "Telegram") -> dict:
         "Monto RUB": p_number(en_rublos(mov.monto * tc)),
         "Medio de pago": p_select(mov.medio),
         "Tarjeta": p_select(getattr(mov, "tarjeta", None)),
+        "Cuotas": p_number(getattr(mov, "cuotas", None)),
         "Frecuencia": p_select(getattr(mov, "frecuencia", None)),
         "Fecha": p_date(mov.fecha),
         "Origen": p_select(origen),
@@ -340,7 +341,8 @@ def movimiento(notion, bases: dict, page_id: str) -> Optional[dict]:
             "monto": monto, "moneda": moneda,
             "monto_s": float(monto_s if monto_s is not None else soles(monto, moneda)),
             "medio": f.get("Medio de pago"), "tarjeta": f.get("Tarjeta"), "cuenta": f.get("Cuenta"),
-            "frecuencia": f.get("Frecuencia"), "fecha": (f.get("Fecha") or "")[:10]}
+            "frecuencia": f.get("Frecuencia"), "fecha": (f.get("Fecha") or "")[:10],
+            "cuotas": int(f.get("Cuotas")) if f.get("Cuotas") else None}
 
 
 def mueve_cuenta(mov: dict) -> bool:
@@ -854,7 +856,7 @@ def renovaciones(notion, bases: dict, d: Optional[date] = None, dias: int = 3) -
 
 # ---------------------------------------------------------------- deudas
 
-def deudas(notion, bases: dict, todas: bool = False) -> list:
+def deudas(notion, bases: dict, todas: bool = False, con_cuotas: bool = True) -> list:
     """Deudas de la base Deudas, la mas grande primero. Sin todas=True solo las activas.
 
     Las deudas se pueden editar a mano en Notion: lo que vale es Saldo y Moneda. Saldo S/
@@ -888,6 +890,13 @@ def deudas(notion, bases: dict, todas: bool = False) -> list:
                     "original": f.get("Monto original"), "tasa": f.get("Tasa anual"),
                     "cuota": f.get("Cuota mensual"), "dia": f.get("Día de pago"),
                     "estado": estado, "actualizado": f.get("Actualizado")})
+    if con_cuotas:
+        # la cuota de una tarjeta la dicen sus compras en cuotas, no un numero que se queda viejo.
+        # Sin compras en cuotas vale lo que el usuario haya puesto a mano en Notion.
+        por_deuda = cuotas_por_deuda(compras_en_cuotas(notion, bases))
+        for d in out:
+            if d["deuda"] in por_deuda:
+                d["cuota"] = round(por_deuda[d["deuda"]] / tipo_de_cambio(d["moneda"]), 2)
     return sorted(out, key=lambda d: -d["saldo_s"])
 
 
@@ -938,12 +947,66 @@ def cargar_a_tarjeta(notion, bases: dict, medio: str, monto: float, moneda: str)
             "cargo": round(cargo, 2), "nueva": False}
 
 
+def primer_mes_de_cuota(compra: date) -> date:
+    """El mes en que se paga la primera cuota: el siguiente al de la compra."""
+    return date(compra.year + 1, 1, 1) if compra.month == 12 else date(compra.year, compra.month + 1, 1)
+
+
+def mes_texto(d: date) -> str:
+    """'noviembre' si es de este año, 'enero de 2027' si no."""
+    nombre = MESES[d.month - 1]
+    return nombre if d.year == hoy().year else "%s de %d" % (nombre, d.year)
+
+
+def compras_en_cuotas(notion, bases: dict, d: Optional[date] = None) -> list:
+    """Las compras a credito en cuotas que todavia se estan pagando en el mes de d.
+
+    La primera cuota cae el mes siguiente a la compra: una de 6 cuotas hecha en octubre se paga
+    de noviembre a abril. "toca" es la cuota de este mes (0 = la compra es de este mes y la
+    primera cae el que viene) y "faltan" las que quedan por pagar contando la de este mes.
+    Como sale de los movimientos, cuando la compra termina deja de contar sola."""
+    if MOVIMIENTOS not in bases:
+        return []
+    d = d or hoy()
+    desde = date(d.year - 6, d.month, 1)   # 72 cuotas es el maximo que acepta el bot
+    filtro = {"and": [{"property": "Fecha", "date": {"on_or_after": desde.isoformat()}},
+                      {"property": "Fecha", "date": {"on_or_before": d.isoformat()}}]}
+    out = []
+    for f in notion.consultar(bases[MOVIMIENTOS], filtro, limite=5000):
+        n = int(f.get("Cuotas") or 0)
+        if n < 2 or f.get("Tarjeta") != "Crédito" or (f.get("Tipo") or "Gasto") != "Gasto" or not f.get("Medio de pago"):
+            continue
+        try:
+            compra = date.fromisoformat((f.get("Fecha") or "")[:10])
+        except ValueError:
+            continue
+        toca = (d.year - compra.year) * 12 + d.month - compra.month   # 1 = la primera cuota
+        if not 0 <= toca <= n:
+            continue
+        monto, moneda = float(f.get("Monto") or 0), f.get("Moneda") or "PEN"
+        out.append({"deuda": C.deuda_de_tarjeta(f["Medio de pago"]), "tarjeta": f["Medio de pago"],
+                    "descripcion": f.get("Descripción") or "", "cuotas": n, "toca": toca,
+                    "faltan": min(n, n - toca + 1), "cuota": round(monto / n, 2), "moneda": moneda,
+                    "cuota_s": round(soles(monto, moneda) / n, 2), "fecha": compra,
+                    "primera": primer_mes_de_cuota(compra)})
+    return sorted(out, key=lambda x: -x["cuota_s"])
+
+
+def cuotas_por_deuda(compras: list) -> dict:
+    """{nombre de la deuda: lo que toca pagar este mes por sus compras en cuotas, en S/}"""
+    out = {}
+    for c in compras:
+        out[c["deuda"]] = round(out.get(c["deuda"], 0) + c["cuota_s"], 2)
+    return out
+
+
 def deuda_de_tarjeta(notion, bases: dict, medio: Optional[str]) -> Optional[dict]:
     """La deuda de esa tarjeta, si ya existe (para deshacer una compra a credito vieja)."""
     if not medio or DEUDAS not in bases:
         return None
     nombre = C.deuda_de_tarjeta(medio)
-    return next((d for d in deudas(notion, bases, todas=True) if C.normal(d["deuda"]) == C.normal(nombre)), None)
+    return next((d for d in deudas(notion, bases, todas=True, con_cuotas=False)
+                 if C.normal(d["deuda"]) == C.normal(nombre)), None)
 
 
 def pagar_deuda(notion, deuda: dict, monto: float, moneda: Optional[str] = None) -> float:
