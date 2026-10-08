@@ -46,7 +46,8 @@ AYUDA = (
     "/grafico · imagen con los gastos de la semana\n"
     "/consejos · qué mejorar según tus números\n"
     "/metodos · formas de manejar tu dinero\n"
-    "/ultimos · lo último que anotaste, con botones para corregir el monto o borrar\n\n"
+    "/ultimos · lo último que anotaste, con botones para corregir el monto o borrar\n"
+    "<code>/buscar farmacia</code> · busca en todo tu historial (<code>/buscar uber mes</code>)\n\n"
     "<b>Ajustar</b>\n"
     "<code>/presupuesto comida 800</code>\n"
     "<code>/activo Interbank 5200</code> · <code>/deuda Tarjeta Falabella 1200</code>\n"
@@ -739,6 +740,8 @@ class Bot:
             self.decir(chat, METODOS)
         elif cmd == "/tc":
             self._tc(chat, arg)
+        elif cmd in ("/buscar", "/busca"):
+            self._buscar(chat, arg)
         elif cmd == "/ultimos":
             self._ultimos(chat)
         elif cmd == "/deshacer":
@@ -894,6 +897,37 @@ class Bot:
             n = _numero(m.group(0))
             extra, txt = F.soles(n, moneda), F.en_moneda(n, moneda)
         self.decir(chat, I.texto_plan(self.notion, self.bases, extra, txt))
+
+    def _buscar(self, chat, arg: str) -> None:
+        """/buscar farmacia · /buscar uber mes · /buscar netflix año"""
+        if not arg.strip():
+            self.decir(chat, "🔍 Escribe qué buscar:\n<code>/buscar farmacia</code>\n"
+                             "<code>/buscar uber mes</code> · solo este mes\n"
+                             "<code>/buscar netflix año</code> · solo este año")
+            return
+        palabras, periodo = [], None
+        for w in arg.split():
+            wn = C.normal(w).strip(".,")
+            if wn in ("mes", "semana", "ano", "anio") and periodo is None:
+                periodo = wn
+            else:
+                palabras.append(w)
+        texto = " ".join(palabras)
+        if not texto:
+            self.decir(chat, "🔍 Falta qué buscar. Por ejemplo <code>/buscar farmacia mes</code>.")
+            return
+        d = F.hoy()
+        if periodo == "mes":
+            p = F.mes(d)
+            desde, hasta, cuando = p.desde, p.hasta, p.titulo.lower()
+        elif periodo == "semana":
+            p = F.semana(d)
+            desde, hasta, cuando = p.desde, p.hasta, "esta semana"
+        elif periodo:
+            desde, hasta, cuando = d.replace(month=1, day=1), d, str(d.year)
+        else:
+            desde, hasta, cuando = None, None, ""
+        self.decir(chat, I.texto_buscar(self.notion, self.bases, texto, desde, hasta, cuando))
 
     def _grafico(self, chat) -> None:
         url = I.url_grafico_semana(self.notion, self.bases)

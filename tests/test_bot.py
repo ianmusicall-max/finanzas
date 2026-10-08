@@ -1251,3 +1251,50 @@ class ComprasEnCuotas(Base):
         self.di("1200 tv falabella credito 12 cuotas")       # 100 al mes, 12 meses
         t = self.di("/plan")
         self.assertIn("Solo con las cuotas (S/ 100.00 al mes)", t)
+
+
+class Buscar(Base):
+    def test_encuentra_por_descripcion_y_suma(self):
+        self.di("45 pastillas farmacia")
+        self.di("30 vitaminas farmacia")
+        self.di("20 taxi")
+        t = self.di("/buscar farmacia")
+        self.assertIn("S/ 75.00", t)
+        self.assertIn("en 2 gastos", t)
+        self.assertIn("S/ 37.50 cada uno", t)
+        self.assertIn("Pastillas", t)
+        self.assertNotIn("Taxi", t)
+
+    def test_busca_sin_tildes_ni_mayusculas_y_pide_todas_las_palabras(self):
+        self.di("60 Cafe con Ana")
+        self.di("25 cafe solo")
+        self.assertIn("en 2 gastos", self.di("/buscar CAFÉ"))
+        t = self.di("/buscar cafe ana")
+        self.assertIn("en 1 gasto", t)
+        self.assertNotIn("cada uno", t)
+
+    def test_busca_por_categoria_y_medio_de_pago(self):
+        self.di("45 almuerzo interbank")
+        self.assertIn("Almuerzo", self.di("/buscar interbank"))
+        self.assertIn("Almuerzo", self.di("/buscar restaurantes"))
+
+    def test_separa_ingresos_de_gastos(self):
+        self.di("+1500 pago de facebook")
+        self.di("20 comision facebook")
+        t = self.di("/buscar facebook")
+        self.assertIn("S/ 20.00", t)
+        self.assertIn("en 1 gasto", t)
+        self.assertIn("S/ 1,500.00 en 1 de ingreso", t)
+
+    def test_limita_el_periodo(self):
+        self.di("45 almuerzo 15/08")
+        self.di("30 cena")
+        self.assertIn("en 2 gastos", self.di("/buscar a"))     # las dos tienen "a"
+        self.assertIn("en 1 gasto", self.di("/buscar a mes"))
+        self.assertIn("en 2 gastos", self.di("/buscar a año"))
+
+    def test_sin_resultados_y_sin_palabras(self):
+        self.di("45 almuerzo")
+        self.assertIn("No encontré nada", self.di("/buscar helicoptero"))
+        self.assertIn("Escribe qué buscar", self.di("/buscar"))
+        self.assertIn("Falta qué buscar", self.di("/buscar mes"))

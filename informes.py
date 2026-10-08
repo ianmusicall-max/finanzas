@@ -347,6 +347,36 @@ def texto_deudas(notion, bases: dict) -> str:
     return "\n".join(l)
 
 
+def texto_buscar(notion, bases: dict, texto: str, desde, hasta, cuando: str = "", tope: int = 15) -> str:
+    """Lo que encontro /buscar: el total y la lista, del mas nuevo al mas viejo."""
+    filas = F.buscar(notion, bases, texto, desde, hasta)
+    titulo = "🔍 <b>%s</b>%s" % (esc(texto), " · " + cuando if cuando else "")
+    if not filas:
+        return "%s\n\nNo encontré nada. Prueba con una palabra sola, o mira /ultimos." % titulo
+    gastos = [f for f in filas if f["tipo"] == "Gasto"]
+    otros = [f for f in filas if f["tipo"] != "Gasto"]
+    l = [titulo, ""]
+    if gastos:
+        total = sum(f["monto_s"] for f in gastos)
+        l.append("<b>%s</b> en %d gasto%s%s" % (F.s3(total), len(gastos), "" if len(gastos) == 1 else "s",
+                                                " · %s cada uno" % F.s(total / len(gastos)) if len(gastos) > 1 else ""))
+    for tipo in ("Ingreso", "Ahorro", "Inversión"):
+        suyos = [f for f in otros if f["tipo"] == tipo]
+        if suyos:
+            l.append("%s en %d de %s" % (F.s(sum(f["monto_s"] for f in suyos)), len(suyos), tipo.lower()))
+    l.append("")
+    for f in filas[:tope]:
+        monto = F.s(f["monto_s"]) if f["moneda"] == "PEN" else "%s (%s %s)" % (
+            F.s(f["monto_s"]), f["moneda"], "{:,.2f}".format(f["monto"]))
+        l.append("%s %s%s · %s <i>%s</i>" % (C.emoji(f["tipo"], f["categoria"]),
+                                             "+" if f["tipo"] == "Ingreso" else "", monto,
+                                             esc(f["descripcion"]), "/".join(reversed(f["fecha"][5:].split("-")))))
+    if len(filas) > tope:
+        l.append("")
+        l.append("<i>Y %d más. Agrega otra palabra para buscar más fino.</i>" % (len(filas) - tope))
+    return "\n".join(l)
+
+
 # ---------------------------------------------------------------- pagos del mes (recordatorios)
 
 def fecha_corta(dia: Optional[int], d: date) -> str:

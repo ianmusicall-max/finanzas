@@ -86,6 +86,7 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
 | `/metodos` | formas de manejar tu dinero (50/30/20, págate primero, sobres, base cero, deudas) |
 | `/tc 3.72` · `/tc eur 4.05` · `/tc rub 0.046` | tipo de cambio para lo que anotes en dólares, euros o rublos |
 | `/ultimos` · `/deshacer` | últimos 10 movimientos, numerados / borra el último |
+| `/buscar farmacia` · `/buscar uber mes` | busca en todo el historial por descripción, categoría o medio de pago; da el total, el promedio y la lista. Con `mes`, `semana` o `año` busca solo en ese periodo |
 | `/gasto` `/ingreso` `/ahorro` `/inversion` | abre el formulario; con texto después (`/gasto 45 almuerzo`) anota directo |
 
 ## Compras en cuotas

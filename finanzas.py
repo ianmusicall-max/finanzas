@@ -322,6 +322,35 @@ def movimientos(notion, bases: dict, desde: date, hasta: date) -> list:
     return out
 
 
+def buscar(notion, bases: dict, texto: str, desde: Optional[date] = None,
+            hasta: Optional[date] = None) -> list:
+    """Los movimientos cuya descripcion, categoria o medio de pago tienen esas palabras.
+
+    Busca sin tildes ni mayusculas y pide que esten todas: "uber nov" no sirve, pero "taxi lima"
+    encuentra "Taxi al aeropuerto de Lima". Del mas nuevo al mas viejo."""
+    palabras = [w for w in C.normal(texto).split() if w]
+    if not palabras or MOVIMIENTOS not in bases:
+        return []
+    hasta = hasta or hoy()
+    desde = desde or date(hasta.year - 5, 1, 1)
+    filtro = {"and": [{"property": "Fecha", "date": {"on_or_after": desde.isoformat()}},
+                      {"property": "Fecha", "date": {"on_or_before": hasta.isoformat()}}]}
+    out = []
+    for f in notion.consultar(bases[MOVIMIENTOS], filtro, limite=5000):
+        heno = C.normal(" ".join(str(f.get(k) or "") for k in
+                                 ("Descripción", "Categoría", "Medio de pago", "Cuenta")))
+        if not all(w in heno for w in palabras):
+            continue
+        monto_s = f.get("Monto S/")
+        if monto_s is None:
+            monto_s = soles(f.get("Monto") or 0, f.get("Moneda") or "PEN")
+        out.append({"id": f["_id"], "tipo": f.get("Tipo") or "Gasto", "categoria": f.get("Categoría") or "Otros",
+                    "descripcion": f.get("Descripción") or "", "monto_s": float(monto_s or 0),
+                    "monto": float(f.get("Monto") or 0), "moneda": f.get("Moneda") or "PEN",
+                    "medio": f.get("Medio de pago"), "fecha": (f.get("Fecha") or "")[:10]})
+    return sorted(out, key=lambda m: m["fecha"], reverse=True)
+
+
 def ultimos(notion, bases: dict, n: int = 10) -> list:
     return notion.consultar(bases[MOVIMIENTOS], orden=[{"timestamp": "created_time", "direction": "descending"}], limite=n)
 
