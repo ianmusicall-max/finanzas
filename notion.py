@@ -292,6 +292,7 @@ def esquemas() -> dict:
             "Saldo RUB": _num(),
             "Tasa anual": _num("percent"),
             "Cuota mensual": _num(),
+            "Día de corte": _num(),
             "Día de pago": _num(),
             "Inicio": {"date": {}},
             "Estado": _sel(["Activa", "Pagada"]),

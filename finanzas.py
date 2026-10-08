@@ -938,11 +938,13 @@ def deudas(notion, bases: dict, todas: bool = False, con_cuotas: bool = True) ->
                     "saldo": saldo, "moneda": moneda, "saldo_s": saldo_s,
                     "original": f.get("Monto original"), "tasa": f.get("Tasa anual"),
                     "cuota": f.get("Cuota mensual"), "dia": f.get("Día de pago"),
+                    "corte": f.get("Día de corte"),
                     "estado": estado, "actualizado": f.get("Actualizado")})
     if con_cuotas:
         # la cuota de una tarjeta la dicen sus compras en cuotas, no un numero que se queda viejo.
         # Sin compras en cuotas vale lo que el usuario haya puesto a mano en Notion.
-        por_deuda = cuotas_por_deuda(compras_en_cuotas(notion, bases))
+        calendario = {x["deuda"]: (x["corte"], x["dia"]) for x in out}
+        por_deuda = cuotas_por_deuda(compras_en_cuotas(notion, bases, None, calendario))
         for d in out:
             if d["deuda"] in por_deuda:
                 d["cuota"] = round(por_deuda[d["deuda"]] / tipo_de_cambio(d["moneda"]), 2)
@@ -1001,19 +1003,47 @@ def primer_mes_de_cuota(compra: date) -> date:
     return date(compra.year + 1, 1, 1) if compra.month == 12 else date(compra.year, compra.month + 1, 1)
 
 
+def siguiente_dia(desde: date, dia, incluir_hoy: bool = True) -> date:
+    """La proxima vez que llega ese dia del mes (el 30 en febrero es el ultimo dia)."""
+    este = desde.replace(day=dia_del_mes(dia, desde))
+    if este > desde or (incluir_hoy and este == desde):
+        return este
+    sigue = sumar_meses(desde.replace(day=1), 1)
+    return sigue.replace(day=dia_del_mes(dia, sigue))
+
+
+def cuando_se_paga(compra: date, corte=None, dia_pago=None) -> tuple:
+    """(cierre del estado de cuenta, fecha de pago) de una compra a credito.
+
+    Una compra entra en el estado de cuenta que cierra el primer dia de corte desde la compra, y
+    ese estado se paga en el dia de pago siguiente. Sin dia de corte no se puede saber: se asume
+    lo de siempre, que se paga el mes que viene."""
+    if not corte:
+        primero = primer_mes_de_cuota(compra)
+        return None, primero.replace(day=dia_del_mes(dia_pago, primero)) if dia_pago else primero
+    cierre = siguiente_dia(compra, int(corte))
+    if not dia_pago:
+        return cierre, primer_mes_de_cuota(cierre)
+    return cierre, siguiente_dia(cierre, int(dia_pago), incluir_hoy=False)
+
+
 def mes_texto(d: date) -> str:
     """'noviembre' si es de este año, 'enero de 2027' si no."""
     nombre = MESES[d.month - 1]
     return nombre if d.year == hoy().year else "%s de %d" % (nombre, d.year)
 
 
-def compras_en_cuotas(notion, bases: dict, d: Optional[date] = None) -> list:
+def compras_en_cuotas(notion, bases: dict, d: Optional[date] = None,
+                      calendario: Optional[dict] = None) -> list:
     """Las compras a credito en cuotas que todavia se estan pagando en el mes de d.
 
-    La primera cuota cae el mes siguiente a la compra: una de 6 cuotas hecha en octubre se paga
-    de noviembre a abril. "toca" es la cuota de este mes (0 = la compra es de este mes y la
-    primera cae el que viene) y "faltan" las que quedan por pagar contando la de este mes.
-    Como sale de los movimientos, cuando la compra termina deja de contar sola."""
+    "toca" es la cuota de este mes (0 = todavia no empieza) y "faltan" las que quedan por pagar
+    contando la de este mes. Como sale de los movimientos, cuando la compra termina deja de
+    contar sola.
+
+    La primera cuota cae el mes siguiente a la compra, salvo que se sepa el dia de corte de la
+    tarjeta: con el, una compra hecha antes del corte se paga en el estado de cuenta de este mes.
+    calendario = {nombre de la deuda: (dia de corte, dia de pago)}."""
     if MOVIMIENTOS not in bases:
         return []
     d = d or hoy()
@@ -1029,15 +1059,17 @@ def compras_en_cuotas(notion, bases: dict, d: Optional[date] = None) -> list:
             compra = date.fromisoformat((f.get("Fecha") or "")[:10])
         except ValueError:
             continue
-        toca = (d.year - compra.year) * 12 + d.month - compra.month   # 1 = la primera cuota
+        deuda = C.deuda_de_tarjeta(f["Medio de pago"])
+        corte, dia_pago = (calendario or {}).get(deuda, (None, None))
+        _, primera = cuando_se_paga(compra, corte, dia_pago)
+        toca = (d.year - primera.year) * 12 + d.month - primera.month + 1   # 1 = la primera cuota
         if not 0 <= toca <= n:
             continue
         monto, moneda = float(f.get("Monto") or 0), f.get("Moneda") or "PEN"
-        out.append({"deuda": C.deuda_de_tarjeta(f["Medio de pago"]), "tarjeta": f["Medio de pago"],
+        out.append({"deuda": deuda, "tarjeta": f["Medio de pago"],
                     "descripcion": f.get("Descripción") or "", "cuotas": n, "toca": toca,
                     "faltan": min(n, n - toca + 1), "cuota": round(monto / n, 2), "moneda": moneda,
-                    "cuota_s": round(soles(monto, moneda) / n, 2), "fecha": compra,
-                    "primera": primer_mes_de_cuota(compra)})
+                    "cuota_s": round(soles(monto, moneda) / n, 2), "fecha": compra, "primera": primera})
     return sorted(out, key=lambda x: -x["cuota_s"])
 
 
@@ -1047,6 +1079,11 @@ def cuotas_por_deuda(compras: list) -> dict:
     for c in compras:
         out[c["deuda"]] = round(out.get(c["deuda"], 0) + c["cuota_s"], 2)
     return out
+
+
+def fijar_corte(notion, deuda: dict, dia: int) -> None:
+    """Guarda el dia en que cierra el estado de cuenta de una tarjeta."""
+    notion.editar_pagina(deuda["id"], {"Día de corte": p_number(dia), "Actualizado": p_date(hoy())})
 
 
 def deuda_de_tarjeta(notion, bases: dict, medio: Optional[str]) -> Optional[dict]:

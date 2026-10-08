@@ -331,6 +331,8 @@ def texto_deudas(notion, bases: dict) -> str:
             det.append("tasa %s" % F.pct(d["tasa"]))
         if d["cuota"]:
             det.append("cuota %s" % F.s(F.soles(d["cuota"], d["moneda"])))
+        if d.get("corte"):
+            det.append("cierra el día %d" % int(d["corte"]))
         if d["dia"]:
             det.append("paga el día %d" % int(d["dia"]))
         if det:
@@ -343,6 +345,10 @@ def texto_deudas(notion, bases: dict) -> str:
     l.append("")
     if cuotas:
         l.append("📅 Cuotas al mes: %s" % F.s(cuotas))
+    sin_corte = [d for d in lista if d["tipo"] == "Tarjeta de crédito" and not d.get("corte")]
+    if sin_corte:
+        l.append("<i>🗓 Para saber en qué estado de cuenta cae lo que compras, dime cuándo cierra: "
+                 "<code>/corte %s 10</code></i>" % esc(sin_corte[0]["deuda"].split()[-1]))
     l.append("Para registrar un pago: <code>/pago %s 300</code>" % esc(lista[0]["deuda"].split()[-1]))
     return "\n".join(l)
 

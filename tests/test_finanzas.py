@@ -276,3 +276,40 @@ class CompararMeses(ConTC):
         c = F.comparar_meses(self.n, BASES, date(2026, 2, 28))
         self.assertEqual(c["dia"], 28)                  # enero tiene 31, pero se corta el 28
         self.assertEqual(c["b"].gastos, 0)              # el cine del 31 de enero queda fuera
+
+
+class FechaDeCorte(ConTC):
+    """El dia de corte decide en que estado de cuenta cae una compra. Fechas fijas."""
+
+    def test_antes_y_despues_del_corte(self):
+        # corte el 10, pago el 30
+        self.assertEqual(F.cuando_se_paga(date(2026, 10, 5), 10, 30),
+                         (date(2026, 10, 10), date(2026, 10, 30)))
+        self.assertEqual(F.cuando_se_paga(date(2026, 10, 10), 10, 30),   # el día del corte entra
+                         (date(2026, 10, 10), date(2026, 10, 30)))
+        self.assertEqual(F.cuando_se_paga(date(2026, 10, 11), 10, 30),   # un día tarde: un mes más
+                         (date(2026, 11, 10), date(2026, 11, 30)))
+
+    def test_el_dia_30_en_febrero_es_el_ultimo(self):
+        self.assertEqual(F.cuando_se_paga(date(2027, 2, 20), 25, 30),
+                         (date(2027, 2, 25), date(2027, 2, 28)))
+
+    def test_el_pago_antes_del_corte_cae_el_mes_siguiente(self):
+        # corte el 25, pago el 5: el estado que cierra el 25/10 se paga el 5/11
+        self.assertEqual(F.cuando_se_paga(date(2026, 10, 20), 25, 5),
+                         (date(2026, 10, 25), date(2026, 11, 5)))
+
+    def test_sin_corte_se_asume_el_mes_siguiente(self):
+        self.assertEqual(F.cuando_se_paga(date(2026, 10, 5), None, 30), (None, date(2026, 11, 30)))
+        self.assertEqual(F.cuando_se_paga(date(2026, 12, 5), None, None), (None, date(2027, 1, 1)))
+
+    def test_la_primera_cuota_puede_caer_el_mes_de_la_compra(self):
+        n = FakeNotion()
+        cargar(n, ["600 tv falabella credito 12 cuotas 5/10"], date(2026, 10, 15))
+        con = F.compras_en_cuotas(n, BASES, date(2026, 10, 15), {"Banco Falabella": (10, 30)})
+        self.assertEqual((con[0]["toca"], con[0]["faltan"], con[0]["cuota_s"]), (1, 12, 50))
+        sin = F.compras_en_cuotas(n, BASES, date(2026, 10, 15))
+        self.assertEqual(sin[0]["toca"], 0)              # sin corte se asume el mes que viene
+        # y la última cuota: 12 pagos desde octubre terminan en septiembre
+        self.assertEqual(F.compras_en_cuotas(n, BASES, date(2027, 9, 15), {"Banco Falabella": (10, 30)})[0]["toca"], 12)
+        self.assertEqual(F.compras_en_cuotas(n, BASES, date(2027, 10, 15), {"Banco Falabella": (10, 30)}), [])

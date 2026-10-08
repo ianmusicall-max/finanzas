@@ -1343,3 +1343,36 @@ class Comparar(Base):
         self.di("45 almuerzo")
         self.di("/start")
         self.assertIn("contra", self.toca("Comparar"))
+
+
+class FechaDeCorte(Base):
+    """El día que cierra el estado de cuenta decide en qué mes se paga lo que compras."""
+
+    def deuda(self, nombre):
+        return next(f for f in self.n.dbs["db-deu"] if f["Deuda"] == nombre)
+
+    def test_corte_se_guarda_y_se_ve_en_deudas(self):
+        self.di("/deuda Banco Falabella 1200")
+        self.deuda("Banco Falabella")["Día de pago"] = 30
+        t = self.di("/corte Falabella 10")
+        self.assertIn("cierra el día 10 de cada mes", t)
+        self.assertEqual(self.deuda("Banco Falabella")["Día de corte"], 10)
+        self.assertIn("cierra el día 10 · paga el día 30", self.di("/deudas"))
+
+    def test_sin_corte_lo_pide(self):
+        self.di("250 ropa falabella credito")
+        self.assertIn("/corte Falabella 10", self.di("/deudas"))
+
+    def test_al_comprar_dice_en_que_estado_de_cuenta_cae(self):
+        self.di("/deuda Banco Falabella 0")
+        self.deuda("Banco Falabella")["Día de pago"] = 30
+        self.di("/corte Falabella 28")
+        t = self.di("250 ropa falabella credito")
+        self.assertIn("estado de cuenta que cierra el 28/", t)
+        self.assertIn("se paga el 30/", t)
+
+    def test_errores_de_escritura(self):
+        self.assertIn("Escribe la tarjeta y el día", self.di("/corte"))
+        self.assertIn("Escribe la tarjeta y el día", self.di("/corte Falabella"))
+        self.assertIn("entre 1 y 31", self.di("/corte Falabella 45"))
+        self.assertIn("No encuentro la deuda", self.di("/corte Scotiabank 10"))

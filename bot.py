@@ -53,6 +53,7 @@ AYUDA = (
     "<code>/presupuesto comida 800</code>\n"
     "<code>/activo Interbank 5200</code> · <code>/deuda Tarjeta Falabella 1200</code>\n"
     "<code>/pago Falabella 300</code> · baja el saldo de una deuda\n"
+    "<code>/corte Falabella 10</code> · el día que cierra el estado de cuenta de una tarjeta\n"
     "<code>/meta Auto 100000</code>\n"
     "<code>/tc 3.72</code> · <code>/tc rub 0.046</code> · tipo de cambio\n"
     "/deshacer · borra lo último que anotaste (para uno viejo, /ultimos)"
@@ -354,10 +355,14 @@ class Bot:
             debe = F.s3(F.soles(d["saldo"], d["moneda"]))
             l.append("🧾 A crédito: %s %s. Ahora debes %s." % (
                 "creé la deuda" if d["nueva"] else "se sumó a", esc(d["deuda"]), debe))
+            tarjeta = F.deuda_de_tarjeta(self.notion, self.bases, mov.medio)
+            cierre, paga = F.cuando_se_paga(mov.fecha, (tarjeta or {}).get("corte"), (tarjeta or {}).get("dia"))
             if getattr(mov, "cuotas", None):
-                primera = F.primer_mes_de_cuota(mov.fecha)
                 l.append("📅 En %d cuotas de %s, la primera en %s." % (
-                    mov.cuotas, self._en(round(mov.monto / mov.cuotas, 2), mov.moneda), F.mes_texto(primera)))
+                    mov.cuotas, self._en(round(mov.monto / mov.cuotas, 2), mov.moneda), F.mes_texto(paga)))
+            if cierre:
+                l.append("🗓 Entra en el estado de cuenta que cierra el %s y se paga el %s." % (
+                    cierre.strftime("%d/%m"), paga.strftime("%d/%m")))
         mueve = mov.tipo == "Ingreso" or (mov.tipo == "Gasto" and getattr(mov, "tarjeta", None) != "Crédito")
         if mueve and mov.medio and PATRIMONIO in self.bases:
             cuenta = F.buscar_cuenta(self.notion, self.bases, mov.medio, mov.moneda)
@@ -743,6 +748,8 @@ class Bot:
             self.decir(chat, METODOS)
         elif cmd == "/tc":
             self._tc(chat, arg)
+        elif cmd == "/corte":
+            self._corte(chat, arg)
         elif cmd in ("/comparar", "/compara"):
             self.decir(chat, I.texto_comparar(self.notion, self.bases))
         elif cmd in ("/buscar", "/busca"):
@@ -902,6 +909,34 @@ class Bot:
             n = _numero(m.group(0))
             extra, txt = F.soles(n, moneda), F.en_moneda(n, moneda)
         self.decir(chat, I.texto_plan(self.notion, self.bases, extra, txt))
+
+    def _corte(self, chat, arg: str) -> None:
+        """/corte Falabella 10 · el día que cierra el estado de cuenta de esa tarjeta."""
+        m = re.search(r"\d{1,2}", arg or "")
+        nombre = (arg[:m.start()] if m else arg).strip(" :-")
+        if not m or not nombre:
+            self.decir(chat, "🗓 Escribe la tarjeta y el día que cierra su estado de cuenta, "
+                             "por ejemplo <code>/corte Falabella 10</code>.\n"
+                             "<i>Lo dice tu estado de cuenta: «fecha de cierre» o «fecha de corte».</i>")
+            return
+        dia = int(m.group(0))
+        if not 1 <= dia <= 31:
+            self.decir(chat, "El día tiene que estar entre 1 y 31.")
+            return
+        d = F.buscar_deuda(F.deudas(self.notion, self.bases, todas=True, con_cuotas=False), nombre)
+        if not d:
+            self.decir(chat, "No encuentro la deuda «%s». Mira /deudas." % esc(nombre))
+            return
+        F.fijar_corte(self.notion, d, dia)
+        hoy_ = F.hoy()
+        cierre, paga = F.cuando_se_paga(hoy_, dia, d["dia"])
+        l = ["🗓 <b>%s</b> cierra el día %d de cada mes." % (esc(d["deuda"]), dia)]
+        if d["dia"]:
+            l.append("Lo que compres hoy entra en el estado que cierra el %s y se paga el %s." % (
+                cierre.strftime("%d/%m"), paga.strftime("%d/%m")))
+        else:
+            l.append("<i>Falta el día de pago: ponlo en la columna «Día de pago» de Deudas, en Notion.</i>")
+        self.decir(chat, "\n".join(l))
 
     def _buscar(self, chat, arg: str) -> None:
         """/buscar farmacia · /buscar uber mes · /buscar netflix año"""

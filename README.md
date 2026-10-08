@@ -86,9 +86,29 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
 | `/metodos` | formas de manejar tu dinero (50/30/20, págate primero, sobres, base cero, deudas) |
 | `/tc 3.72` · `/tc eur 4.05` · `/tc rub 0.046` | tipo de cambio para lo que anotes en dólares, euros o rublos |
 | `/ultimos` · `/deshacer` | últimos 10 movimientos, numerados / borra el último |
+| `/corte Falabella 10` | el día que cierra el estado de cuenta de esa tarjeta |
 | `/comparar` | este mes contra el pasado: totales, balance y en qué categorías cambió, con los dos meses cortados el mismo día |
 | `/buscar farmacia` · `/buscar uber mes` | busca en todo el historial por descripción, categoría o medio de pago; da el total, el promedio y la lista. Con `mes`, `semana` o `año` busca solo en ese periodo |
 | `/gasto` `/ingreso` `/ahorro` `/inversion` | abre el formulario; con texto después (`/gasto 45 almuerzo`) anota directo |
+
+## Fecha de corte de las tarjetas
+
+Una tarjeta cierra su estado de cuenta un día fijo del mes (el **corte**) y se paga unos días después. Lo que
+compras **después** del corte no entra en ese estado: se paga un mes más tarde. Dile al bot cuándo cierra cada
+tarjeta y deja de adivinar:
+
+```
+/corte Falabella 10
+```
+
+El día de pago sigue en la columna `Día de pago` de **Deudas** en Notion (o lo pones al crear la deuda). Con
+los dos datos:
+
+- al anotar una compra a crédito el bot te dice **🗓 Entra en el estado de cuenta que cierra el 10/11 y se
+  paga el 30/11**;
+- la **primera cuota** de una compra en cuotas cae donde de verdad cae: si compras antes del corte, este mes;
+  si compras después, el siguiente. Sin fecha de corte el bot asume lo de siempre (el mes que viene);
+- `/deudas` muestra `cierra el día 10 · paga el día 30`, y si una tarjeta no tiene corte te lo pide.
 
 ## Compras en cuotas
 

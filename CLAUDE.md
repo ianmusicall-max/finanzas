@@ -38,6 +38,9 @@ debajo de la página padre (`NOTION_PARENT_PAGE_ID`).
   El bot **no** lo cuenta. El sistema empezó de cero el 01/10/2026.
 - Una cuenta de Patrimonio se reconoce por banco + moneda (medio Interbank + USD → "Interbank dólares").
   Ingreso suma, gasto con débito resta, gasto a crédito va a la deuda de la tarjeta (Falabella → "Banco Falabella").
+- **Día de corte** (columna nueva en Deudas, 08/10/2026): con el corte y el `Día de pago` el bot sabe en qué
+  estado de cuenta cae cada compra a crédito y cuándo se paga (`F.cuando_se_paga`), y la primera cuota de una
+  compra en cuotas cae en el mes verdadero. Se pone con `/corte Falabella 10`. Falta cargar los cortes reales.
 - **"Banco Falabella" es la tarjeta de crédito**, no el préstamo. El bot busca ese nombre exacto
   (`C.DEUDA_TARJETA`) para sumarle las compras a crédito, así que no se renombra. El préstamo quedó aparte
   como "Préstamo Falabella" (03/10/2026), porque las dos tenían tasas distintas y juntas no se podía decir
