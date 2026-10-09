@@ -322,6 +322,16 @@ journalctl -u finanzas-bot -n 50
 
 ## Si el bot deja de contestar
 
+**Se arregla solo.** Cada 5 minutos, `finanzas-vigia.timer` comprueba que el bot esté vivo; si está caído lo
+levanta y te manda un Telegram:
+
+- *⚠️ El bot se había apagado y lo levanté solo.* → ya podés seguir.
+- *🔴 El bot se apagó y no pude levantarlo. Disco: …* → ahí sí hay que entrar al servidor; el mensaje te dice
+  cuánto disco libre queda, que es la causa más común.
+
+Como mucho un aviso por hora, para que no te inunde si el bot está reiniciándose en bucle.
+
+
 Cada actualización reinicia el bot, y al reiniciar Telegram contesta **409** unos segundos (todavía da por
 viva la consulta de la copia anterior). El bot ahora **lo espera** en vez de apagarse: hasta el 09/10/2026
 salía con código 3 y `finanzas-bot.service` tiene prohibido reiniciar con ese código

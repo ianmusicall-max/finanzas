@@ -1,0 +1,11 @@
+# Cada 5 minutos: que el bot no pueda quedarse apagado en silencio.
+[Unit]
+Description=Revisar cada 5 minutos que el bot de finanzas esté vivo
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+Unit=finanzas-vigia.service
+
+[Install]
+WantedBy=timers.target
