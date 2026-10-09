@@ -25,8 +25,8 @@ from lector import FECHA, Movimiento, NoEntendi, _numero
 # paso: (pregunta, tipo de respuesta)
 PASOS = {
     "fecha": ("📅 ¿Qué fecha?", "fecha"),
-    "medio": ("💳 ¿Con qué pagaste?", "opciones"),
-    "medio_in": ("🏦 ¿Dónde entró el dinero?", "opciones"),
+    "medio": ("🏦 ¿De qué cuenta sale?\n<i>El banco, la billetera o el efectivo con el que pagaste.</i>", "opciones"),
+    "medio_in": ("🏦 ¿A qué cuenta entró el dinero?", "opciones"),
     "frecuencia": ("🗓 ¿Es un pago del mes o un pago anual?\n<i>Los anuales (por ejemplo iCloud o la VPN del año) "
                    "cuentan contra el presupuesto anual, no contra el del mes.</i>", "opciones"),
     "tarjeta": ("💳 ¿Crédito o débito?\n<i>Si es crédito, se suma a la deuda de esa tarjeta.</i>", "opciones"),

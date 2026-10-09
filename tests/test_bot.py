@@ -330,7 +330,7 @@ class Formularios(Base):
         self.assertIn("Nuevo gasto", self.tg.enviados[-2][1])
         self.assertIn("¿Qué fecha?", self.tg.ultimo)
         self.toca("Ayer")
-        self.assertIn("¿Con qué pagaste?", self.tg.ultimo)   # la primera pregunta de verdad es el banco
+        self.assertIn("¿De qué cuenta sale?", self.tg.ultimo)   # la primera pregunta de verdad es el banco
         self.toca("T-Bank")
         self.assertIn("¿Crédito o débito?", self.tg.ultimo)
         self.toca("Débito")
@@ -1398,12 +1398,11 @@ class FormularioSobreviveAlReinicio(Base):
 
     def test_sigue_donde_iba_despues_de_reiniciar(self):
         self.di("/gasto")
-        self.toca("Hoy")
-        self.assertIn("¿A qué cuenta va?", self.tg.ultimo)
-        guardado = self.tg.data_de("Gastos")
+        self.assertIn("¿Qué fecha?", self.tg.ultimo)
+        guardado = self.tg.data_de("Hoy")
         self.reiniciar()
         self.bot.procesar(boton(guardado))
-        self.assertIn("¿Con qué pagaste?", self.tg.ultimo)      # avanzó, no se perdió
+        self.assertIn("¿De qué cuenta sale?", self.tg.ultimo)   # avanzó, no se perdió
         self.toca("Interbank")
         self.toca("Débito")
         for b in ("Supermercado", "PEN", "Omitir"):
@@ -1418,9 +1417,8 @@ class FormularioSobreviveAlReinicio(Base):
         self.reiniciar()
         self.di("15/09")                      # la fecha escrita, no tocada
         self.reiniciar()
-        self.toca("Gastos")
-        self.reiniciar()
         self.toca("Efectivo")
+        self.reiniciar()
         for b in ("Supermercado", "PEN", "Omitir"):
             self.toca(b)
         self.di("80")
@@ -1430,7 +1428,6 @@ class FormularioSobreviveAlReinicio(Base):
 
     def test_un_formulario_de_otro_dia_no_revive(self):
         self.di("/gasto")
-        self.toca("Hoy")
         datos = json.loads(formularios.ESTADOS.read_text())
         datos[str(YO)]["dia"] = "2020-01-01"
         formularios.ESTADOS.write_text(json.dumps(datos))
@@ -1446,8 +1443,7 @@ class FormularioSobreviveAlReinicio(Base):
 
     def test_si_de_todas_formas_se_perdio_ofrece_empezar_de_nuevo(self):
         self.di("/gasto")
-        self.toca("Hoy")
-        guardado = self.tg.data_de("Gastos")
+        guardado = self.tg.data_de("Hoy")
         self.di("/cancelar")                  # ya no hay formulario
         self.bot.procesar(boton(guardado))
         self.assertIn("Empezamos de nuevo", self.tg.ultimo)
