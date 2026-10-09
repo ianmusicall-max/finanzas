@@ -40,8 +40,8 @@ Toca **➖ Gasto**, **➕ Ingreso** o **🐷 Ahorro** en el menú (o escribe `/g
 
 | Formulario | Preguntas |
 |---|---|
-| Gasto | fecha · medio de pago (el banco) · crédito o débito y en cuántas cuotas (solo si es tarjeta) · categoría · moneda · descripción · importe |
-| Ingreso | fecha · dónde entró · categoría (Facebook, Freshtunes, Routenote, Criptomonedas, Ventas…) · moneda · descripción · importe |
+| Gasto | fecha · de qué cuenta sale (el banco, la billetera, el efectivo) · crédito o débito y en cuántas cuotas (solo si es tarjeta) · categoría · moneda · descripción · importe |
+| Ingreso | fecha · a qué cuenta entró · categoría (Facebook, Freshtunes, Routenote, Criptomonedas, Ventas…) · moneda · descripción · importe |
 | Ahorro | fecha · meta (de la base Metas) · medio de pago · moneda · importe |
 | Inversión | fecha · categoría · medio de pago · moneda · descripción · importe |
 
@@ -53,12 +53,14 @@ pregunta y quedaba en pantalla muda, como trabada. Un formulario a medio llenar 
 con T-Bank, T-Bank queda arriba). Las monedas son PEN, RUB, USD y EUR; todo se suma en soles con el tipo de
 cambio de `/tc`.
 
-En el gasto, **la primera pregunta de verdad es el banco** (*💳 ¿Con qué pagaste?*: Interbank, BCP, Yape, Plin,
-Falabella…). Antes había antes una pregunta *«🗂 ¿A qué cuenta va?»* con Gastos / Salud / Inversión / Educación,
-heredada del Google Form de 2025: se quitó el 09/10/2026 porque se confundía con el banco y no hacía casi nada
-(Salud y Educación ya son categorías, y la inversión tiene su propio `/inversion`). La columna `Cuenta` de
-Movimientos sigue existiendo y los gastos nuevos la guardan como «Gastos»; las filas de la hoja de 2025 con
-cuenta **Inversión** se siguen contando como inversión y no como gasto.
+En el gasto, **la primera pregunta es de qué cuenta sale la plata** (*🏦 ¿De qué cuenta sale?*: Interbank, BCP,
+Yape, Plin, Falabella, Efectivo…). Antes había antes otra pregunta, *«🗂 ¿A qué cuenta va?»* con Gastos / Salud /
+Inversión / Educación, heredada del Google Form de 2025. Se quitó el 09/10/2026: en una app de finanzas
+«cuenta» se lee como *cuenta de banco*, así que ahí se esperaban Interbank o BCP y no aparecían. Tampoco hacía
+casi nada (Salud y Educación ya son categorías, y la inversión tiene su propio `/inversion`).
+
+La columna `Cuenta` de Movimientos sigue existiendo y los gastos nuevos la guardan como «Gastos»; las filas de
+la hoja de 2025 con cuenta **Inversión** se siguen contando como inversión y no como gasto.
 
 ### O rápido, escribiendo como hablas
 
