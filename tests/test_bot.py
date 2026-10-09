@@ -1,3 +1,4 @@
+import json
 import sys
 import tempfile
 import unittest
@@ -7,6 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import finanzas as F  # noqa: E402
+import formularios  # noqa: E402
 from bot import Bot, codigo_salida, leer_patrimonio  # noqa: E402
 from telegram import TelegramError  # noqa: E402
 from tests.fakes import BASES, FakeNotion, FakeTelegram  # noqa: E402
@@ -26,13 +28,18 @@ def boton(data, user=YO, chat=YO):
 class Base(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
-        self._aj = F.AJUSTES
-        F.AJUSTES = Path(self._tmp.name) / "ajustes.json"
+        tmp = Path(self._tmp.name)
+        # cada test con sus propios archivos: ni el tipo de cambio, ni lo ultimo elegido en los
+        # formularios, ni el formulario a medio llenar se pasan de un test al siguiente
+        self._guardados = (F.AJUSTES, formularios.AJUSTES, formularios.DATA, formularios.ESTADOS)
+        F.AJUSTES = formularios.AJUSTES = tmp / "ajustes.json"
+        formularios.DATA = tmp
+        formularios.ESTADOS = tmp / "formularios.json"
         self.tg, self.n = FakeTelegram(), FakeNotion()
         self.bot = Bot(self.tg, self.n, BASES, {YO})
 
     def tearDown(self):
-        F.AJUSTES = self._aj
+        F.AJUSTES, formularios.AJUSTES, formularios.DATA, formularios.ESTADOS = self._guardados
         self._tmp.cleanup()
 
     def di(self, texto):
@@ -1376,3 +1383,69 @@ class FechaDeCorte(Base):
         self.assertIn("Escribe la tarjeta y el día", self.di("/corte Falabella"))
         self.assertIn("entre 1 y 31", self.di("/corte Falabella 45"))
         self.assertIn("No encuentro la deuda", self.di("/corte Scotiabank 10"))
+
+
+class FormularioSobreviveAlReinicio(Base):
+    """El servidor reinicia el bot cada vez que baja cambios de GitHub. Un formulario a medio
+    llenar no se puede perder: antes la pregunta quedaba en pantalla sin botones y trabada."""
+
+    def reiniciar(self):
+        self.bot = Bot(self.tg, self.n, BASES, {YO})
+
+    def test_sigue_donde_iba_despues_de_reiniciar(self):
+        self.di("/gasto")
+        self.toca("Hoy")
+        self.assertIn("¿A qué cuenta va?", self.tg.ultimo)
+        guardado = self.tg.data_de("Gastos")
+        self.reiniciar()
+        self.bot.procesar(boton(guardado))
+        self.assertIn("¿Con qué pagaste?", self.tg.ultimo)      # avanzó, no se perdió
+        self.toca("Interbank")
+        self.toca("Débito")
+        for b in ("Supermercado", "PEN", "Omitir"):
+            self.toca(b)
+        self.di("250")
+        self.toca("Guardar")
+        f = self.movs[0]
+        self.assertEqual((f["Cuenta"], f["Medio de pago"], f["Monto"]), ("Gastos", "Interbank", 250))
+
+    def test_aguanta_varios_reinicios_y_el_texto_escrito(self):
+        self.di("/gasto")
+        self.reiniciar()
+        self.di("15/09")                      # la fecha escrita, no tocada
+        self.reiniciar()
+        self.toca("Gastos")
+        self.reiniciar()
+        self.toca("Efectivo")
+        for b in ("Supermercado", "PEN", "Omitir"):
+            self.toca(b)
+        self.di("80")
+        self.reiniciar()
+        self.toca("Guardar")
+        self.assertEqual(self.movs[0]["Fecha"][5:], "09-15")
+
+    def test_un_formulario_de_otro_dia_no_revive(self):
+        self.di("/gasto")
+        self.toca("Hoy")
+        datos = json.loads(formularios.ESTADOS.read_text())
+        datos[str(YO)]["dia"] = "2020-01-01"
+        formularios.ESTADOS.write_text(json.dumps(datos))
+        self.reiniciar()
+        self.assertFalse(self.bot.form.activo(YO))
+        self.assertIn("45.00", self.di("45 almuerzo"))     # el texto se anota, no va al formulario
+
+    def test_un_archivo_roto_no_deja_al_bot_sin_arrancar(self):
+        formularios.ESTADOS.write_text("{no es json")
+        self.reiniciar()
+        self.assertFalse(self.bot.form.activo(YO))
+        self.assertIn("¿Qué fecha?", self.di("/gasto"))
+
+    def test_si_de_todas_formas_se_perdio_ofrece_empezar_de_nuevo(self):
+        self.di("/gasto")
+        self.toca("Hoy")
+        guardado = self.tg.data_de("Gastos")
+        self.di("/cancelar")                  # ya no hay formulario
+        self.bot.procesar(boton(guardado))
+        self.assertIn("Empezamos de nuevo", self.tg.ultimo)
+        self.assertIn("➖ Gasto", [t for t, _ in self.tg.botones()])
+        self.assertIn("¿Qué fecha?", self.toca("➖ Gasto"))

@@ -79,6 +79,51 @@ def _recordar(clave: str, valor: str) -> None:
     AJUSTES.write_text(json.dumps(a, indent=2, ensure_ascii=False))
 
 
+# ---------------------------------------------------------------- formularios a medio llenar
+# El servidor se reinicia el bot cada vez que baja cambios de GitHub. Si el formulario viviera
+# solo en memoria, el que estuviera a medio llenar se perderia: al tocar el siguiente boton el bot
+# le quita los botones al mensaje y contesta que ya termino, asi que la pregunta queda en pantalla
+# sin opciones y parece trabada. Por eso se guarda en disco y se retoma donde iba.
+
+ESTADOS = DATA / "formularios.json"
+
+
+def _guardar_estados(estado: dict) -> None:
+    filas = {}
+    for chat, e in estado.items():
+        d = dict(e["datos"])
+        if isinstance(d.get("fecha"), date):
+            d["fecha"] = d["fecha"].isoformat()
+        filas[str(chat)] = {"forma": e["forma"], "i": e["i"], "datos": d,
+                            "corrigiendo": e["corrigiendo"], "dia": hoy().isoformat()}
+    try:
+        DATA.mkdir(parents=True, exist_ok=True)
+        ESTADOS.write_text(json.dumps(filas, ensure_ascii=False))
+    except OSError:
+        pass   # si no se puede escribir, el bot sigue andando con lo que tiene en memoria
+
+
+def _cargar_estados() -> dict:
+    """Lo que habia a medio llenar cuando el bot se apago. Lo de otro dia se descarta."""
+    try:
+        filas = json.loads(ESTADOS.read_text())
+    except (OSError, ValueError, AttributeError):
+        return {}
+    out = {}
+    for chat, e in (filas.items() if isinstance(filas, dict) else []):
+        try:
+            if e.get("dia") != hoy().isoformat() or e.get("forma") not in FORMULARIOS:
+                continue
+            d = dict(e.get("datos") or {})
+            if d.get("fecha"):
+                d["fecha"] = date.fromisoformat(d["fecha"])
+            out[int(chat)] = {"forma": e["forma"], "i": int(e["i"]), "datos": d,
+                              "corrigiendo": bool(e.get("corrigiendo"))}
+        except (AttributeError, KeyError, TypeError, ValueError):
+            continue   # una fila rota no puede dejar al bot sin arrancar
+    return out
+
+
 def _fecha_texto(d: date) -> str:
     if d == hoy():
         return "hoy (%s)" % d.strftime("%d/%m")
@@ -95,21 +140,27 @@ class Formularios:
     def __init__(self, metas=None, anuales=None):
         """metas: funcion que devuelve los nombres de las metas de Notion (para el formulario de ahorro).
         anuales: funcion que devuelve las categorias con presupuesto anual (preguntan mensual o anual)."""
-        self.estado = {}        # chat -> {"forma", "i", "datos", "corrigiendo"}
+        self.estado = _cargar_estados()   # chat -> {"forma", "i", "datos", "corrigiendo"}
         self.metas = metas or (lambda: [])
         self.anuales = anuales or (lambda: set())
 
     def activo(self, chat) -> bool:
         return chat in self.estado
 
+    def _guardar(self) -> None:
+        _guardar_estados(self.estado)
+
     def cancelar(self, chat) -> list:
         self.estado.pop(chat, None)
+        self._guardar()
         return [{"texto": "Cancelado. No se guardó nada."}]
 
     # ---------------------------------------------------------------- inicio
     def iniciar(self, chat, forma: str) -> list:
         self.estado[chat] = {"forma": forma, "i": 0, "datos": {}, "corrigiendo": False}
-        return [{"texto": "<b>%s</b>" % TITULOS[forma]}] + self._preguntar(chat)
+        r = [{"texto": "<b>%s</b>" % TITULOS[forma]}] + self._preguntar(chat)
+        self._guardar()
+        return r
 
     def _aplica(self, chat, paso: str) -> bool:
         """Crédito o débito solo se pregunta si se pagó con un banco o tarjeta."""
@@ -193,9 +244,19 @@ class Formularios:
 
     # ---------------------------------------------------------------- respuestas
     def boton(self, chat, data: str) -> list:
-        """data viene sin el prefijo "f:"."""
+        """data viene sin el prefijo "f:". Guarda el estado salga por donde salga."""
         if chat not in self.estado:
-            return [{"texto": "Ese formulario ya terminó. Empieza otro desde el menú."}]
+            return [self.reempezar()]
+        r = self._boton(chat, data)
+        self._guardar()
+        return r
+
+    def texto(self, chat, texto: str) -> list:
+        r = self._texto(chat, texto)
+        self._guardar()
+        return r
+
+    def _boton(self, chat, data: str) -> list:
         if data == "no":
             return self.cancelar(chat)
         if data == "fix":
@@ -227,7 +288,7 @@ class Formularios:
             _recordar("%s.%s" % (e["forma"], paso), elegido)
         return self._avanzar(chat)
 
-    def texto(self, chat, texto: str) -> list:
+    def _texto(self, chat, texto: str) -> list:
         paso = self._paso(chat)
         e = self.estado[chat]
         if paso is None:
@@ -306,10 +367,18 @@ class Formularios:
         pares = [(ETIQUETAS[p], "f:edit:" + p) for p in self._pasos(chat)]
         return [{"texto": "¿Qué quieres corregir?", "botones": _botones(pares, 3)}]
 
+    def reempezar(self) -> dict:
+        """Cuando ya no queda nada de ese formulario: en vez de dejar la pregunta muda, botones
+        para arrancar de nuevo (los "m:" los entiende el bot, como los del menu)."""
+        return {"texto": "Ese formulario ya no está (me reinicié). Empezamos de nuevo:",
+                "botones": [[("➖ Gasto", "m:gasto"), ("➕ Ingreso", "m:ingreso")],
+                            [("🐷 Ahorro", "m:ahorro"), ("📈 Inversión", "m:inversion")]]}
+
     def terminar(self, chat):
         """Saca el movimiento listo para guardar y cierra el formulario.
         Devuelve (Movimiento, nombre de la meta o None)."""
         e = self.estado.pop(chat)
+        self._guardar()
         d = e["datos"]
         tipo = FORMULARIOS[e["forma"]][0]
         meta = d.get("meta")
