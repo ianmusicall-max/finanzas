@@ -17,7 +17,7 @@ explicarle en español, simple, con pasos de una sola línea para la Terminal de
 | Archivo | Qué hace |
 |---|---|
 | `bot.py` | Telegram (long polling): comandos, botones, guardar movimientos, cuentas, deudas, pagos, ahorro al cobrar, `/excel` |
-| `formularios.py` | Formularios paso a paso (gasto, ingreso, ahorro, inversión) como los Google Forms de 2025; en gasto con banco pregunta crédito o débito |
+| `formularios.py` | Formularios paso a paso (gasto, ingreso, ahorro, inversión) como los Google Forms de 2025; en gasto con tarjeta pregunta crédito o débito y en cuántas cuotas. **Ya no pregunta la cuenta** (Gastos/Salud/Inversión/Educación): se quitó el 09/10/2026 porque el usuario la confundía con el banco, que es la pregunta siguiente. Los gastos nuevos guardan `Cuenta` = "Gastos", igual que al anotar por texto; las filas de 2025 con `Cuenta` = Inversión siguen contando como inversión en `F.resumir()` |
 | `lector.py` | Anotación rápida en texto libre (`45 almuerzo falabella credito`) |
 | `categorias.py` | Categorías, medios de pago, tarjetas, alias (`cmr`→Falabella, `tinkoff`→T-Bank), Plin/Yape → banco |
 | `finanzas.py` | Cálculos: tipo de cambio (automático del día, o fijo con `/tc`), soles/dólares/rublos, resúmenes, presupuesto, patrimonio, cuentas, deudas, metas, consejos |
