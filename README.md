@@ -320,6 +320,26 @@ systemctl start finanzas-resumen@semanal
 journalctl -u finanzas-bot -n 50
 ```
 
+## Si el bot deja de contestar
+
+Cada actualización reinicia el bot, y al reiniciar Telegram contesta **409** unos segundos (todavía da por
+viva la consulta de la copia anterior). El bot ahora **lo espera** en vez de apagarse: hasta el 09/10/2026
+salía con código 3 y `finanzas-bot.service` tiene prohibido reiniciar con ese código
+(`RestartPreventExitStatus=2 3`), así que quedaba apagado y mudo hasta que alguien entrara al servidor.
+
+Los scripts de actualización ahora comprueban que el bot quedó arriba y, si no, lo levantan de nuevo. Si
+igual se queda callado:
+
+```bash
+ssh root@TU-SERVIDOR 'systemctl reset-failed finanzas-bot && systemctl restart finanzas-bot && systemctl is-active finanzas-bot'
+```
+
+Y para ver por qué se cayó:
+
+```bash
+ssh root@TU-SERVIDOR 'journalctl -u finanzas-bot --no-pager -n 30 -o cat'
+```
+
 ## Actualizar
 
 **Es automático.** El servidor revisa GitHub cada 5 minutos (`finanzas-autoupdate.timer`); si hay algo

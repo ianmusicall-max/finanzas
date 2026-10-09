@@ -115,6 +115,14 @@ METODOS = (
 )
 
 
+# Al reiniciar, Telegram sigue dando por viva unos segundos la consulta de la copia anterior y
+# contesta 409. Es pasajero: hay que esperarlo, no morirse. (Salir con 3 deja el bot apagado para
+# siempre, porque el servicio tiene RestartPreventExitStatus=3.)
+ESPERA_409 = 10
+CONFLICTOS_409 = 9      # ~90 s esperando; mas que eso ya no es un reinicio sino otra copia de verdad
+ESPERA_CANDADO = 45     # segundos esperando a que la copia vieja suelte data/bot.lock
+
+
 def codigo_salida(exc) -> int:
     """401: el token no sirve -> 2. 409: otro lector del mismo bot -> 3. Cualquier otro -> 1.
     systemd no reinicia 2 ni 3 (RestartPreventExitStatus): quedan visibles en rojo."""
@@ -1355,15 +1363,25 @@ class Bot:
 
     def correr(self, una_vez: bool = False) -> int:
         offset = leer_offset()
-        fallos = 0
+        fallos = conflictos = 0
         if not una_vez:
             self._refrescar_tc()          # al arrancar, para que el primer mensaje no espere
         while True:
             try:
                 updates = self.tg.updates(offset, timeout=0 if una_vez else 30)
-                fallos = 0
+                fallos = conflictos = 0
             except TelegramError as exc:
-                if exc.code in (401, 409):
+                if exc.code == 401:
+                    return codigo_salida(exc)
+                if exc.code == 409 and not una_vez:
+                    conflictos += 1
+                    if conflictos > CONFLICTOS_409:
+                        return codigo_salida(exc)
+                    print("  [telegram] otra copia todavía lee este bot (409); reintento en %d s (%d/%d)"
+                          % (ESPERA_409, conflictos, CONFLICTOS_409))
+                    time.sleep(ESPERA_409)
+                    continue
+                if exc.code == 409:
                     return codigo_salida(exc)
                 fallos += 1
                 espera = min(60, 10 * fallos)
@@ -1409,7 +1427,7 @@ def main() -> int:
     if not TELEGRAM_USUARIOS:
         print("Aviso: TELEGRAM_USUARIOS esta vacio; el bot solo dira su ID a quien escriba.")
     try:
-        with turno_del_bot():
+        with turno_del_bot(ESPERA_CANDADO):   # la copia vieja puede tardar en soltar el candado
             yo = tg.yo()
             print("Bot @%s escuchando. Ctrl+C para salir." % yo.get("username"), flush=True)
             return Bot(tg, notion, bases, TELEGRAM_USUARIOS).correr(args.una_vez)

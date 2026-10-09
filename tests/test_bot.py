@@ -309,6 +309,51 @@ class Salida(unittest.TestCase):
         self.assertEqual(codigo_salida(TelegramError("x", 500)), 1)
 
 
+class Reinicio(unittest.TestCase):
+    """Al reiniciar, Telegram contesta 409 unos segundos porque todavia da por viva la consulta
+    de la copia anterior. Si el bot se va con codigo 3, systemd NO lo vuelve a levantar
+    (RestartPreventExitStatus=3) y queda apagado sin que nadie se entere: tiene que esperar."""
+
+    def correr(self, respuestas, dormir=None):
+        class TG(FakeTelegram):
+            def updates(self, offset, timeout=30):
+                r = respuestas.pop(0)
+                if isinstance(r, Exception):
+                    raise r
+                return r
+        bot = Bot(TG(), FakeNotion(), BASES, {YO})
+        import bot as modulo
+        viejo, modulo.time.sleep = modulo.time.sleep, (dormir if dormir is not None else lambda s: None)
+        try:
+            return bot.correr()
+        finally:
+            modulo.time.sleep = viejo
+
+    def test_el_409_pasajero_se_espera_y_el_bot_sigue(self):
+        esperas = []
+        # tres 409 como los de un reinicio, despues la cola contesta bien, y al final un 401
+        # (token malo) solo para que el bucle termine y el test pueda mirar el resultado
+        salida = self.correr([TelegramError("conflict", 409)] * 3 + [[], [],
+                                                                    TelegramError("x", 401)],
+                             dormir=esperas.append)
+        self.assertEqual(esperas, [10, 10, 10])      # esperó en vez de morirse
+        self.assertEqual(salida, 2)                  # siguió leyendo la cola hasta el 401 final
+
+    def test_un_409_que_no_se_va_si_termina_apagando(self):
+        """Si despues de ~90 s sigue en 409, es otra copia de verdad: ahi si hay que avisar."""
+        self.assertEqual(self.correr([TelegramError("conflict", 409)] * 10), 3)
+
+    def test_un_409_entre_dos_buenos_no_gasta_los_intentos(self):
+        esperas = []
+        self.correr([TelegramError("conflict", 409), [],
+                     TelegramError("conflict", 409), [], TelegramError("x", 401)],
+                    dormir=esperas.append)
+        self.assertEqual(esperas, [10, 10])          # el contador se reinicia al leer bien
+
+    def test_el_401_no_se_reintenta(self):
+        self.assertEqual(self.correr([TelegramError("unauthorized", 401)]), 2)
+
+
 if __name__ == "__main__":
     unittest.main()
 

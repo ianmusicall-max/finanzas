@@ -71,6 +71,24 @@ El usuario pidió (2026-10-02) no gastar créditos de la nube en otra cosa que f
 programadas de música (noticias, cumpleaños, aniversarios) quedaron **apagadas**, no borradas. Música y
 salud se trabajan en su sesión local de core-forever. La sesión "Daria proyecto" sí sigue en la nube.
 
+## Un reinicio no puede dejar el bot apagado (09/10/2026)
+
+**Esto tuvo el bot caído y mudo.** `finanzas-bot.service` tiene `RestartPreventExitStatus=2 3`, y el bot
+salía con **3** en cuanto Telegram contestaba **409**. Pero el 409 es justo lo que contesta al reiniciar:
+Telegram da por viva unos segundos la consulta `getUpdates` de la copia anterior. Resultado: `systemctl
+restart` (que corre en cada actualización) tenía una carrera que mataba el bot **para siempre**, porque
+systemd tiene prohibido reiniciarlo con ese código. Como se mergearon varios cambios seguidos, pasó.
+
+Ahora el 409 se espera (`ESPERA_409`, `CONFLICTOS_409`: ~90 s de reintentos) y solo se sale con 3 si después
+de eso sigue en conflicto, que ya es otra copia de verdad. El candado de archivo también espera
+(`turno_del_bot(ESPERA_CANDADO)`) en vez de rendirse al instante. Lo cubre `tests.test_bot.Reinicio`.
+
+Y los dos scripts de deploy comprueban que el bot quedó arriba (`levantar_bot`): si no, `reset-failed` y a
+levantarlo de nuevo, hasta 3 veces. **Antes nadie se enteraba de que había quedado apagado.**
+
+Los scripts van en **dos fases** (`--ya-bajado`): el `git pull`/`merge` reescribe el propio script mientras
+bash lo está leyendo, así que la fase 1 baja los cambios y le pasa la posta con `exec` a la versión nueva.
+
 ## El bot se reinicia solo: nada importante puede vivir solo en memoria
 
 `finanzas-autoupdate` reinicia `finanzas-bot` cada vez que hay algo nuevo en `main` (revisa cada 5 min), y
