@@ -8,7 +8,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import finanzas as F  # noqa: E402
 from bot import Bot, codigo_salida, leer_patrimonio  # noqa: E402
-from lector import Movimiento  # noqa: E402
 from telegram import TelegramError  # noqa: E402
 from tests.fakes import BASES, FakeNotion, FakeTelegram  # noqa: E402
 
@@ -323,7 +322,8 @@ class Formularios(Base):
         self.assertIn("Nuevo gasto", self.tg.enviados[-2][1])
         self.assertIn("¿Qué fecha?", self.tg.ultimo)
         self.toca("Ayer")
-        self.assertIn("¿Con qué pagaste?", self.tg.ultimo)   # la primera pregunta de verdad es el banco
+        self.assertIn("cuenta", self.tg.ultimo)
+        self.toca("Salud")
         self.toca("T-Bank")
         self.assertIn("¿Crédito o débito?", self.tg.ultimo)
         self.toca("Débito")
@@ -340,13 +340,14 @@ class Formularios(Base):
         self.toca("Guardar")
         f = self.movs[0]
         self.assertEqual((f["Tipo"], f["Cuenta"], f["Medio de pago"], f["Categoría"], f["Moneda"], f["Monto"], f["Descripción"]),
-                         ("Gasto", "Gastos", "T-Bank", "Medicina", "RUB", 1250.5, "Pastillas para la gripe"))
+                         ("Gasto", "Salud", "T-Bank", "Medicina", "RUB", 1250.5, "Pastillas para la gripe"))
         self.assertEqual(f["Fecha"], (F.hoy() - F.timedelta(days=1)).isoformat())
         self.assertAlmostEqual(f["Monto S/"], round(1250.5 * F.tipo_de_cambio("RUB"), 2))
+        self.assertIn("cuenta Salud", self.tg.ultimo)
 
     def test_corregir_antes_de_guardar(self):
         self.di("/gasto")
-        for b in ("Hoy", "Interbank", "Débito", "Supermercado", "PEN"):
+        for b in ("Hoy", "Gastos", "Interbank", "Débito", "Supermercado", "PEN"):
             self.toca(b)
         self.toca("Omitir")
         self.di("80")
@@ -360,10 +361,12 @@ class Formularios(Base):
     def test_lo_ultimo_elegido_sale_primero(self):
         self.di("/gasto")
         self.toca("Hoy")
+        self.toca("Gastos")
         self.toca("KuCoin")
         self.toca("Cancelar")
         self.di("/gasto")
         self.toca("Hoy")
+        self.toca("Gastos")
         self.assertTrue(self.tg.botones()[0][0].startswith("KuCoin"))
 
     def test_ingreso_y_fecha_escrita(self):
@@ -402,27 +405,19 @@ class Formularios(Base):
         self.assertEqual(self.movs, [])
 
     def test_cuenta_inversion_no_es_gasto(self):
-        """Las filas de la hoja 2025 traen Cuenta=Inversión (la plata del depa): no son gasto.
-        El formulario ya no pregunta la cuenta, pero esas filas viejas siguen contando bien."""
-        F.guardar_movimiento(self.n, BASES, Movimiento(
-            tipo="Gasto", monto=2174, descripcion="Autovalúo depa", categoria="Vivienda",
-            medio="Interbank", cuenta="Inversión"), origen="Hoja 2025")
+        self.di("/gasto")
+        for b in ("Hoy", "Inversión", "Interbank", "Débito", "Vivienda", "PEN"):
+            self.toca(b)
+        self.di("autovaluo depa")
+        self.di("2174")
+        self.toca("Guardar")
         m = F.mes()
         r = F.resumir(F.movimientos(self.n, BASES, m.desde, m.hasta), m)
         self.assertEqual((r.gastos, r.inversion), (0, 2174))
 
-    def test_el_formulario_de_gasto_ya_no_pregunta_la_cuenta(self):
-        """Confundía: "¿A qué cuenta va?" no era el banco, y el banco se pregunta justo después."""
-        self.di("/gasto")
-        self.toca("Hoy")
-        self.assertNotIn("¿A qué cuenta va?", self.tg.ultimo)
-        nombres = [t for t, _ in self.tg.botones()]
-        self.assertIn("Interbank", nombres)
-        self.assertNotIn("Salud", nombres)
-
     def _gasto(self, medio, tarjeta=None, monto="100", moneda="PEN", cuotas="Un solo pago"):
         self.di("/gasto")
-        for b in ("Hoy", medio):
+        for b in ("Hoy", "Gastos", medio):
             self.toca(b)
         if tarjeta:
             self.toca(tarjeta)
@@ -466,14 +461,14 @@ class Formularios(Base):
         self._gasto("Interbank", "Débito")
         self.assertEqual(self.movs[0]["Tarjeta"], "Débito")
         self.di("/gasto")
-        for b in ("Hoy", "Efectivo"):
+        for b in ("Hoy", "Gastos", "Efectivo"):
             self.toca(b)
         self.assertIn("¿Qué categoría?", self.tg.ultimo)    # efectivo no pregunta credito o debito
         self.assertEqual(self.n.dbs["db-deu"], [])
 
     def test_corregir_medio_a_tarjeta_pregunta_credito(self):
         self.di("/gasto")
-        for b in ("Hoy", "Efectivo", "Supermercado", "PEN", "Omitir"):
+        for b in ("Hoy", "Gastos", "Efectivo", "Supermercado", "PEN", "Omitir"):
             self.toca(b)
         self.di("40")
         self.toca("Corregir")
@@ -497,6 +492,7 @@ class Formularios(Base):
     def test_medios_nuevos(self):
         self.di("/gasto")
         self.toca("Hoy")
+        self.toca("Gastos")
         nombres = [t for t, _ in self.tg.botones()]
         for m in ("T-Bank", "Falabella", "SIP", "KuCoin"):
             self.assertIn(m, nombres)
@@ -831,7 +827,7 @@ class PresupuestoAnualYFuera(Base):
         self.di("/presupuesto vivienda 100")
         self.di("/presupuesto vivienda anual 600")
         self.di("/gasto")
-        for b in ("Hoy", "Efectivo", "Vivienda"):
+        for b in ("Hoy", "Gastos", "Efectivo", "Vivienda"):
             self.toca(b)
         self.assertIn("pago anual", self.tg.ultimo)
         self.toca("Anual")
@@ -842,7 +838,7 @@ class PresupuestoAnualYFuera(Base):
         self.toca("Guardar")
         self.assertEqual(self.movs[-1]["Frecuencia"], "Anual")
         self.di("/gasto")
-        for b in ("Hoy", "Efectivo", "Supermercado"):   # sin tope anual: no pregunta
+        for b in ("Hoy", "Gastos", "Efectivo", "Supermercado"):   # sin tope anual: no pregunta
             self.toca(b)
         self.assertIn("¿En qué moneda?", self.tg.ultimo)
 
@@ -894,7 +890,7 @@ class Suscripciones(Base):
 
     def test_cada_n_meses_y_sin_nombre(self):
         self.di("/gasto")
-        for b in ("Hoy", "Efectivo", "Suscripciones", "PEN", "Omitir"):
+        for b in ("Hoy", "Gastos", "Efectivo", "Suscripciones", "PEN", "Omitir"):
             self.toca(b)
         self.di("90")
         self.toca("Guardar")
@@ -1226,7 +1222,7 @@ class ComprasEnCuotas(Base):
 
     def test_el_formulario_pregunta_las_cuotas_solo_a_credito(self):
         self.di("/gasto")
-        for b in ("Hoy", "Falabella", "Crédito"):
+        for b in ("Hoy", "Gastos", "Falabella", "Crédito"):
             self.toca(b)
         self.assertIn("¿En cuántas cuotas?", self.tg.ultimo)
         self.toca("6 cuotas")
@@ -1239,7 +1235,7 @@ class ComprasEnCuotas(Base):
 
     def test_a_debito_no_pregunta_cuotas(self):
         self.di("/gasto")
-        for b in ("Hoy", "Falabella", "Débito"):
+        for b in ("Hoy", "Gastos", "Falabella", "Débito"):
             self.toca(b)
         self.assertNotIn("cuántas cuotas", self.tg.ultimo)
 

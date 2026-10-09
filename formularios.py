@@ -1,7 +1,7 @@
 """Los formularios del bot: las mismas preguntas que tenian los Google Forms
 "Gastos 2025" e "Ingresos 2025", una por mensaje, con botones.
 
-    Gasto:   fecha, medio de pago, credito o debito (solo si es tarjeta),
+    Gasto:   fecha, cuenta, medio de pago, credito o debito (solo si es tarjeta),
              categoria, moneda, descripcion, importe
     Ingreso: fecha, medio de pago, categoria, moneda, descripcion, importe
     Ahorro:  fecha, meta, medio de pago, moneda, importe
@@ -25,6 +25,7 @@ from lector import FECHA, Movimiento, NoEntendi, _numero
 # paso: (pregunta, tipo de respuesta)
 PASOS = {
     "fecha": ("📅 ¿Qué fecha?", "fecha"),
+    "cuenta": ("🗂 ¿A qué cuenta va?", "opciones"),
     "medio": ("💳 ¿Con qué pagaste?", "opciones"),
     "medio_in": ("🏦 ¿Dónde entró el dinero?", "opciones"),
     "frecuencia": ("🗓 ¿Es un pago del mes o un pago anual?\n<i>Los anuales (por ejemplo iCloud o la VPN del año) "
@@ -40,7 +41,7 @@ PASOS = {
 }
 
 FORMULARIOS = {
-    "gasto": ("Gasto", ["fecha", "medio", "tarjeta", "cuotas", "categoria", "frecuencia", "moneda", "descripcion", "importe"]),
+    "gasto": ("Gasto", ["fecha", "cuenta", "medio", "tarjeta", "cuotas", "categoria", "frecuencia", "moneda", "descripcion", "importe"]),
     "ingreso": ("Ingreso", ["fecha", "medio_in", "categoria", "moneda", "descripcion", "importe"]),
     "ahorro": ("Ahorro", ["fecha", "meta", "medio", "moneda", "importe"]),
     "inversion": ("Inversión", ["fecha", "categoria", "medio", "moneda", "descripcion", "importe"]),
@@ -50,7 +51,7 @@ TITULOS = {"gasto": "➖ Nuevo gasto", "ingreso": "➕ Nuevo ingreso", "ahorro":
 TIPOS_TARJETA = ["Débito", "Crédito"]
 UN_PAGO = "Un solo pago"
 CUOTAS = [UN_PAGO, "3", "6", "9", "12", "18", "24", "36"]
-ETIQUETAS = {"fecha": "Fecha", "medio": "Medio de pago", "medio_in": "Medio de pago",
+ETIQUETAS = {"fecha": "Fecha", "cuenta": "Cuenta", "medio": "Medio de pago", "medio_in": "Medio de pago",
              "tarjeta": "Tarjeta", "cuotas": "Cuotas", "frecuencia": "Pago",
              "categoria": "Categoría", "meta": "Meta", "moneda": "Moneda", "descripcion": "Descripción",
              "importe": "Importe"}
@@ -137,7 +138,9 @@ class Formularios:
     def opciones(self, chat, paso: str) -> list:
         forma = self.estado[chat]["forma"]
         tipo = FORMULARIOS[forma][0]
-        if paso in ("medio", "medio_in"):
+        if paso == "cuenta":
+            lista = list(C.CUENTAS)
+        elif paso in ("medio", "medio_in"):
             lista = list(C.MEDIOS)
         elif paso == "categoria":
             lista = C.nombres(tipo)
@@ -177,7 +180,7 @@ class Formularios:
                 pares = [("💳 " + o if o == "Débito" else "🧾 " + o, d) for (o, d) in pares]
             if paso == "cuotas":
                 pares = [(o if o == UN_PAGO else o + " cuotas", d) for (o, d) in pares]
-            por_fila = 4 if paso in ("moneda", "cuotas") else 3 if paso in ("medio", "medio_in") else 2
+            por_fila = 4 if paso in ("moneda", "cuotas") else 3 if paso in ("cuenta", "medio", "medio_in") else 2
             return [{"texto": pregunta, "botones": _botones(pares, por_fila) + [CANCELAR]}]
         if clase == "fecha":
             d = hoy()
@@ -322,7 +325,7 @@ class Formularios:
         mov = Movimiento(tipo=tipo, monto=d["importe"], moneda=d.get("moneda", "PEN"),
                          descripcion=descripcion[:1].upper() + descripcion[1:], categoria=categoria,
                          medio=d.get("medio") or d.get("medio_in"), fecha=d.get("fecha") or hoy(),
-                         cuenta="Gastos" if tipo == "Gasto" else None,
+                         cuenta=d.get("cuenta"),
                          tarjeta=d.get("tarjeta") if d.get("medio") in C.TARJETAS and tipo == "Gasto" else None,
                          frecuencia="Anual" if d.get("frecuencia") == "Anual" and categoria in self.anuales()
                          and categoria != "Suscripciones" else None,

@@ -40,7 +40,7 @@ Toca **➖ Gasto**, **➕ Ingreso** o **🐷 Ahorro** en el menú (o escribe `/g
 
 | Formulario | Preguntas |
 |---|---|
-| Gasto | fecha · medio de pago (el banco) · crédito o débito y en cuántas cuotas (solo si es tarjeta) · categoría · moneda · descripción · importe |
+| Gasto | fecha · cuenta (Gastos, Salud, Inversión, Educación) · medio de pago · categoría · moneda · descripción · importe |
 | Ingreso | fecha · dónde entró · categoría (Facebook, Freshtunes, Routenote, Criptomonedas, Ventas…) · moneda · descripción · importe |
 | Ahorro | fecha · meta (de la base Metas) · medio de pago · moneda · importe |
 | Inversión | fecha · categoría · medio de pago · moneda · descripción · importe |
@@ -48,14 +48,7 @@ Toca **➖ Gasto**, **➕ Ingreso** o **🐷 Ahorro** en el menú (o escribe `/g
 Al final muestra el resumen con **Guardar**, **Corregir** (vuelves a cualquier pregunta) y **Cancelar**. Nada se
 guarda hasta tocar Guardar. Lo último que elegiste en cada pregunta sale primero la próxima vez (si siempre pagas
 con T-Bank, T-Bank queda arriba). Las monedas son PEN, RUB, USD y EUR; todo se suma en soles con el tipo de
-cambio de `/tc`.
-
-En el gasto, **la primera pregunta de verdad es el banco** (*💳 ¿Con qué pagaste?*: Interbank, BCP, Yape, Plin,
-Falabella…). Antes había antes una pregunta *«🗂 ¿A qué cuenta va?»* con Gastos / Salud / Inversión / Educación,
-heredada del Google Form de 2025: se quitó el 09/10/2026 porque se confundía con el banco y no hacía casi nada
-(Salud y Educación ya son categorías, y la inversión tiene su propio `/inversion`). La columna `Cuenta` de
-Movimientos sigue existiendo y los gastos nuevos la guardan como «Gastos»; las filas de la hoja de 2025 con
-cuenta **Inversión** se siguen contando como inversión y no como gasto.
+cambio de `/tc`. Un gasto con cuenta **Inversión** se cuenta como inversión en los resúmenes, no como gasto.
 
 ### O rápido, escribiendo como hablas
 
