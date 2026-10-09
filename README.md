@@ -40,8 +40,8 @@ Toca **➖ Gasto**, **➕ Ingreso** o **🐷 Ahorro** en el menú (o escribe `/g
 
 | Formulario | Preguntas |
 |---|---|
-| Gasto | fecha · cuenta (Gastos, Salud, Inversión, Educación) · medio de pago · categoría · moneda · descripción · importe |
-| Ingreso | fecha · dónde entró · categoría (Facebook, Freshtunes, Routenote, Criptomonedas, Ventas…) · moneda · descripción · importe |
+| Gasto | fecha · de qué cuenta sale (el banco, la billetera, el efectivo) · crédito o débito y en cuántas cuotas (solo si es tarjeta) · categoría · moneda · descripción · importe |
+| Ingreso | fecha · a qué cuenta entró · categoría (Facebook, Freshtunes, Routenote, Criptomonedas, Ventas…) · moneda · descripción · importe |
 | Ahorro | fecha · meta (de la base Metas) · medio de pago · moneda · importe |
 | Inversión | fecha · categoría · medio de pago · moneda · descripción · importe |
 
@@ -51,7 +51,16 @@ guarda hasta tocar Guardar. **El formulario aguanta un reinicio del servidor**: 
 un cambio), al tocar el siguiente botón sigue donde iba. Antes se perdía: el bot le quitaba los botones a la
 pregunta y quedaba en pantalla muda, como trabada. Un formulario a medio llenar de otro día no revive. Lo último que elegiste en cada pregunta sale primero la próxima vez (si siempre pagas
 con T-Bank, T-Bank queda arriba). Las monedas son PEN, RUB, USD y EUR; todo se suma en soles con el tipo de
-cambio de `/tc`. Un gasto con cuenta **Inversión** se cuenta como inversión en los resúmenes, no como gasto.
+cambio de `/tc`.
+
+En el gasto, **la primera pregunta es de qué cuenta sale la plata** (*🏦 ¿De qué cuenta sale?*: Interbank, BCP,
+Yape, Plin, Falabella, Efectivo…). Antes había antes otra pregunta, *«🗂 ¿A qué cuenta va?»* con Gastos / Salud /
+Inversión / Educación, heredada del Google Form de 2025. Se quitó el 09/10/2026: en una app de finanzas
+«cuenta» se lee como *cuenta de banco*, así que ahí se esperaban Interbank o BCP y no aparecían. Tampoco hacía
+casi nada (Salud y Educación ya son categorías, y la inversión tiene su propio `/inversion`).
+
+La columna `Cuenta` de Movimientos sigue existiendo y los gastos nuevos la guardan como «Gastos»; las filas de
+la hoja de 2025 con cuenta **Inversión** se siguen contando como inversión y no como gasto.
 
 ### O rápido, escribiendo como hablas
 
@@ -309,6 +318,26 @@ Para verlos o forzarlos a mano:
 systemctl list-timers 'finanzas-*'
 systemctl start finanzas-resumen@semanal
 journalctl -u finanzas-bot -n 50
+```
+
+## Si el bot deja de contestar
+
+Cada actualización reinicia el bot, y al reiniciar Telegram contesta **409** unos segundos (todavía da por
+viva la consulta de la copia anterior). El bot ahora **lo espera** en vez de apagarse: hasta el 09/10/2026
+salía con código 3 y `finanzas-bot.service` tiene prohibido reiniciar con ese código
+(`RestartPreventExitStatus=2 3`), así que quedaba apagado y mudo hasta que alguien entrara al servidor.
+
+Los scripts de actualización ahora comprueban que el bot quedó arriba y, si no, lo levantan de nuevo. Si
+igual se queda callado:
+
+```bash
+ssh root@TU-SERVIDOR 'systemctl reset-failed finanzas-bot && systemctl restart finanzas-bot && systemctl is-active finanzas-bot'
+```
+
+Y para ver por qué se cayó:
+
+```bash
+ssh root@TU-SERVIDOR 'journalctl -u finanzas-bot --no-pager -n 30 -o cat'
 ```
 
 ## Actualizar
