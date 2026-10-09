@@ -46,7 +46,10 @@ Toca **➖ Gasto**, **➕ Ingreso** o **🐷 Ahorro** en el menú (o escribe `/g
 | Inversión | fecha · categoría · medio de pago · moneda · descripción · importe |
 
 Al final muestra el resumen con **Guardar**, **Corregir** (vuelves a cualquier pregunta) y **Cancelar**. Nada se
-guarda hasta tocar Guardar. Lo último que elegiste en cada pregunta sale primero la próxima vez (si siempre pagas
+guarda hasta tocar Guardar. **El formulario aguanta un reinicio del servidor**: queda guardado en
+`data/formularios.json`, así que si el bot se actualiza mientras lo estás llenando (pasa cada vez que se sube
+un cambio), al tocar el siguiente botón sigue donde iba. Antes se perdía: el bot le quitaba los botones a la
+pregunta y quedaba en pantalla muda, como trabada. Un formulario a medio llenar de otro día no revive. Lo último que elegiste en cada pregunta sale primero la próxima vez (si siempre pagas
 con T-Bank, T-Bank queda arriba). Las monedas son PEN, RUB, USD y EUR; todo se suma en soles con el tipo de
 cambio de `/tc`. Un gasto con cuenta **Inversión** se cuenta como inversión en los resúmenes, no como gasto.
 

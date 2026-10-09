@@ -17,7 +17,7 @@ explicarle en español, simple, con pasos de una sola línea para la Terminal de
 | Archivo | Qué hace |
 |---|---|
 | `bot.py` | Telegram (long polling): comandos, botones, guardar movimientos, cuentas, deudas, pagos, ahorro al cobrar, `/excel` |
-| `formularios.py` | Formularios paso a paso (gasto, ingreso, ahorro, inversión) como los Google Forms de 2025; en gasto con banco pregunta crédito o débito |
+| `formularios.py` | Formularios paso a paso (gasto, ingreso, ahorro, inversión) como los Google Forms de 2025; en gasto con banco pregunta crédito o débito y, a crédito, en cuántas cuotas. El estado se guarda en `data/formularios.json` para que un reinicio no corte el formulario |
 | `lector.py` | Anotación rápida en texto libre (`45 almuerzo falabella credito`) |
 | `categorias.py` | Categorías, medios de pago, tarjetas, alias (`cmr`→Falabella, `tinkoff`→T-Bank), Plin/Yape → banco |
 | `finanzas.py` | Cálculos: tipo de cambio (automático del día, o fijo con `/tc`), soles/dólares/rublos, resúmenes, presupuesto, patrimonio, cuentas, deudas, metas, consejos |
@@ -70,6 +70,26 @@ Después de correr eso una vez, el timer `finanzas-autoupdate` actualiza solo ca
 El usuario pidió (2026-10-02) no gastar créditos de la nube en otra cosa que finanzas: las 5 tareas
 programadas de música (noticias, cumpleaños, aniversarios) quedaron **apagadas**, no borradas. Música y
 salud se trabajan en su sesión local de core-forever. La sesión "Daria proyecto" sí sigue en la nube.
+
+## El bot se reinicia solo: nada importante puede vivir solo en memoria
+
+`finanzas-autoupdate` reinicia `finanzas-bot` cada vez que hay algo nuevo en `main` (revisa cada 5 min), y
+systemd lo reinicia si se cae. Eso rompió dos cosas y hay que tenerlo presente al agregar features:
+
+- **Formularios** (09/10/2026): un `/gasto` a medio llenar se perdía y, al tocar el botón siguiente, el bot
+  le quitaba los botones al mensaje y contestaba "ese formulario ya terminó": la pregunta quedaba muda y el
+  usuario lo vivía como "se queda trabado en «¿A qué cuenta va?» y no aparece ninguna opción". Arreglado
+  guardando el estado en `data/formularios.json` (`_cargar_estados` / `_guardar_estados`). Si igual se pierde,
+  `Formularios.reempezar()` ofrece botones para arrancar de nuevo en vez de dejar un callejón sin salida.
+- **Deshacer un movimiento** (08/10/2026): dependía de diccionarios en memoria; ahora los efectos se
+  reconstruyen de la fila de Notion.
+
+Lo que sigue en memoria y se pierde al reiniciar: `_metas_de` (a qué meta fue un ahorro), el retiro de
+efectivo para deshacer, y el paso a paso de pagar una deuda o de dar de alta una suscripción. Si alguno
+empieza a molestar, el camino es el mismo: a disco, con fecha para que no revivan al día siguiente.
+
+Los tests tienen que aislar los archivos: `tests/test_bot.py` apunta `formularios.AJUSTES`, `formularios.DATA`
+y `formularios.ESTADOS` a un temporal en `setUp`, o el estado se pasa de un test al siguiente.
 
 ## Pendiente
 
