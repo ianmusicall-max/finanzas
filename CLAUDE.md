@@ -25,7 +25,7 @@ explicarle en español, simple, con pasos de una sola línea para la Terminal de
 | `excel.py` | Excel con un gráfico por hoja (el plan gratis de Notion permite un solo gráfico) |
 | `notion.py` | Cliente REST de Notion y esquema de las bases; `setup_notion.py` crea o completa columnas |
 | `resumen.py` | Resumen diario/semanal/mensual (timers de systemd) |
-| `deploy/` | `instalar-todo.sh`, `actualizar.sh`, `auto-actualizar.sh` + timers (`finanzas-autoupdate` baja de GitHub cada 5 min) |
+| `deploy/` | `instalar-todo.sh`, `actualizar.sh`, `auto-actualizar.sh`, `vigia.sh` + timers (`finanzas-autoupdate` baja de GitHub cada 5 min; `finanzas-vigia` levanta el bot si se cayó y avisa) |
 
 ## Notion (página "💰 Finanzas")
 
@@ -70,6 +70,20 @@ Después de correr eso una vez, el timer `finanzas-autoupdate` actualiza solo ca
 El usuario pidió (2026-10-02) no gastar créditos de la nube en otra cosa que finanzas: las 5 tareas
 programadas de música (noticias, cumpleaños, aniversarios) quedaron **apagadas**, no borradas. Música y
 salud se trabajan en su sesión local de core-forever. La sesión "Daria proyecto" sí sigue en la nube.
+
+## El vigía: el bot no puede quedarse apagado en silencio (09/10/2026)
+
+`finanzas-vigia.timer` corre `deploy/vigia.sh` cada 5 minutos. Si `finanzas-bot` no está activo:
+`reset-failed`, `start`, y **avisa por Telegram** si lo levantó o si no pudo (con el espacio libre en
+disco, que es una de las causas). Un aviso por hora como máximo (`/run/finanzas-vigia.ultimo`), porque si el
+bot está en bucle esto corre cada 5 minutos.
+
+Corre como root (usa `systemctl`) y manda el mensaje como el usuario `finanzas`. Mandar un mensaje no choca
+con el `getUpdates` del bot aunque compartan token.
+
+**Por qué hizo falta**: el usuario descubría que el bot estaba muerto escribiéndole y no recibiendo nada, y
+desde la nube no hay forma de entrar al servidor (no hay cliente SSH ni llaves, y la red bloquea el 22), así
+que la única salida era pedirle comandos por Terminal. Ahora el servidor se arregla solo y avisa.
 
 ## Un reinicio no puede dejar el bot apagado (09/10/2026)
 

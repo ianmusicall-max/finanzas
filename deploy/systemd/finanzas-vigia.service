@@ -1,0 +1,13 @@
+# Comprueba que el bot este vivo; si no, lo levanta y avisa por Telegram.
+# Lo dispara finanzas-vigia.timer. Corre como root porque usa systemctl.
+[Unit]
+Description=Vigía del bot de finanzas (lo levanta si se cayó)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/finanzas
+ExecStart=/bin/bash /opt/finanzas/deploy/vigia.sh
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=America/Lima

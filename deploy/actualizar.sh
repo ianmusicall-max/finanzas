@@ -33,6 +33,7 @@ levantar_bot() {
 sudo -u finanzas .venv/bin/python setup_notion.py >/dev/null   # agrega columnas nuevas si las hay
 cp deploy/systemd/finanzas-* /etc/systemd/system/ && systemctl daemon-reload
 systemctl enable -q --now finanzas-avisos.timer   # recordatorios de cada mañana
+systemctl enable -q --now finanzas-vigia.timer    # si el bot se cae, lo levanta y avisa
 systemctl enable -q --now finanzas-autoupdate.timer   # desde ahora se actualiza solo cada 5 minutos
 levantar_bot
 journalctl -u finanzas-bot --no-pager -n 3 -o cat
