@@ -7,6 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import categorias as C  # noqa: E402
 import finanzas as F  # noqa: E402
 from informes import Informe  # noqa: E402
 from lector import interpretar  # noqa: E402
@@ -120,7 +121,7 @@ class Consejos(unittest.TestCase):
         self.assertTrue(c[0].startswith("🔴"))
 
     def test_deseos_sobre_30(self):
-        c = F.consejos(self._r(1000, [("Comida y restaurantes", 400)]))
+        c = F.consejos(self._r(1000, [("Restaurantes y cafés", 400)]))
         self.assertTrue(any("30%" in x for x in c))
 
     def test_presupuesto_pasado_va_primero(self):
@@ -141,7 +142,7 @@ class InformeCompleto(ConTC):
         d = date(2026, 9, 30)
         cargar(n, ["+4000 sueldo", "60 almuerzo", "25 taxi"], d)
         cargar(n, ["50 almuerzo"], date(2026, 9, 22))   # semana anterior
-        F.fijar_presupuesto(n, BASES, "Comida y restaurantes", 100)
+        F.fijar_presupuesto(n, BASES, "Restaurantes y cafés", 100)
         inf = Informe(n, BASES, F.semana(d), dia_de_corte=d)
         t = inf.texto()
         self.assertIn("S/ 85.00", t)
@@ -313,3 +314,40 @@ class FechaDeCorte(ConTC):
         # y la última cuota: 12 pagos desde octubre terminan en septiembre
         self.assertEqual(F.compras_en_cuotas(n, BASES, date(2027, 9, 15), {"Banco Falabella": (10, 30)})[0]["toca"], 12)
         self.assertEqual(F.compras_en_cuotas(n, BASES, date(2027, 10, 15), {"Banco Falabella": (10, 30)}), [])
+
+
+class CategoriasRenombradas(unittest.TestCase):
+    """Cambiar el nombre de una categoria no desconecta lo que ya estaba en Notion."""
+
+    def _mov_viejo(self, n, categoria, monto, d):
+        n.crear_pagina(BASES[F.MOVIMIENTOS], {
+            "Descripción": {"title": [{"text": {"content": "almuerzo"}}]},
+            "Tipo": {"select": {"name": "Gasto"}},
+            "Categoría": {"select": {"name": categoria}},
+            "Monto": {"number": monto}, "Monto S/": {"number": monto},
+            "Moneda": {"select": {"name": "PEN"}},
+            "Fecha": {"date": {"start": d.isoformat()}}})
+
+    def test_el_gasto_viejo_cuenta_en_la_categoria_nueva(self):
+        n, d = FakeNotion(), date(2026, 10, 10)
+        self._mov_viejo(n, "Comida y restaurantes", 40, d)      # como lo guardo el bot antes
+        cargar(n, ["60 cena falabella debito"], d)              # y como lo guarda ahora
+        cats = {m["categoria"] for m in F.movimientos(n, BASES, date(2026, 10, 1), d)}
+        self.assertEqual(cats, {"Restaurantes y cafés"})        # una sola linea, no dos
+
+    def test_chatarra_y_golosinas_ahora_es_golosinas(self):
+        self.assertEqual(C.vigente("Chatarra y golosinas"), "Golosinas")
+        self.assertEqual(C.vigente("chatarra y golosinas"), "Golosinas")   # sin mayusculas igual
+        self.assertEqual(C.vigente("Movilidad"), "Movilidad")              # las demas no se tocan
+        self.assertEqual(C.buscar_categoria("Gasto", "chatarra y golosinas"), "Golosinas")
+        self.assertEqual(C.buscar_categoria("Gasto", "comida"), "Restaurantes y cafés")
+
+    def test_el_presupuesto_viejo_se_renombra_en_vez_de_duplicarse(self):
+        n = FakeNotion()
+        n.crear_pagina(BASES[F.PRESUPUESTO], {
+            "Categoría": {"title": [{"text": {"content": "Comida y restaurantes"}}]},
+            "Mensual S/": {"number": 800}})
+        self.assertEqual(F.presupuesto(n, BASES), {"Restaurantes y cafés": 800})
+        F.fijar_presupuesto(n, BASES, "Restaurantes y cafés", 900)
+        self.assertEqual(len(n.dbs[BASES[F.PRESUPUESTO]]), 1)   # sigue siendo una sola fila
+        self.assertEqual(F.presupuesto(n, BASES), {"Restaurantes y cafés": 900})

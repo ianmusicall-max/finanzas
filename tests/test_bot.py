@@ -76,7 +76,7 @@ class Autorizacion(Base):
 class Anotar(Base):
     def test_gasto_queda_en_notion(self):
         t = self.di("45 almuerzo interbank")
-        self.assertIn("Comida y restaurantes", t)
+        self.assertIn("Restaurantes y cafés", t)
         self.assertIn("S/ 45.00", t)
         f = self.movs[0]
         self.assertEqual((f["Tipo"], f["Monto S/"], f["Medio de pago"], f["Grupo"], f["Origen"]),
@@ -138,7 +138,7 @@ class Presupuesto(Base):
         self.assertIn("🟡", self.di("85 almuerzo"))
         self.assertIn("Pasaste el presupuesto", self.di("20 cafe"))
         t = self.di("/presupuesto")
-        self.assertIn("🔴 Comida y restaurantes", t)
+        self.assertIn("🔴 Restaurantes y cafés", t)
 
     def test_categoria_invalida(self):
         self.assertIn("No reconozco", self.di("/presupuesto zzz 100"))

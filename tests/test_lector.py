@@ -28,7 +28,7 @@ class Gastos(unittest.TestCase):
     def test_simple(self):
         m = leer("45 almuerzo")
         self.assertEqual((m.tipo, m.monto, m.moneda, m.categoria, m.descripcion, m.fecha),
-                         ("Gasto", 45, "PEN", "Comida y restaurantes", "Almuerzo", HOY))
+                         ("Gasto", 45, "PEN", "Restaurantes y cafés", "Almuerzo", HOY))
         self.assertTrue(m.adivinada)
 
     def test_medio_y_ayer(self):
