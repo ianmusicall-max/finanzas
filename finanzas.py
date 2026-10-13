@@ -316,7 +316,7 @@ def movimientos(notion, bases: dict, desde: date, hasta: date) -> list:
         if monto_s is None:   # fila escrita a mano en Notion, sin la columna en soles
             monto_s = soles(f.get("Monto") or 0, f.get("Moneda") or "PEN")
         out.append({"id": f["_id"], "url": f.get("_url"), "tipo": f.get("Tipo") or "Gasto",
-                    "categoria": f.get("Categoría") or "Otros", "monto_s": float(monto_s or 0),
+                    "categoria": C.vigente(f.get("Categoría") or "Otros"), "monto_s": float(monto_s or 0),
                     "fecha": (f.get("Fecha") or "")[:10], "descripcion": f.get("Descripción") or "",
                     "medio": f.get("Medio de pago"), "cuenta": f.get("Cuenta"), "frecuencia": f.get("Frecuencia")})
     return out
@@ -337,14 +337,15 @@ def buscar(notion, bases: dict, texto: str, desde: Optional[date] = None,
                       {"property": "Fecha", "date": {"on_or_before": hasta.isoformat()}}]}
     out = []
     for f in notion.consultar(bases[MOVIMIENTOS], filtro, limite=5000):
-        heno = C.normal(" ".join(str(f.get(k) or "") for k in
-                                 ("Descripción", "Categoría", "Medio de pago", "Cuenta")))
+        heno = C.normal(" ".join(list(str(f.get(k) or "") for k in
+                                      ("Descripción", "Categoría", "Medio de pago", "Cuenta"))
+                                 + [C.vigente(f.get("Categoría") or "")]))
         if not all(w in heno for w in palabras):
             continue
         monto_s = f.get("Monto S/")
         if monto_s is None:
             monto_s = soles(f.get("Monto") or 0, f.get("Moneda") or "PEN")
-        out.append({"id": f["_id"], "tipo": f.get("Tipo") or "Gasto", "categoria": f.get("Categoría") or "Otros",
+        out.append({"id": f["_id"], "tipo": f.get("Tipo") or "Gasto", "categoria": C.vigente(f.get("Categoría") or "Otros"),
                     "descripcion": f.get("Descripción") or "", "monto_s": float(monto_s or 0),
                     "monto": float(f.get("Monto") or 0), "moneda": f.get("Moneda") or "PEN",
                     "medio": f.get("Medio de pago"), "fecha": (f.get("Fecha") or "")[:10]})
@@ -366,7 +367,7 @@ def movimiento(notion, bases: dict, page_id: str) -> Optional[dict]:
     monto, moneda = float(f.get("Monto") or 0), f.get("Moneda") or "PEN"
     monto_s = f.get("Monto S/")
     return {"id": f.get("_id") or page_id, "tipo": f.get("Tipo") or "Gasto",
-            "categoria": f.get("Categoría") or "Otros", "descripcion": f.get("Descripción") or "",
+            "categoria": C.vigente(f.get("Categoría") or "Otros"), "descripcion": f.get("Descripción") or "",
             "monto": monto, "moneda": moneda,
             "monto_s": float(monto_s if monto_s is not None else soles(monto, moneda)),
             "medio": f.get("Medio de pago"), "tarjeta": f.get("Tarjeta"), "cuenta": f.get("Cuenta"),
@@ -504,7 +505,7 @@ def presupuesto(notion, bases: dict, columna: str = "Mensual S/") -> dict:
     out = {}
     for f in notion.consultar(bases[PRESUPUESTO], limite=200):
         if f.get("Categoría") and f.get(columna):
-            out[f["Categoría"]] = float(f[columna])
+            out[C.vigente(f["Categoría"])] = float(f[columna])
     return out
 
 
@@ -520,10 +521,11 @@ def pagado_anual(notion, bases: dict, categoria: str, d: Optional[date] = None) 
 
 
 def fijar_presupuesto(notion, bases: dict, categoria: str, monto: float, columna: str = "Mensual S/") -> dict:
-    existentes = notion.consultar(bases[PRESUPUESTO], {"property": "Categoría", "title": {"equals": categoria}}, limite=5)
     props = {"Categoría": p_title(categoria), columna: p_number(monto), "Grupo": p_select(C.grupo(categoria))}
-    if existentes:
-        return notion.editar_pagina(existentes[0]["_id"], props)
+    for nombre in [categoria] + C.anteriores(categoria):   # la fila vieja se renombra, no se duplica
+        existentes = notion.consultar(bases[PRESUPUESTO], {"property": "Categoría", "title": {"equals": nombre}}, limite=5)
+        if existentes:
+            return notion.editar_pagina(existentes[0]["_id"], props)
     return notion.crear_pagina(bases[PRESUPUESTO], props)
 
 
@@ -687,7 +689,7 @@ def recordatorios(notion, bases: dict) -> list:
                 pass
         out.append({"id": f["_id"], "nombre": f.get("Recordatorio") or "?", "dia": int(f["Día"]) if f.get("Día") else None,
                     "tipo": f.get("Tipo") or "Otro", "monto": float(f["Monto"]) if f.get("Monto") else None,
-                    "moneda": f.get("Moneda") or "PEN", "categoria": f.get("Categoría"), "deuda": f.get("Deuda") or "",
+                    "moneda": f.get("Moneda") or "PEN", "categoria": C.vigente(f.get("Categoría")), "deuda": f.get("Deuda") or "",
                     "ultimo": (f.get("Último") or "")[:10]})
     return sorted(out, key=lambda r: (r["dia"] or 99, r["nombre"]))
 

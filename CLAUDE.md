@@ -123,6 +123,22 @@ empieza a molestar, el camino es el mismo: a disco, con fecha para que no reviva
 Los tests tienen que aislar los archivos: `tests/test_bot.py` apunta `formularios.AJUSTES`, `formularios.DATA`
 y `formularios.ESTADOS` a un temporal en `setUp`, o el estado se pasa de un test al siguiente.
 
+## Renombrar una categoría sin desconectar Notion (13/10/2026)
+
+"Comida y restaurantes" → **Restaurantes y cafés**, "Chatarra y golosinas" → **Golosinas**. Las filas que ya
+están en Notion guardan el nombre viejo, así que renombrar la clave de `C.GASTOS` partiría cada categoría en
+dos líneas y dejaría huérfana su fila de Presupuesto. Por eso el cambio va con un puente:
+
+- `C.RENOMBRADAS` (viejo → nuevo) y `C.vigente()`, que se aplica **al leer** la columna `Categoría` de Notion
+  (`F.movimientos`, `F.buscar`, `F.movimiento`, `F.presupuesto`, `F.compras_en_cuotas`).
+- `C.anteriores()` + `F.fijar_presupuesto`: si la fila de Presupuesto todavía tiene el nombre viejo, se le
+  cambia el nombre en vez de crear una repetida.
+- `C.buscar_categoria` acepta el nombre viejo escrito a mano, y "comida" quedó como palabra clave de
+  Restaurantes y cafés (`/presupuesto comida 800` y `45 comida` seguían dependiendo del nombre).
+
+Lo cubre `tests.test_finanzas.CategoriasRenombradas`. **Al renombrar otra categoría, el camino es el mismo**:
+agregarla a `RENOMBRADAS` y revisar que ninguna palabra clave viviera solo en el nombre viejo.
+
 ## Pendiente
 
 - ~~Confirmar que el servidor se actualiza solo~~: confirmado el 03/10/2026 (`/retirar` responde en Telegram,

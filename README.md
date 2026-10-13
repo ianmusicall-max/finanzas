@@ -66,7 +66,7 @@ la hoja de 2025 con cuenta **Inversión** se siguen contando como inversión y n
 
 | Mensaje | Queda como |
 |---|---|
-| `45 almuerzo` | gasto · Comida y restaurantes · S/ 45 |
+| `45 almuerzo` | gasto · Restaurantes y cafés · S/ 45 |
 | `1200 rub pyaterochka tbank` | gasto en rublos · Supermercado · T-Bank |
 | `12.50 taxi yape ayer` | gasto · Movilidad · Yape · fecha de ayer |
 | `netflix 44.90` | gasto · Suscripciones |
@@ -191,6 +191,10 @@ siempre dice a qué cuenta se la devolvió, y lo corriges con `/activo`.
 - **Patrimonio neto** = activos − deudas, en soles. Queda registrado en cada resumen, así ves su evolución.
 - **Fondo de emergencia**: efectivo y bancos ÷ gasto de un mes normal (el mes pasado). Lo recomendable son 3 a 6 meses.
 - **Gastos hormiga**: los de menos de S/ 20; si son muchos y pesan más del 10%, te avisa.
+- **Categorías que cambiaron de nombre** (13/10/2026): *Comida y restaurantes* ahora es
+  **Restaurantes y cafés**, y *Chatarra y golosinas* ahora es **Golosinas**. Lo que ya estaba
+  guardado en Notion conserva el nombre viejo, pero el bot lo cuenta en la categoría nueva: los
+  resúmenes, el presupuesto y `/comparar` siguen mostrando una sola línea, no dos.
 
 ## Cuentas y "págate primero"
 

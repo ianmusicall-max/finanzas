@@ -10,9 +10,9 @@ TIPOS = ["Gasto", "Ingreso", "Ahorro", "Inversión"]
 # Las categorias del formulario "Gastos 2025", en el orden en que mas se usaron.
 # categoria -> (grupo 50/30/20, emoji, palabras clave para el modo rapido)
 GASTOS = {
-    "Comida y restaurantes": ("Deseo", "🍽", ["almuerzo", "cena", "desayuno", "restaurante", "menu", "pollo", "chifa", "ceviche", "pizza", "hamburguesa", "sushi", "rappi", "pedidosya", "delivery", "cafe", "starbucks", "lomo", "aji de gallina", "shawarma"]),
+    "Restaurantes y cafés": ("Deseo", "🍽", ["restaurante", "cafeteria", "comida", "almuerzo", "cena", "desayuno", "menu", "pollo", "chifa", "ceviche", "pizza", "hamburguesa", "sushi", "rappi", "pedidosya", "delivery", "cafe", "starbucks", "lomo", "aji de gallina", "shawarma"]),
     "Supermercado": ("Necesidad", "🛒", ["mercado", "supermercado", "super", "plaza vea", "wong", "metro", "tottus", "vivanda", "makro", "bodega", "verduras", "fruta", "pan", "abarrotes", "pyaterochka", "perekrestok", "magnit", "lenta", "vkusvill"]),
-    "Chatarra y golosinas": ("Deseo", "🍫", ["golosina", "chocolate", "snack", "gaseosa", "helado", "dulce", "galleta", "papitas", "chatarra"]),
+    "Golosinas": ("Deseo", "🍫", ["golosina", "chocolate", "snack", "gaseosa", "helado", "dulce", "galleta", "papitas", "chatarra"]),
     "Movilidad": ("Necesidad", "🚕", ["taxi", "uber", "cabify", "didi", "indrive", "yandex", "bus", "combi", "metropolitano", "metro de", "pasaje", "peaje", "estacionamiento", "cochera", "tren"]),
     "Viajes": ("Deseo", "✈️", ["vuelo", "pasaje aereo", "avianca", "latam", "sky", "aeroflot", "pegasus", "hotel", "airbnb", "hostal", "viaje", "tour"]),
     "Comisiones Banco": ("Necesidad", "🏧", ["comision", "itf", "mantenimiento de cuenta", "transferencia"]),
@@ -102,6 +102,14 @@ LIQUIDOS = {"Efectivo y bancos"}   # lo que cuenta para el fondo de emergencia
 
 GRUPOS = ["Necesidad", "Deseo"]
 
+# Categorias que cambiaron de nombre (09/10/2026 en adelante). Lo que ya estaba guardado en Notion
+# conserva el nombre viejo, asi que al leerlo se traduce al nuevo: el historial, el presupuesto y los
+# resumenes siguen contando todo junto en vez de partirse en dos lineas.
+RENOMBRADAS = {
+    "Comida y restaurantes": "Restaurantes y cafés",
+    "Chatarra y golosinas": "Golosinas",
+}
+
 
 def normal(texto: str) -> str:
     """minusculas y sin tildes, para comparar palabras."""
@@ -151,13 +159,16 @@ def adivinar(tipo: str, texto: str):
 
 
 def buscar_categoria(tipo: str, texto: str):
-    """Categoria por nombre escrito a mano ('comida' -> 'Comida y restaurantes')."""
+    """Categoria por nombre escrito a mano ('comida' -> 'Restaurantes y cafés')."""
     t = normal(texto).strip()
     if not t:
         return None
     for cat in nombres(tipo):
         if normal(cat) == t:
             return cat
+    for viejo, ahora in RENOMBRADAS.items():       # el nombre de antes sigue sirviendo
+        if normal(viejo) == t and ahora in nombres(tipo):
+            return ahora
     for cat in nombres(tipo):
         if normal(cat).startswith(t) or t in normal(cat).split():
             return cat
@@ -173,3 +184,22 @@ def buscar_medio(texto: str):
         if " %s " % normal(m) in t:
             return m
     return None
+
+
+def vigente(categoria: str) -> str:
+    """El nombre de ahora de una categoria leida de Notion ('Chatarra y golosinas' -> 'Golosinas')."""
+    if not categoria:
+        return categoria
+    c = categoria.strip()
+    if c in RENOMBRADAS:
+        return RENOMBRADAS[c]
+    cn = normal(c)
+    for viejo, nuevo in RENOMBRADAS.items():
+        if normal(viejo) == cn:
+            return nuevo
+    return c
+
+
+def anteriores(categoria: str) -> list:
+    """Como se llamaba antes esa categoria, para encontrar sus filas viejas en Notion."""
+    return [v for v, n in RENOMBRADAS.items() if n == categoria]

@@ -1,6 +1,6 @@
 """Lee un mensaje escrito como uno lo diria y lo convierte en un movimiento.
 
-    45 almuerzo                 gasto de S/ 45, Comida y restaurantes
+    45 almuerzo                 gasto de S/ 45, Restaurantes y cafés
     12.50 taxi yape ayer        gasto, Transporte, pagado con Yape, fecha de ayer
     +1943 usd facebook          ingreso en dolares, categoria Facebook
     ahorro 500 emergencia       ahorro, Fondo de emergencia
