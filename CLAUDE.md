@@ -40,7 +40,17 @@ debajo de la página padre (`NOTION_PARENT_PAGE_ID`).
   Ingreso suma, gasto con débito resta, gasto a crédito va a la deuda de la tarjeta (Falabella → "Banco Falabella").
 - **Día de corte** (columna nueva en Deudas, 08/10/2026): con el corte y el `Día de pago` el bot sabe en qué
   estado de cuenta cae cada compra a crédito y cuándo se paga (`F.cuando_se_paga`), y la primera cuota de una
-  compra en cuotas cae en el mes verdadero. Se pone con `/corte Falabella 10`. Falta cargar los cortes reales.
+  compra en cuotas cae en el mes verdadero. Se pone con `/corte Falabella <día>`.
+  **Falabella cargado el 14/10/2026: corte el 4, pago el 30** (período de facturación 04/09 → 04/10, vence
+  30/10). Faltan los cortes de Tarjeta OH, SIP, T-Bank, BBVA.
+- **El `Saldo` de una tarjeta es la deuda TOTAL, no el estado de cuenta** (14/10/2026). El saldo de
+  "Banco Falabella" decía S/ 16,165.32 y estaba inflado en **S/ 5,192.75**: el monto que el usuario cargó a
+  mano el 01/10 (S/ 15,751) no era la deuda facturada, y encima el bot le sumó compras que ya estaban
+  dentro de ese estado de cuenta, así que se contaron dos veces. Se reconstruyó desde el estado de cuenta:
+  facturado al corte (S/ 10,168.59) + las compras posteriores al corte (S/ 803.98) = **S/ 10,972.57**.
+  Eso también estaba hundiendo el patrimonio neto y desordenando `plan_deudas`.
+  **Al cargar una tarjeta a mano**: va la deuda total de la app del banco, nunca el "pago total del mes" del
+  estado de cuenta (ese es solo el ciclo cerrado) ni la línea utilizada. Después el bot la mantiene solo.
 - **"Banco Falabella" es la tarjeta de crédito**, no el préstamo. El bot busca ese nombre exacto
   (`C.DEUDA_TARJETA`) para sumarle las compras a crédito, así que no se renombra. El préstamo quedó aparte
   como "Préstamo Falabella" (03/10/2026), porque las dos tenían tasas distintas y juntas no se podía decir
