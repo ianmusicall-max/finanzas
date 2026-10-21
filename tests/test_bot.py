@@ -1559,3 +1559,9 @@ class RelojPorBotones(Base):
         self.toca("⏹ Terminar")
         self.di("45 almuerzo")
         self.assertEqual(len(self.movs), 1)
+
+    def test_el_reloj_esta_en_el_menu_de_start(self):
+        """Si no está en los botones de /start, para el usuario no existe."""
+        self.di("/start")
+        self.assertIn("⏱ Reloj", [t for t, _ in self.tg.botones()])
+        self.assertIn("Reloj de trabajo", self.toca("⏱ Reloj"))
