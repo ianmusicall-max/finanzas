@@ -196,6 +196,16 @@ promedio. Nació para medir las publicaciones de Facebook y no pasarse de hora.
   pide el conteo semanal, el camino es una base nueva, no meterlo en Movimientos.
 - Los nombres se comparan en minúsculas y sin espacios de más (`_clave`), así que "Facebook" y
   "  facebook " son la misma tarea.
+- **Se entra por botones** (`RELOJ_TOPES`): 30 min / 1 hora / 3 horas / sin tope. Se toca uno y el
+  bot pregunta el nombre de la tarea. Ese "estoy esperando el nombre" **también va a disco**
+  (`pendiente` en `reloj.json`), por lo mismo que los formularios; y se descarta si es de otro día,
+  para que no revi­va al día siguiente y se coma un gasto.
+- **`tests/test_bot.Base` tiene que apuntar `reloj.DATA` y `reloj.ESTADO` a un temporal**: el bot
+  llama a `R.esperando(chat)` en *cada* mensaje de texto, así que sin eso los tests del bot leerían
+  y escribirían el `data/reloj.json` real.
+- El riesgo de esta pantalla es que lo que el usuario escriba mientras se le pide el nombre termine
+  anotado como un gasto. Lo cubre
+  `tests.test_bot.RelojPorBotones.test_el_nombre_arranca_el_bloque_y_no_se_anota_como_gasto`.
 
 Lo cubre `tests.test_reloj`, que apunta `reloj.DATA`/`reloj.ESTADO` a un temporal y le cambia
 `reloj.ahora` por un reloj falso (si no, los tests esperarían de verdad).

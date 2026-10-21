@@ -49,7 +49,7 @@ AYUDA = (
     "/consejos · qué mejorar según tus números\n"
     "/metodos · formas de manejar tu dinero\n"
     "/ultimos · lo último que anotaste, con botones para corregir el monto o borrar\n"
-    "<code>/reloj facebook 45</code> · cronometra una tarea y te avisa al llegar al tope\n"
+    "/reloj · botones de 30 min, 1 hora o 3 horas; eliges uno, escribes qué haces y te aviso\n"
     "/reloj fin · cierra el bloque y te dice cuánto tomó y tu promedio · /reloj tareas\n"
     "<code>/buscar farmacia</code> · busca en todo tu historial (<code>/buscar uber mes</code>)\n\n"
     "<b>Ajustar</b>\n"
@@ -71,6 +71,12 @@ MENU = [[("➖ Gasto", "m:gasto"), ("➕ Ingreso", "m:ingreso"), ("🐷 Ahorro",
         [("💰 Ingresos", "m:ingresos"), ("📗 Excel", "m:excel"), ("🖼 Gráfico", "m:grafico")],
         [("📊 Comparar", "m:comparar"), ("🔍 Buscar", "m:buscar"), ("💡 Consejos", "m:consejos")],
         [("💱 Tipo de cambio", "m:tc"), ("⚙️ Ajustar", "m:ajustar")]]
+
+# Topes del reloj de trabajo. Se toca uno y el bot pregunta que vas a hacer.
+RELOJ_TOPES = [[("⏱ 30 min", "rj:30"), ("⏱ 1 hora", "rj:60")],
+               [("⏱ 3 horas", "rj:180"), ("♾ Sin tope", "rj:0")],
+               [("📊 Mis tiempos", "rj:tareas")]]
+RELOJ_CORRE = [[("⏹ Terminar", "rj:fin"), ("✖️ Cortar", "rj:corta")]]
 
 MENU_VER = [[("📏 Límite", "m:limite"), ("🧾 Presupuesto", "m:presupuesto")],
             [("💳 Deudas", "m:deudas"), ("🏦 Patrimonio", "m:patrimonio")],
@@ -294,6 +300,8 @@ class Bot:
                 self._monto_retiro(chat, texto)
             elif (self._suscribiendo.get(chat) or {}).get("esperando"):
                 self._meses_suscripcion(chat, texto)
+            elif R.esperando(chat):
+                self.decir(chat, R.con_nombre(chat, texto), RELOJ_CORRE)
             elif chat in self._corrigiendo:
                 self._cambiar_monto(chat, texto)
             elif self.form.activo(chat):
@@ -633,6 +641,9 @@ class Bot:
             elif partes[0] == "sc":
                 self.tg.quitar_botones(chat, message_id)
                 self._boton_suscripcion(chat, partes[1])
+            elif partes[0] == "rj":
+                self.tg.quitar_botones(chat, message_id)
+                self._boton_reloj(chat, partes[1])
             elif partes[0] in ("pg", "pm", "pc"):
                 self.tg.quitar_botones(chat, message_id)
                 self._boton_pago(chat, partes[0], ":".join(partes[1:]))
@@ -702,7 +713,10 @@ class Bot:
         a = " ".join(arg.split())
         clave = C.normal(a)
         if not a:
-            self.decir(chat, R.estado(chat), MENU)
+            if R.corriendo(chat):
+                self.decir(chat, R.estado(chat), RELOJ_CORRE)
+            else:
+                self.decir(chat, "⏱ <b>Reloj de trabajo</b>\n¿Cuánto tiempo le das?", RELOJ_TOPES)
         elif clave in ("fin", "termine", "listo", "ya", "stop", "para"):
             self.decir(chat, R.terminar(chat), MENU)
         elif clave in ("corta", "cortar", "cancela", "cancelar", "borra", "olvida"):
@@ -715,6 +729,25 @@ class Bot:
             partes = a.split()
             tope = int(partes[-1]) if len(partes) > 1 and partes[-1].isdigit() else None
             self.decir(chat, R.iniciar(chat, " ".join(partes[:-1]) if tope else a, tope), MENU)
+
+    def _boton_reloj(self, chat, valor: str) -> None:
+        if valor == "tareas":
+            self.decir(chat, R.tareas(), MENU)
+        elif valor == "fin":
+            self.decir(chat, R.terminar(chat), MENU)
+        elif valor == "corta":
+            self.decir(chat, R.cortar(chat), MENU)
+        elif valor == "no":
+            self.decir(chat, R.olvidar(chat), MENU)
+        elif valor.isdigit():
+            if R.corriendo(chat):          # ya hay uno: no se pisan
+                self.decir(chat, R.estado(chat), RELOJ_CORRE)
+                return
+            tope = int(valor)
+            R.pedir_nombre(chat, tope)
+            self.decir(chat, "✏️ ¿Qué vas a hacer? Escríbelo y arranco%s." % (
+                (", y te aviso a los %s" % R.reloj(tope)) if tope else " (sin aviso)"),
+                [[("✖️ Cancelar", "rj:no")]])
 
     def _avisar_reloj(self) -> None:
         """Los topes de /reloj que ya vencieron.

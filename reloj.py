@@ -32,14 +32,17 @@ def _clave(tarea: str) -> str:
 
 
 def _leer() -> dict:
+    """El archivo, con todas las claves puestas. Un archivo roto o a medias no puede tumbar el bot,
+    asi que cualquier cosa que no tenga la forma esperada se reemplaza por lo vacio."""
     try:
         d = json.loads(ESTADO.read_text())
     except (OSError, ValueError):
-        return {"corriendo": {}, "hechos": []}
+        d = {}
     if not isinstance(d, dict):
-        return {"corriendo": {}, "hechos": []}
-    d.setdefault("corriendo", {})
-    d.setdefault("hechos", [])
+        d = {}
+    for clave, vacio in (("corriendo", {}), ("hechos", []), ("pendiente", {})):
+        if not isinstance(d.get(clave), type(vacio)):
+            d[clave] = vacio
     return d
 
 
@@ -132,6 +135,44 @@ def cortar(chat) -> str:
         return "No tenías nada corriendo."
     _escribir(d)
     return "✖️ <b>%s</b> cortado, no se guardó (iban %s)." % (c["tarea"], reloj(_minutos(c["desde"])))
+
+
+# ------------------------------------------------- los botones: primero el tope, despues el nombre
+# Se toca "30 min" y el bot pregunta que vas a hacer. Ese "te estoy preguntando el nombre" tambien
+# tiene que vivir en disco: si el bot se reinicia justo ahi, lo que escribas despues no se puede
+# perder ni, peor, anotarse como un gasto.
+
+def corriendo(chat) -> bool:
+    return str(chat) in _leer()["corriendo"]
+
+
+def pedir_nombre(chat, tope: int) -> None:
+    d = _leer()
+    d["pendiente"][str(chat)] = {"tope": int(tope), "dia": ahora().date().isoformat()}
+    _escribir(d)
+
+
+def esperando(chat) -> bool:
+    """Si quedo preguntando el nombre. Lo de otro dia se descarta: no revive al dia siguiente."""
+    p = _leer()["pendiente"].get(str(chat))
+    return bool(p) and p.get("dia") == ahora().date().isoformat()
+
+
+def olvidar(chat) -> str:
+    d = _leer()
+    habia = d["pendiente"].pop(str(chat), None)
+    if habia is not None:
+        _escribir(d)
+    return "👌 Listo, no arranco nada."
+
+
+def con_nombre(chat, nombre: str) -> str:
+    d = _leer()
+    p = d["pendiente"].pop(str(chat), None)
+    if p is None:
+        return "Ese botón ya no sirve. Empieza otra vez con /reloj."
+    _escribir(d)
+    return iniciar(chat, nombre[:60], p.get("tope") or None)
 
 
 # ---------------------------------------------------------------- historial
