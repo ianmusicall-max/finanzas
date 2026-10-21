@@ -1,0 +1,189 @@
+"""Reloj de trabajo: cronometra una tarea y avisa cuando llega al tope.
+
+Nacio para medir cuanto toman las publicaciones de Facebook y no pasarse de hora (21/10/2026).
+Cada bloque terminado se guarda, asi que a la segunda vez el bot ya puede decir cuanto suele
+tomar: eso es lo que convierte el cronometro en algo util y no en un reloj mas.
+
+**No hace falta ningun timer nuevo en el servidor.** El bot ya esta despierto escuchando Telegram
+(`getUpdates` con espera de 30 s), asi que en cada vuelta del bucle pregunta `vencidos()` y manda
+el aviso que toque. Por eso la alarma puede llegar con hasta ~30 s de atraso, que para bloques de
+media hora no se nota.
+
+El estado va a disco porque `finanzas-autoupdate` reinicia el bot cada vez que hay algo nuevo en
+main: un bloque a medio correr no puede morir con el reinicio (la misma leccion que los
+formularios, 09/10/2026).
+"""
+
+import json
+from datetime import datetime, timedelta
+from typing import Optional
+
+from config import DATA, ahora
+
+ESTADO = DATA / "reloj.json"
+
+AVISOS = 2          # al llegar al tope y una vez mas; despues se calla para no ser un martillo
+RECORDAR = 0.5      # el segundo aviso al 50% pasado el tope
+GUARDA = 200        # cuantos bloques terminados se guardan por tarea
+
+
+def _clave(tarea: str) -> str:
+    return " ".join(tarea.strip().lower().split())
+
+
+def _leer() -> dict:
+    try:
+        d = json.loads(ESTADO.read_text())
+    except (OSError, ValueError):
+        return {"corriendo": {}, "hechos": []}
+    if not isinstance(d, dict):
+        return {"corriendo": {}, "hechos": []}
+    d.setdefault("corriendo", {})
+    d.setdefault("hechos", [])
+    return d
+
+
+def _escribir(d: dict) -> None:
+    try:
+        DATA.mkdir(parents=True, exist_ok=True)
+        ESTADO.write_text(json.dumps(d, ensure_ascii=False))
+    except OSError:
+        pass   # si no se puede escribir, el bot sigue andando con lo que tiene
+
+
+def _minutos(desde: str, hasta: Optional[datetime] = None) -> float:
+    d = datetime.fromisoformat(desde)
+    return max(0.0, ((hasta or ahora()) - d).total_seconds() / 60.0)
+
+
+def reloj(minutos: float) -> str:
+    """45.2 -> '45 min'. 95 -> '1 h 35 min'."""
+    m = int(round(minutos))
+    if m < 60:
+        return "%d min" % m
+    return "%d h %02d min" % divmod(m, 60)
+
+
+# ---------------------------------------------------------------- empezar, ver, terminar
+
+def iniciar(chat, tarea: str, tope: Optional[int] = None) -> str:
+    d = _leer()
+    corriendo = d["corriendo"].get(str(chat))
+    if corriendo:
+        return ("⏱ Ya tienes <b>%s</b> corriendo, van %s.\nCiérralo con /reloj fin o déjalo con "
+                "/reloj corta." % (corriendo["tarea"], reloj(_minutos(corriendo["desde"]))))
+    if not tarea:
+        return "¿Qué estás haciendo? Por ejemplo: <code>/reloj facebook 45</code>"
+    d["corriendo"][str(chat)] = {"tarea": tarea.strip(), "desde": ahora().isoformat(),
+                                 "tope": int(tope) if tope else None, "avisos": 0}
+    _escribir(d)
+    h = _historial(d, tarea)
+    extra = ""
+    if tope:
+        extra = "\nTe aviso a los %d min." % tope
+    elif h["veces"]:
+        extra = "\nLa última vez te tomó %s." % reloj(h["ultimo"])
+    if h["veces"]:
+        extra += "\nPromedio de <b>%s</b>: %s (%d veces)." % (tarea.strip(), reloj(h["promedio"]), h["veces"])
+    return "▶️ <b>%s</b>, arrancando.%s" % (tarea.strip(), extra)
+
+
+def estado(chat) -> str:
+    d = _leer()
+    c = d["corriendo"].get(str(chat))
+    if not c:
+        return "No tienes nada corriendo. Arranca con <code>/reloj facebook 45</code>."
+    van = _minutos(c["desde"])
+    txt = "⏱ <b>%s</b>: van %s." % (c["tarea"], reloj(van))
+    if c["tope"]:
+        falta = c["tope"] - van
+        txt += ("\nTe pasaste por %s del tope de %d min." % (reloj(-falta), c["tope"])) if falta < 0 \
+            else ("\nQuedan %s de los %d min." % (reloj(falta), c["tope"]))
+    return txt
+
+
+def terminar(chat) -> str:
+    d = _leer()
+    c = d["corriendo"].pop(str(chat), None)
+    if not c:
+        return "No tenías nada corriendo."
+    van = _minutos(c["desde"])
+    d["hechos"].append({"tarea": c["tarea"], "minutos": round(van, 1), "fecha": ahora().date().isoformat()})
+    mismos = [h for h in d["hechos"] if _clave(h["tarea"]) == _clave(c["tarea"])]
+    if len(mismos) > GUARDA:
+        sobran = {id(h) for h in mismos[:-GUARDA]}
+        d["hechos"] = [h for h in d["hechos"] if id(h) not in sobran]
+    _escribir(d)
+    h = _historial(d, c["tarea"])
+    txt = "⏹ <b>%s</b>: %s." % (c["tarea"], reloj(van))
+    if c["tope"]:
+        txt += " Te pasaste %s del tope." % reloj(van - c["tope"]) if van > c["tope"] + 0.5 \
+            else " Dentro del tope de %d min. 👏" % c["tope"]
+    if h["veces"] > 1:
+        txt += "\n\nPromedio: <b>%s</b> · mejor %s · peor %s (%d veces)." % (
+            reloj(h["promedio"]), reloj(h["minimo"]), reloj(h["maximo"]), h["veces"])
+    return txt
+
+
+def cortar(chat) -> str:
+    d = _leer()
+    c = d["corriendo"].pop(str(chat), None)
+    if not c:
+        return "No tenías nada corriendo."
+    _escribir(d)
+    return "✖️ <b>%s</b> cortado, no se guardó (iban %s)." % (c["tarea"], reloj(_minutos(c["desde"])))
+
+
+# ---------------------------------------------------------------- historial
+
+def _historial(d: dict, tarea: str) -> dict:
+    ms = [h["minutos"] for h in d["hechos"] if _clave(h["tarea"]) == _clave(tarea)]
+    if not ms:
+        return {"veces": 0, "promedio": 0.0, "minimo": 0.0, "maximo": 0.0, "ultimo": 0.0}
+    return {"veces": len(ms), "promedio": sum(ms) / len(ms), "minimo": min(ms),
+            "maximo": max(ms), "ultimo": ms[-1]}
+
+
+def historial(tarea: str) -> dict:
+    return _historial(_leer(), tarea)
+
+
+def tareas() -> str:
+    d = _leer()
+    nombres = {}
+    for h in d["hechos"]:
+        nombres.setdefault(_clave(h["tarea"]), h["tarea"])
+    if not nombres:
+        return "Todavía no has cronometrado nada. Arranca con <code>/reloj facebook 45</code>."
+    filas = []
+    for clave, nombre in nombres.items():
+        s = _historial(d, nombre)
+        filas.append((s["promedio"] * s["veces"], "• <b>%s</b> · %s de promedio · %d %s" % (
+            nombre, reloj(s["promedio"]), s["veces"], "vez" if s["veces"] == 1 else "veces")))
+    filas.sort(reverse=True)
+    return "⏱ <b>Tu tiempo</b>\n\n%s" % "\n".join(t for _, t in filas)
+
+
+# ---------------------------------------------------------------- lo que avisa el bot
+
+def vencidos(hasta: Optional[datetime] = None) -> list:
+    """(chat, texto) de los topes que vencieron. El bucle del bot la llama en cada vuelta."""
+    d = _leer()
+    hasta = hasta or ahora()
+    avisos, cambio = [], False
+    for chat, c in d["corriendo"].items():
+        if not c.get("tope"):
+            continue
+        van = _minutos(c["desde"], hasta)
+        hechos = int(c.get("avisos") or 0)
+        if hechos == 0 and van >= c["tope"]:
+            avisos.append((int(chat), "⏰ <b>%s</b>: llegaste al tope de %d min.\n/reloj fin para cerrarlo." % (
+                c["tarea"], c["tope"])))
+            c["avisos"], cambio = 1, True
+        elif hechos == 1 and van >= c["tope"] * (1 + RECORDAR):
+            avisos.append((int(chat), "⏰ <b>%s</b>: vas %s, %s pasado del tope.\nNo te vuelvo a molestar." % (
+                c["tarea"], reloj(van), reloj(van - c["tope"]))))
+            c["avisos"], cambio = AVISOS, True
+    if cambio:
+        _escribir(d)
+    return avisos
