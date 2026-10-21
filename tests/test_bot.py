@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import finanzas as F  # noqa: E402
 import formularios  # noqa: E402
+import reloj  # noqa: E402
 from bot import Bot, codigo_salida, leer_patrimonio  # noqa: E402
 from lector import Movimiento  # noqa: E402
 from telegram import TelegramError  # noqa: E402
@@ -32,15 +33,19 @@ class Base(unittest.TestCase):
         tmp = Path(self._tmp.name)
         # cada test con sus propios archivos: ni el tipo de cambio, ni lo ultimo elegido en los
         # formularios, ni el formulario a medio llenar se pasan de un test al siguiente
-        self._guardados = (F.AJUSTES, formularios.AJUSTES, formularios.DATA, formularios.ESTADOS)
+        self._guardados = (F.AJUSTES, formularios.AJUSTES, formularios.DATA, formularios.ESTADOS,
+                           reloj.DATA, reloj.ESTADO)
         F.AJUSTES = formularios.AJUSTES = tmp / "ajustes.json"
         formularios.DATA = tmp
         formularios.ESTADOS = tmp / "formularios.json"
+        reloj.DATA = tmp                      # el bot le pregunta por cada mensaje de texto
+        reloj.ESTADO = tmp / "reloj.json"
         self.tg, self.n = FakeTelegram(), FakeNotion()
         self.bot = Bot(self.tg, self.n, BASES, {YO})
 
     def tearDown(self):
-        F.AJUSTES, formularios.AJUSTES, formularios.DATA, formularios.ESTADOS = self._guardados
+        (F.AJUSTES, formularios.AJUSTES, formularios.DATA, formularios.ESTADOS,
+         reloj.DATA, reloj.ESTADO) = self._guardados
         self._tmp.cleanup()
 
     def di(self, texto):
@@ -1494,3 +1499,69 @@ class FormularioSobreviveAlReinicio(Base):
         self.assertIn("Empezamos de nuevo", self.tg.ultimo)
         self.assertIn("➖ Gasto", [t for t, _ in self.tg.botones()])
         self.assertIn("¿Qué fecha?", self.toca("➖ Gasto"))
+
+
+class RelojPorBotones(Base):
+    """/reloj da botones de tope; se toca uno y el bot pregunta qué vas a hacer.
+
+    Lo más importante de acá: mientras el bot espera el nombre de la tarea, lo que escribas NO
+    puede terminar anotado como un gasto.
+    """
+
+    def test_ofrece_los_topes(self):
+        self.di("/reloj")
+        etiquetas = [t for t, _ in self.tg.botones()]
+        for b in ("⏱ 30 min", "⏱ 1 hora", "⏱ 3 horas", "♾ Sin tope", "📊 Mis tiempos"):
+            self.assertIn(b, etiquetas)
+
+    def test_tocar_un_tope_pregunta_que_vas_a_hacer(self):
+        self.di("/reloj")
+        t = self.toca("⏱ 1 hora")
+        self.assertIn("¿Qué vas a hacer?", t)
+        self.assertIn("1 h 00 min", t)
+
+    def test_el_nombre_arranca_el_bloque_y_no_se_anota_como_gasto(self):
+        self.di("/reloj")
+        self.toca("⏱ 1 hora")
+        t = self.di("publicaciones facebook")
+        self.assertIn("publicaciones facebook", t)
+        self.assertIn("arrancando", t)
+        self.assertEqual(self.movs, [])
+
+    def test_sin_tope_no_promete_aviso(self):
+        self.di("/reloj")
+        self.assertIn("sin aviso", self.toca("♾ Sin tope"))
+
+    def test_cancelar_no_arranca_nada(self):
+        self.di("/reloj")
+        self.toca("⏱ 1 hora")
+        self.toca("✖️ Cancelar")
+        self.assertIn("Reloj de trabajo", self.di("/reloj"))   # vuelve a ofrecer los topes
+
+    def test_con_algo_corriendo_ofrece_terminar(self):
+        self.di("/reloj")
+        self.toca("⏱ 30 min")
+        self.di("facebook")
+        self.di("/reloj")
+        self.assertIn("⏹ Terminar", [t for t, _ in self.tg.botones()])
+
+    def test_terminar_por_boton_guarda_el_bloque(self):
+        self.di("/reloj")
+        self.toca("⏱ 30 min")
+        self.di("facebook")
+        self.assertIn("facebook", self.toca("⏹ Terminar"))
+        self.assertEqual(reloj.historial("facebook")["veces"], 1)
+
+    def test_despues_de_cerrar_el_texto_vuelve_a_ser_un_gasto(self):
+        self.di("/reloj")
+        self.toca("⏱ 30 min")
+        self.di("facebook")
+        self.toca("⏹ Terminar")
+        self.di("45 almuerzo")
+        self.assertEqual(len(self.movs), 1)
+
+    def test_el_reloj_esta_en_el_menu_de_start(self):
+        """Si no está en los botones de /start, para el usuario no existe."""
+        self.di("/start")
+        self.assertIn("⏱ Reloj", [t for t, _ in self.tg.botones()])
+        self.assertIn("Reloj de trabajo", self.toca("⏱ Reloj"))
