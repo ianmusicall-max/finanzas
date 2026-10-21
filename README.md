@@ -102,6 +102,10 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
 | `/comparar` | este mes contra el pasado: totales, balance y en qué categorías cambió, con los dos meses cortados el mismo día |
 | `/buscar farmacia` · `/buscar uber mes` | busca en todo el historial por descripción, categoría o medio de pago; da el total, el promedio y la lista. Con `mes`, `semana` o `año` busca solo en ese periodo |
 | `/gasto` `/ingreso` `/ahorro` `/inversion` | abre el formulario; con texto después (`/gasto 45 almuerzo`) anota directo |
+| `/reloj facebook 45` | cronometra una tarea y avisa por Telegram al llegar a los 45 minutos |
+| `/reloj fin` · `/reloj corta` | cierra el bloque (dice cuánto tomó y tu promedio) / lo cancela sin guardar |
+| `/reloj` · `/reloj tareas` | qué está corriendo / cuánto te toma cada tarea en promedio |
+| `/pomodoro` | atajo: un bloque de 25 minutos (`/pomodoro 50` para otro largo) |
 
 ## Fecha de corte de las tarjetas
 
@@ -258,6 +262,33 @@ semana vale 7 días y el mes, los días que tenga. No cuentan los gastos fijos d
 `/hoy`, `/semana`, `/mes` y en los resúmenes automáticos aparece cuánto llevas hoy, en la semana y en el mes,
 con 🟢 / 🟡 (80%) / 🔴 (te pasaste) y cuánto te queda por día. `/limite` muestra el estado; `/limite 0` lo quita.
 
+## Reloj de trabajo
+
+Para saber **cuánto te toma de verdad** una tarea que repites, y no pasarte de hora:
+
+```
+/reloj facebook 45     arranca y avisa a los 45 min
+/reloj                 cuánto va y cuánto queda
+/reloj fin             cierra el bloque y lo guarda
+/reloj tareas          el promedio de cada tarea
+```
+
+A los 45 minutos llega la alarma por Telegram. Si sigues, avisa **una segunda vez** a la mitad
+pasado el tope (a los 67) y después se calla, para no ser un martillo. Sin número no hay alarma:
+es un cronómetro suelto.
+
+Al cerrar el bloque dice cuánto tomó y, desde la segunda vez, el **promedio, el mejor y el peor**.
+Eso es lo que convierte el cronómetro en algo útil: a la tercera publicación ya sabes si media hora
+es lo normal o si ese día te colgaste.
+
+Los nombres no distinguen mayúsculas ni espacios: `Facebook`, `facebook` y `  FACEBOOK ` son la
+misma tarea. Todo se guarda en `data/reloj.json`, en el servidor; no va a Notion.
+
+**No hay ningún temporizador nuevo**: el bot ya está despierto esperando mensajes de Telegram, y
+usa ese rato muerto para mandar las alarmas. Por eso pueden llegar con hasta medio minuto de
+atraso, que en bloques de media hora no se nota. Y como el estado va a disco, un reinicio del bot
+no se lleva el bloque que está corriendo.
+
 ## Excel con gráficos
 
 `/excel` (o el botón 📊 Excel) manda por Telegram un Excel con los datos del momento y un gráfico en cada hoja:
@@ -382,6 +413,7 @@ ssh root@TU-SERVIDOR 'cd /opt/finanzas && git pull -q origin main && bash deploy
 | `finanzas.py` | sumas, presupuesto, patrimonio, metas y consejos |
 | `informes.py` | textos de los resúmenes y la fila de Resúmenes |
 | `resumen.py` | lo que corren los temporizadores |
+| `reloj.py` | el cronómetro de `/reloj`: topes, alarmas y promedios por tarea |
 | `notion.py` · `telegram.py` | clientes mínimos de las dos APIs |
 | `setup_notion.py` | crea las bases (y les agrega columnas nuevas cuando las haya) |
 | `importar_hoja.py` | sube la hoja de 2025 |

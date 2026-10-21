@@ -18,6 +18,7 @@ import categorias as C
 import excel as X
 import finanzas as F
 import informes as I
+import reloj as R
 from config import DATA, TELEGRAM_USUARIOS
 from notion import DEUDAS, METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, SUSCRIPCIONES, Notion, NotionError, cargar_bases, p_select
 from formularios import Formularios
@@ -48,6 +49,8 @@ AYUDA = (
     "/consejos · qué mejorar según tus números\n"
     "/metodos · formas de manejar tu dinero\n"
     "/ultimos · lo último que anotaste, con botones para corregir el monto o borrar\n"
+    "<code>/reloj facebook 45</code> · cronometra una tarea y te avisa al llegar al tope\n"
+    "/reloj fin · cierra el bloque y te dice cuánto tomó y tu promedio · /reloj tareas\n"
     "<code>/buscar farmacia</code> · busca en todo tu historial (<code>/buscar uber mes</code>)\n\n"
     "<b>Ajustar</b>\n"
     "<code>/presupuesto comida 800</code>\n"
@@ -693,6 +696,38 @@ class Bot:
         self.decir(chat, "\n".join(["🗑 Borrado. (Queda en la papelera de Notion por 30 días.)"] + l))
 
     # ---- comandos
+    def _reloj(self, chat, arg: str) -> None:
+        """<code>/reloj facebook 45</code> arranca · <code>/reloj fin</code> cierra y guarda ·
+        <code>/reloj corta</code> cancela · <code>/reloj tareas</code> los promedios."""
+        a = " ".join(arg.split())
+        clave = C.normal(a)
+        if not a:
+            self.decir(chat, R.estado(chat), MENU)
+        elif clave in ("fin", "termine", "listo", "ya", "stop", "para"):
+            self.decir(chat, R.terminar(chat), MENU)
+        elif clave in ("corta", "cortar", "cancela", "cancelar", "borra", "olvida"):
+            self.decir(chat, R.cortar(chat), MENU)
+        elif clave in ("tareas", "tiempo", "tiempos", "promedio", "promedios"):
+            self.decir(chat, R.tareas(), MENU)
+        elif a.isdigit():                       # "/reloj 45": un bloque sin nombre
+            self.decir(chat, R.iniciar(chat, "trabajo", int(a)), MENU)
+        else:
+            partes = a.split()
+            tope = int(partes[-1]) if len(partes) > 1 and partes[-1].isdigit() else None
+            self.decir(chat, R.iniciar(chat, " ".join(partes[:-1]) if tope else a, tope), MENU)
+
+    def _avisar_reloj(self) -> None:
+        """Los topes de /reloj que ya vencieron.
+
+        El bot esta despierto esperando a Telegram, asi que este rato muerto entre mensaje y
+        mensaje es el que manda las alarmas: no hace falta ningun timer de systemd.
+        """
+        try:
+            for chat, texto in R.vencidos():
+                self.decir(chat, texto)
+        except Exception as exc:          # nunca puede tumbar el bucle
+            print("  [bot] no pude avisar del reloj: %s: %s" % (type(exc).__name__, exc))
+
     def _comando(self, chat, texto: str) -> None:
         partes = texto.split(maxsplit=1)
         cmd = C.normal(partes[0].split("@")[0])
@@ -704,6 +739,10 @@ class Bot:
             self.decir(chat, AYUDA, MENU)
         elif cmd == "/id":
             self.decir(chat, "Tu chat es <code>%s</code>." % esc(chat))
+        elif cmd in ("/reloj", "/cronometro", "/cronómetro"):
+            self._reloj(chat, arg)
+        elif cmd == "/pomodoro":
+            self.decir(chat, R.iniciar(chat, "pomodoro", int(arg) if arg.isdigit() else 25), MENU)
         elif cmd in forzar:
             if not arg:
                 self._responder(chat, self.form.iniciar(chat, cmd[1:]))
@@ -1398,6 +1437,7 @@ class Bot:
                     self.procesar(u)
                 except Exception as exc:  # un update roto no puede tumbar el bot
                     print("  [bot] error procesando update %s: %s: %s" % (u.get("update_id"), type(exc).__name__, exc))
+            self._avisar_reloj()
             if una_vez:
                 return 0
             self._refrescar_tc()          # ya se contesto todo: ahora si, el rato libre

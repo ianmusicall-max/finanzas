@@ -75,15 +75,17 @@ CATEGORIAS_FIJAS = {"Vivienda", "Universidad", "Padres", "Servicios", "Servicios
 
 # Medios de pago, en el orden en que mas se usan.
 MEDIOS = ["T-Bank", "Falabella", "Interbank", "Binance", "PayPal", "Sberbank", "Payoneer", "SIP", "KuCoin",
-          "Efectivo", "Tarjeta OH", "BBVA", "BCP", "Yape", "Plin"]
+          "Efectivo", "BBVA", "BCP", "Yape", "Plin"]
 # Medios que pueden ser tarjeta de credito o de debito: el formulario de gasto pregunta cual.
-TARJETAS = ["T-Bank", "Falabella", "Interbank", "Sberbank", "SIP", "Tarjeta OH", "BBVA", "BCP"]
+TARJETAS = ["T-Bank", "Falabella", "Interbank", "Sberbank", "SIP", "BBVA", "BCP"]
 # Nombre de la deuda (base Deudas) donde se acumula lo que se compra a credito con cada tarjeta.
 BILLETERA_BANCO = {"Plin": "Interbank", "Yape": "Interbank"}  # pagar con Plin/Yape sale de esa cuenta del banco
 BILLETERA_OTROS = {"Yape": ["BCP"]}                          # ... a veces de otra: el bot ofrece un boton para cambiarla
-DEUDA_TARJETA = {"Tarjeta OH": "Tarjeta OH", "Falabella": "Banco Falabella"}   # "Banco Falabella" es la tarjeta; el préstamo va en otra deuda aparte
-BANCO_TARJETA = {"Falabella": "Banco Falabella", "T-Bank": "T-Bank (Tinkoff)", "Tarjeta OH": "Financiera OH",
-                 "SIP": "Banco SIP"}
+# "Banco Falabella" es la tarjeta; el préstamo va en otra deuda aparte. "Tarjeta OH" se dejó apuntando
+# a "Banco SIP" para los movimientos viejos: el banco renombró la tarjeta OH a Sip (ver CLAUDE.md, 21/10/2026).
+DEUDA_TARJETA = {"SIP": "Banco SIP", "Tarjeta OH": "Banco SIP", "Falabella": "Banco Falabella"}
+BANCO_TARJETA = {"Falabella": "Banco Falabella", "T-Bank": "T-Bank (Tinkoff)", "SIP": "Banco SIP",
+                 "Tarjeta OH": "Banco SIP"}
 
 
 def deuda_de_tarjeta(medio: str) -> str:
@@ -93,7 +95,7 @@ def deuda_de_tarjeta(medio: str) -> str:
 # Otras formas de escribirlos (y como se llamaban en la hoja de 2025).
 ALIAS_MEDIOS = {"tinkoff": "T-Bank", "tinkoft": "T-Bank", "tinkof": "T-Bank", "tbank": "T-Bank", "t bank": "T-Bank",
                 "cmr": "Falabella", "saga": "Falabella", "kucoin": "KuCoin", "ku coin": "KuCoin",
-                "oh": "Tarjeta OH", "sber": "Sberbank"}
+                "oh": "SIP", "tarjeta oh": "SIP", "financiera oh": "SIP", "sber": "Sberbank"}
 
 # Clases de patrimonio: (clase, tipo)
 ACTIVOS = ["Efectivo y bancos", "Inversiones", "Cripto", "Inmueble", "Vehículo", "Por cobrar", "Otro activo"]
