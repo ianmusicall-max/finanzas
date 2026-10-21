@@ -537,7 +537,7 @@ class Formularios(Base):
         self.assertIn("revisa antes de guardar", t)
         self.assertIn("Tarjeta: <b>Crédito</b>", t)
         self.toca("Guardar")
-        self.assertEqual(self.n.dbs["db-deu"][0]["Deuda"], "Tarjeta SIP")
+        self.assertEqual(self.n.dbs["db-deu"][0]["Deuda"], "Banco SIP")
 
     def test_rapido_con_la_palabra_credito(self):
         t = self.di("45 almuerzo cmr credito")
