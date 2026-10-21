@@ -15,6 +15,7 @@ formularios, 09/10/2026).
 """
 
 import json
+import re
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -146,9 +147,20 @@ def corriendo(chat) -> bool:
     return str(chat) in _leer()["corriendo"]
 
 
+TOPE_MAX = 24 * 60     # mas de un dia no es un bloque de trabajo, es un error de tecleo
+
+
 def pedir_nombre(chat, tope: int) -> None:
+    """Ya se eligio el tope (o se eligio 'sin tope'): falta saber que va a hacer."""
     d = _leer()
-    d["pendiente"][str(chat)] = {"tope": int(tope), "dia": ahora().date().isoformat()}
+    d["pendiente"][str(chat)] = {"tope": int(tope), "paso": "nombre", "dia": ahora().date().isoformat()}
+    _escribir(d)
+
+
+def pedir_tope(chat) -> None:
+    """Toco "Otro": primero cuantos minutos, despues el nombre."""
+    d = _leer()
+    d["pendiente"][str(chat)] = {"tope": None, "paso": "tope", "dia": ahora().date().isoformat()}
     _escribir(d)
 
 
@@ -166,13 +178,38 @@ def olvidar(chat) -> str:
     return "👌 Listo, no arranco nada."
 
 
-def con_nombre(chat, nombre: str) -> str:
+def con_texto(chat, texto: str) -> str:
+    """Lo que escribio mientras se le preguntaba algo: los minutos o el nombre de la tarea."""
     d = _leer()
-    p = d["pendiente"].pop(str(chat), None)
+    p = d["pendiente"].get(str(chat))
     if p is None:
         return "Ese botón ya no sirve. Empieza otra vez con /reloj."
+    if p.get("paso") == "tope":
+        minutos = _minutos_de(texto)
+        if not minutos:
+            return ("Escribe solo cuánto tiempo, por ejemplo <code>90</code> minutos, "
+                    "<code>2 horas</code> o <code>1h30</code>.")
+        p["tope"], p["paso"] = minutos, "nombre"
+        _escribir(d)
+        return "⏱ %s. ✏️ ¿Y qué vas a hacer?" % reloj(minutos)
+    d["pendiente"].pop(str(chat), None)
     _escribir(d)
-    return iniciar(chat, nombre[:60], p.get("tope") or None)
+    return iniciar(chat, texto[:60], p.get("tope") or None)
+
+
+def _minutos_de(texto: str):
+    """"90" -> 90 · "2 horas" -> 120 · "1h30" -> 90 · "1.5 h" -> 90. None si no se entiende."""
+    t = " ".join(texto.strip().lower().replace(",", ".").split())
+    m = re.match(r"^(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hora|horas)\s*(\d{1,2})?\s*(?:m|min|minutos)?$", t)
+    if m:
+        total = float(m.group(1)) * 60 + (int(m.group(2)) if m.group(2) else 0)
+    else:
+        m = re.match(r"^(\d+(?:\.\d+)?)\s*(?:m|min|mins|minuto|minutos)?$", t)
+        if not m:
+            return None
+        total = float(m.group(1))
+    total = int(round(total))
+    return total if 1 <= total <= TOPE_MAX else None
 
 
 # ---------------------------------------------------------------- historial

@@ -73,8 +73,10 @@ MENU = [[("➖ Gasto", "m:gasto"), ("➕ Ingreso", "m:ingreso"), ("🐷 Ahorro",
         [("💱 Tipo de cambio", "m:tc"), ("⚙️ Ajustar", "m:ajustar")]]
 
 # Topes del reloj de trabajo. Se toca uno y el bot pregunta que vas a hacer.
-RELOJ_TOPES = [[("⏱ 30 min", "rj:30"), ("⏱ 1 hora", "rj:60")],
-               [("⏱ 3 horas", "rj:180"), ("♾ Sin tope", "rj:0")],
+RELOJ_TOPES = [[("⏱ 15 min", "rj:15"), ("⏱ 30 min", "rj:30"), ("⏱ 45 min", "rj:45")],
+               [("⏱ 1 hora", "rj:60"), ("⏱ 2 horas", "rj:120"), ("⏱ 3 horas", "rj:180")],
+               [("⏱ 4 horas", "rj:240"), ("⏱ 6 horas", "rj:360"), ("⏱ 8 horas", "rj:480")],
+               [("✏️ Otro", "rj:x"), ("♾ Sin tope", "rj:0")],
                [("📊 Mis tiempos", "rj:tareas")]]
 RELOJ_CORRE = [[("⏹ Terminar", "rj:fin"), ("✖️ Cortar", "rj:corta")]]
 
@@ -301,7 +303,10 @@ class Bot:
             elif (self._suscribiendo.get(chat) or {}).get("esperando"):
                 self._meses_suscripcion(chat, texto)
             elif R.esperando(chat):
-                self.decir(chat, R.con_nombre(chat, texto), RELOJ_CORRE)
+                respuesta = R.con_texto(chat, texto)
+                # si todavia esta preguntando (puso el tope, falta el nombre), no van Terminar/Cortar
+                self.decir(chat, respuesta,
+                           [[("✖️ Cancelar", "rj:no")]] if R.esperando(chat) else RELOJ_CORRE)
             elif chat in self._corrigiendo:
                 self._cambiar_monto(chat, texto)
             elif self.form.activo(chat):
@@ -739,6 +744,13 @@ class Bot:
             self.decir(chat, R.cortar(chat), MENU)
         elif valor == "no":
             self.decir(chat, R.olvidar(chat), MENU)
+        elif valor == "x":             # "Otro": el tope lo escribe el usuario
+            if R.corriendo(chat):
+                self.decir(chat, R.estado(chat), RELOJ_CORRE)
+                return
+            R.pedir_tope(chat)
+            self.decir(chat, "✏️ ¿Cuánto tiempo? Escríbelo como te salga: <code>90</code>, "
+                             "<code>2 horas</code>, <code>1h30</code>.", [[("✖️ Cancelar", "rj:no")]])
         elif valor.isdigit():
             if R.corriendo(chat):          # ya hay uno: no se pisan
                 self.decir(chat, R.estado(chat), RELOJ_CORRE)
