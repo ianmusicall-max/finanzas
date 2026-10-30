@@ -1,5 +1,6 @@
 """Configuracion del sistema de finanzas. Todo sale del .env; nada de tokens en el codigo."""
 import os
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -38,12 +39,30 @@ TC_RUB = _num(os.environ.get("TC_RUB", ""), 0.045)
 # quedan de respaldo por si no hay conexion. Con /tc 3.38 se fija uno a mano.
 TC_AUTO = os.environ.get("TC_AUTO", "1").strip() not in ("0", "no", "false", "")
 
-# Hora de Lima sin depender de tzdata: Peru no tiene horario de verano.
-LIMA = timezone(timedelta(hours=-5), "America/Lima")
+# Zona horaria del dueño, sin depender de tzdata: ni Lima ni Moscu tienen horario de verano, asi
+# que alcanza con el desfase fijo. Para otra zona se puede escribir "UTC+2" o "-3" directo.
+# Los timers de systemd leen ZONA_HORARIA del .env (deploy/poner-timers.sh).
+ZONAS = {"America/Lima": -5, "Europe/Moscow": 3}
+ZONA_HORARIA = os.environ.get("ZONA_HORARIA", "America/Lima").strip() or "America/Lima"
+
+
+def _desfase(zona: str) -> float:
+    if zona in ZONAS:
+        return ZONAS[zona]
+    m = re.match(r"^(?:UTC|GMT)?([+-]?\d{1,2})(?::(\d{2}))?$", zona.replace(" ", ""))
+    if not m:
+        raise SystemExit("ZONA_HORARIA no se entiende: %r. Pon una de %s, o algo como UTC+3."
+                         % (zona, " / ".join(sorted(ZONAS))))
+    horas = int(m.group(1))
+    minutos = int(m.group(2) or 0)
+    return horas + (minutos / 60.0 if horas >= 0 else -minutos / 60.0)
+
+
+TZ = timezone(timedelta(hours=_desfase(ZONA_HORARIA)), ZONA_HORARIA)
 
 
 def ahora() -> datetime:
-    return datetime.now(LIMA)
+    return datetime.now(TZ)
 
 
 def hoy():

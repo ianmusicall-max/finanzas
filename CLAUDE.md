@@ -244,8 +244,29 @@ cubierto por el solo hecho de existir — es lo que atrapa la clase de bug de ar
 **Al agregar un perfil**: copiar uno existente, cambiar los datos, y correr los tests. Si algo no
 cierra, el contrato lo dice por nombre.
 
-**Falta todavía** para que el clon ande: la **moneda base** (hoy todo suma en soles: 15 columnas de
-Notion con "S/" en el nombre y 46 llamadas a `soles()`) y la **zona horaria** de los 4 timers.
+### Lo que cambia de una persona a otra, todo en el `.env`
+
+| Variable | Qué decide |
+|---|---|
+| `PERFIL` | Qué `perfiles/<nombre>.py` se carga: categorías, bancos, alias |
+| `MONEDA_BASE` | El símbolo de las columnas de Notion (`columna()` en `config.py`): "Monto S/" o "Monto ₽". **Se define una vez, antes de `setup_notion.py`**: cambiarla después crea columnas nuevas y deja las viejas con los datos adentro |
+| `ZONA_HORARIA` | El corte del día (`config.ahora()`) y la hora de los resúmenes |
+
+**La moneda base** estaba escrita a mano en **68 lugares de 6 archivos**. Ahora sale de
+`config.columna()`. Hay un test que recorre esos archivos buscando `"Monto S/"` literales: si
+alguien vuelve a escribir la moneda a mano, el clon en rublos se rompería en silencio.
+
+Al hacerlo, el primer intento llamó `col()` a la función y chocó con una variable de bucle llamada
+`col` en `finanzas.py` (`UnboundLocalError` en 39 tests). Por eso se llama `columna()`.
+
+**La zona horaria** no usa tzdata a propósito: ni Lima ni Moscú tienen horario de verano, así que
+basta el desfase fijo (`config.ZONAS`). También acepta `UTC+3` o `-5` a mano, y si no entiende la
+zona **no arranca** en vez de sacar los resúmenes a cualquier hora. Los `.timer` del repo dicen
+`America/Lima`; `deploy/poner-timers.sh` los copia a systemd reemplazando esa cadena por lo que
+diga `ZONA_HORARIA`, y lo llaman los tres scripts que instalaban los timers.
+
+**`.env.example` tenía el `NOTION_PARENT_PAGE_ID` real de José** en un repo público, y un clon lo
+habría copiado tal cual. Ahora es un hueco.
 
 ## Pendiente
 

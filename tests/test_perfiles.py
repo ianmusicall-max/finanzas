@@ -136,3 +136,33 @@ class MonedaBase(unittest.TestCase):
                 if patron.search(linea):
                     culpables.append("%s:%d" % (nombre, i))
         self.assertEqual(culpables, [], "usá columna(...) en vez de escribir la moneda a mano")
+
+
+class ZonaHoraria(unittest.TestCase):
+    """El corte del día y la hora de los resúmenes salen de ZONA_HORARIA.
+
+    Sin tzdata a propósito: ni Lima ni Moscú tienen horario de verano, así que el desfase fijo
+    alcanza y el servidor no necesita paquetes extra.
+    """
+
+    def test_las_zonas_conocidas(self):
+        import config
+        self.assertEqual(config._desfase("America/Lima"), -5)
+        self.assertEqual(config._desfase("Europe/Moscow"), 3)
+
+    def test_se_puede_poner_el_desfase_a_mano(self):
+        import config
+        self.assertEqual(config._desfase("UTC+3"), 3)
+        self.assertEqual(config._desfase("-5"), -5)
+        self.assertEqual(config._desfase("UTC+5:30"), 5.5)
+
+    def test_una_zona_que_no_se_entiende_avisa_claro(self):
+        """Mejor que no arranque, a que el resumen salga a cualquier hora sin que nadie lo note."""
+        import config
+        with self.assertRaises(SystemExit) as e:
+            config._desfase("Marte/Olympus")
+        self.assertIn("ZONA_HORARIA", str(e.exception))
+
+    def test_por_defecto_sigue_siendo_lima(self):
+        import config
+        self.assertEqual(config.ZONA_HORARIA, "America/Lima")

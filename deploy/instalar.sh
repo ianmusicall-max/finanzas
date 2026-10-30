@@ -13,7 +13,7 @@ chown -R finanzas:finanzas data
 chmod 600 .env && chown finanzas:finanzas .env
 .venv/bin/python -m unittest discover -s tests -t . -q
 sudo -u finanzas .venv/bin/python setup_notion.py
-cp deploy/systemd/finanzas-* /etc/systemd/system/
+bash deploy/poner-timers.sh
 systemctl daemon-reload
 systemctl enable --now finanzas-bot finanzas-diario.timer finanzas-semanal.timer finanzas-mensual.timer finanzas-autoupdate.timer finanzas-avisos.timer
 sleep 3
