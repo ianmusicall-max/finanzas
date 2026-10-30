@@ -316,7 +316,7 @@ def movimientos(notion, bases: dict, desde: date, hasta: date) -> list:
         if monto_s is None:   # fila escrita a mano en Notion, sin la columna en soles
             monto_s = soles(f.get("Monto") or 0, f.get("Moneda") or "PEN")
         out.append({"id": f["_id"], "url": f.get("_url"), "tipo": f.get("Tipo") or "Gasto",
-                    "categoria": C.vigente(f.get("Categoría") or "Otros"), "monto_s": float(monto_s or 0),
+                    "categoria": C.vigente(f.get("Categoría") or C.otros("Gasto")), "monto_s": float(monto_s or 0),
                     "fecha": (f.get("Fecha") or "")[:10], "descripcion": f.get("Descripción") or "",
                     "medio": f.get("Medio de pago"), "cuenta": f.get("Cuenta"), "frecuencia": f.get("Frecuencia")})
     return out
@@ -345,7 +345,7 @@ def buscar(notion, bases: dict, texto: str, desde: Optional[date] = None,
         monto_s = f.get("Monto S/")
         if monto_s is None:
             monto_s = soles(f.get("Monto") or 0, f.get("Moneda") or "PEN")
-        out.append({"id": f["_id"], "tipo": f.get("Tipo") or "Gasto", "categoria": C.vigente(f.get("Categoría") or "Otros"),
+        out.append({"id": f["_id"], "tipo": f.get("Tipo") or "Gasto", "categoria": C.vigente(f.get("Categoría") or C.otros("Gasto")),
                     "descripcion": f.get("Descripción") or "", "monto_s": float(monto_s or 0),
                     "monto": float(f.get("Monto") or 0), "moneda": f.get("Moneda") or "PEN",
                     "medio": f.get("Medio de pago"), "fecha": (f.get("Fecha") or "")[:10]})
@@ -367,7 +367,7 @@ def movimiento(notion, bases: dict, page_id: str) -> Optional[dict]:
     monto, moneda = float(f.get("Monto") or 0), f.get("Moneda") or "PEN"
     monto_s = f.get("Monto S/")
     return {"id": f.get("_id") or page_id, "tipo": f.get("Tipo") or "Gasto",
-            "categoria": C.vigente(f.get("Categoría") or "Otros"), "descripcion": f.get("Descripción") or "",
+            "categoria": C.vigente(f.get("Categoría") or C.otros("Gasto")), "descripcion": f.get("Descripción") or "",
             "monto": monto, "moneda": moneda,
             "monto_s": float(monto_s if monto_s is not None else soles(monto, moneda)),
             "medio": f.get("Medio de pago"), "tarjeta": f.get("Tarjeta"), "cuenta": f.get("Cuenta"),

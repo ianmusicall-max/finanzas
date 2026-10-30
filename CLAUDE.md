@@ -213,6 +213,40 @@ promedio. Nació para medir las publicaciones de Facebook y no pasarse de hora.
 Lo cubre `tests.test_reloj`, que apunta `reloj.DATA`/`reloj.ESTADO` a un temporal y le cambia
 `reloj.ahora` por un reloj falso (si no, los tests esperarían de verdad).
 
+## Perfiles: el mismo código para dos personas (30/10/2026)
+
+El usuario está clonando el sistema para **Дарья** (Moscú, rublos, sin deudas, todas sus tarjetas
+de débito). Las categorías y los bancos son datos personales, así que vivían en `categorias.py` y
+no se podían compartir. Ahora:
+
+- `categorias.py` tiene **solo la lógica** (`normal`, `buscar_categoria`, `buscar_medio`,
+  `vigente`, `deuda_de_tarjeta`…) y lo **estructural**: `TIPOS`, `GRUPOS`, `CUENTAS`, `ACTIVOS`,
+  `PASIVOS`, `LIQUIDOS`. Eso último son llaves que el código usa y guarda en Notion tal cual, así
+  que **no son cosa de cada perfil**.
+- `perfiles/<nombre>.py` tiene los datos personales. Se elige con `PERFIL` en el `.env`
+  (`PERFIL=jose` por defecto, así la instalación de siempre no cambia).
+- `categorias.py` reexporta el perfil con `import *` **a propósito**: los diez módulos que hacen
+  `import categorias as C` siguen usando `C.GASTOS`, `C.MEDIOS`… y no hubo que tocar ninguno.
+
+**Dos cosas que estaban escritas a mano y le habrían roto el sistema a ella en silencio**:
+
+- `finanzas.py` ponía `"Otros"` como respaldo cuando una fila de Notion viene sin categoría, en 3
+  lugares. Para un perfil en ruso eso escribía una categoría inexistente. Ahora es `C.otros("Gasto")`,
+  y cada perfil declara sus catch-all en `OTROS`.
+- `bot.py` comparaba `mov.categoria != "Retiro de ahorro"` para no ofrecer apartar ahorro cuando el
+  ingreso *es* un retiro del ahorro. En ruso nunca daba verdadero. Ahora es `C.RETIRO_AHORRO`.
+
+`tests/test_perfiles.py` es un **contrato que corre sobre todos los perfiles**: que los catch-all de
+`OTROS` existan de verdad, que `RETIRO_AHORRO` sea una categoría de ingreso, que las tarjetas y
+billeteras estén en `MEDIOS`, que los alias apunten a medios que existen. Un perfil nuevo queda
+cubierto por el solo hecho de existir — es lo que atrapa la clase de bug de arriba.
+
+**Al agregar un perfil**: copiar uno existente, cambiar los datos, y correr los tests. Si algo no
+cierra, el contrato lo dice por nombre.
+
+**Falta todavía** para que el clon ande: la **moneda base** (hoy todo suma en soles: 15 columnas de
+Notion con "S/" en el nombre y 46 llamadas a `soles()`) y la **zona horaria** de los 4 timers.
+
 ## Pendiente
 
 - ~~Confirmar que el servidor se actualiza solo~~: confirmado el 03/10/2026 (`/retirar` responde en Telegram,

@@ -50,6 +50,10 @@ def hoy():
     return ahora().date()
 
 
+# Quien es el dueño de este sistema: elige perfiles/<PERFIL>.py, donde viven sus categorias,
+# sus bancos y sus alias. El codigo es el mismo para todos; esto es lo unico que cambia.
+PERFIL = os.environ.get("PERFIL", "jose").strip() or "jose"
+
 DATA = ROOT / "data"
 BASES = DATA / "bases.json"          # IDs de las bases de Notion que creo setup_notion.py
 AJUSTES = DATA / "ajustes.json"      # tipo de cambio que se fijo desde el bot

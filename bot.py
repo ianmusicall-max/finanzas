@@ -421,7 +421,7 @@ class Bot:
             self.decir(chat, "\n".join(l), self._botones_categoria(pid, ti) + [otra_cuenta, [("↩️ Deshacer", "x:" + pid)]])
         else:
             self.decir(chat, "\n".join(l), [otra_cuenta, [("🏷 Cambiar categoría", "k:%s:%d" % (pid, ti)), ("↩️ Deshacer", "x:" + pid)]])
-        if mov.tipo == "Ingreso" and mov.categoria != "Retiro de ahorro":
+        if mov.tipo == "Ingreso" and mov.categoria != C.RETIRO_AHORRO:
             self._ofrecer_ahorro(chat, mov)
         if sus:
             self.decir(chat, "🔁 %s · %s · próximo pago %s" % (esc(r["nombre"]), F.cada_texto(r["cada"]), r["proximo"].strftime("%d/%m/%Y")))
