@@ -102,7 +102,7 @@ gasto hace que una categoría pase del 80% o del 100% de su presupuesto, te avis
 | `/comparar` | este mes contra el pasado: totales, balance y en qué categorías cambió, con los dos meses cortados el mismo día |
 | `/buscar farmacia` · `/buscar uber mes` | busca en todo el historial por descripción, categoría o medio de pago; da el total, el promedio y la lista. Con `mes`, `semana` o `año` busca solo en ese periodo |
 | `/gasto` `/ingreso` `/ahorro` `/inversion` | abre el formulario; con texto después (`/gasto 45 almuerzo`) anota directo |
-| `/reloj` | botones de **30 min**, **1 hora**, **3 horas** o sin tope; eliges uno, escribes qué vas a hacer y avisa al llegar |
+| `/reloj` | botones de **15 min** a **8 horas**, **Otro** para cualquier tiempo, o sin tope; eliges uno, escribes qué vas a hacer y avisa al llegar |
 | `/reloj facebook 45` | lo mismo escrito de una vez, si prefieres no tocar botones |
 | `/reloj fin` · `/reloj corta` | cierra el bloque (dice cuánto tomó y tu promedio) / lo cancela sin guardar |
 | `/reloj` · `/reloj tareas` | qué está corriendo / cuánto te toma cada tarea en promedio |
@@ -267,9 +267,21 @@ con 🟢 / 🟡 (80%) / 🔴 (te pasaste) y cuánto te queda por día. `/limite`
 
 Para saber **cuánto te toma de verdad** una tarea que repites, y no pasarte de hora.
 
-Escribes **`/reloj`** y salen los botones: **30 min · 1 hora · 3 horas · sin tope · mis tiempos**.
+Escribes **`/reloj`** y salen los botones:
+
+```
+⏱ 15 min    ⏱ 30 min    ⏱ 45 min
+⏱ 1 hora    ⏱ 2 horas   ⏱ 3 horas
+⏱ 4 horas   ⏱ 6 horas   ⏱ 8 horas
+✏️ Otro      ♾ Sin tope
+📊 Mis tiempos
+```
+
 Tocas uno, el bot pregunta *¿qué vas a hacer?*, lo escribes y arranca. Mientras corre, `/reloj` te
 muestra cuánto va con los botones de **Terminar** y **Cortar**.
+
+Con **✏️ Otro** pones cualquier tiempo, escrito como te salga: `90`, `2 horas`, `1h30`, `1.5 h`.
+El tope máximo es un día; más que eso se toma como un error de tecleo y te lo vuelve a pedir.
 
 Si prefieres escribirlo de una vez, también vale:
 

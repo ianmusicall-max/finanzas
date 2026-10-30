@@ -1565,3 +1565,27 @@ class RelojPorBotones(Base):
         self.di("/start")
         self.assertIn("⏱ Reloj", [t for t, _ in self.tg.botones()])
         self.assertIn("Reloj de trabajo", self.toca("⏱ Reloj"))
+
+    def test_hay_opciones_de_varias_horas(self):
+        self.di("/reloj")
+        etiquetas = [t for t, _ in self.tg.botones()]
+        for b in ("⏱ 15 min", "⏱ 45 min", "⏱ 2 horas", "⏱ 4 horas", "⏱ 6 horas", "⏱ 8 horas", "✏️ Otro"):
+            self.assertIn(b, etiquetas)
+
+    def test_otro_pide_el_tiempo_y_despues_el_nombre(self):
+        self.di("/reloj")
+        self.assertIn("¿Cuánto tiempo?", self.toca("✏️ Otro"))
+        t = self.di("2 horas")
+        self.assertIn("2 h 00 min", t)
+        self.assertIn("¿Y qué vas a hacer?", t)
+        t = self.di("editar video")
+        self.assertIn("editar video", t)
+        self.assertIn("arrancando", t)
+        self.assertEqual(self.movs, [])          # nada se anotó como gasto
+
+    def test_otro_con_un_tiempo_que_no_se_entiende_vuelve_a_pedirlo(self):
+        self.di("/reloj")
+        self.toca("✏️ Otro")
+        self.assertIn("Escribe solo cuánto tiempo", self.di("cualquier cosa"))
+        self.assertEqual(self.movs, [])
+        self.assertIn("2 h 00 min", self.di("120"))   # sigue esperando, no se perdió el paso
