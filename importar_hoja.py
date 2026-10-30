@@ -17,7 +17,7 @@ import time
 from datetime import date, datetime
 
 import categorias as C
-from config import DATA, IMPORTADOS
+from config import DATA, IMPORTADOS, columna
 from notion import METAS, MOVIMIENTOS, Notion, NotionError, cargar_bases, p_date, p_number, p_select, p_title
 
 # categorias de la hoja que no se llaman igual aca
@@ -189,7 +189,7 @@ def main(argv=None) -> int:
                 "Grupo": p_select(C.grupo(m["categoria"]) if m["tipo"] == "Gasto" else "—"),
                 "Cuenta": p_select(m["cuenta"]),
                 "Monto": p_number(m["monto"]), "Moneda": p_select(m["moneda"]), "Tipo de cambio": p_number(tc),
-                "Monto S/": p_number(m["soles"]), "Medio de pago": p_select(m["medio"]), "Fecha": p_date(m["fecha"]),
+                columna("Monto"): p_number(m["soles"]), "Medio de pago": p_select(m["medio"]), "Fecha": p_date(m["fecha"]),
                 "Origen": p_select("Hoja 2025"),
             })
             hechos.add(m["clave"])
@@ -203,7 +203,7 @@ def main(argv=None) -> int:
             for m in lista_metas:
                 if C.normal(m["meta"]) in ya:
                     continue
-                props = {"Meta": p_title(m["meta"]), "Objetivo S/": p_number(m["objetivo"]), "Ahorrado S/": p_number(m["ahorrado"])}
+                props = {"Meta": p_title(m["meta"]), columna("Objetivo"): p_number(m["objetivo"]), columna("Ahorrado"): p_number(m["ahorrado"])}
                 if m["prioridad"]:
                     props["Prioridad"] = p_select(m["prioridad"])
                 n.crear_pagina(bases[METAS], props)

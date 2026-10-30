@@ -19,7 +19,7 @@ import excel as X
 import finanzas as F
 import informes as I
 import reloj as R
-from config import DATA, TELEGRAM_USUARIOS
+from config import DATA, TELEGRAM_USUARIOS, columna
 from notion import DEUDAS, METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, SUSCRIPCIONES, Notion, NotionError, cargar_bases, p_select
 from formularios import Formularios
 from lector import MONEDAS, Movimiento, NoEntendi, _numero, interpretar
@@ -887,7 +887,7 @@ class Bot:
                 esc(m.group(1)), esc(", ".join(C.nombres("Gasto")))))
             return
         monto = _numero(m.group(2))
-        F.fijar_presupuesto(self.notion, self.bases, cat, monto, "Anual S/" if anual else "Mensual S/")
+        F.fijar_presupuesto(self.notion, self.bases, cat, monto, columna("Anual") if anual else columna("Mensual"))
         if anual:
             self.decir(chat, "🧾 Pagos anuales de %s %s: %s al año.\nCuando anotes uno, toca <b>Anual</b> en el formulario "
                              "o escribe la palabra <i>anual</i>: <code>120 icloud anual</code>" % (C.emoji("Gasto", cat), esc(cat), F.s3(monto)))
@@ -1327,7 +1327,7 @@ class Bot:
             fecha = (f.get("Fecha") or "")[:10]
             l.append("<b>%d.</b> %s %s%s · %s <i>%s</i>" % (
                 i, C.emoji(tipo, f.get("Categoría") or ""), "+" if tipo == "Ingreso" else "",
-                F.s(f.get("Monto S/")), esc(f.get("Descripción") or ""), "/".join(reversed(fecha[5:].split("-")))))
+                F.s(f.get(columna("Monto"))), esc(f.get("Descripción") or ""), "/".join(reversed(fecha[5:].split("-")))))
             botones.append((str(i), "mv:" + _pid(f["_id"])))
         l += ["", "<i>Toca el número del que quieras corregir o borrar.</i>"]
         self.decir(chat, "\n".join(l), [botones[:5], botones[5:]])

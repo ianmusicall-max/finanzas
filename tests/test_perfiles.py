@@ -101,3 +101,38 @@ class Perfiles(unittest.TestCase):
             for viejo, ahora in p.RENOMBRADAS.items():
                 with self.subTest(perfil=nombre, viejo=viejo):
                     self.assertIn(ahora, p.GASTOS)
+
+
+class MonedaBase(unittest.TestCase):
+    """Las columnas de Notion llevan el simbolo de la moneda base en el nombre.
+
+    El sistema de José suma en soles ("Monto S/") y el de Дарья en rublos ("Monto ₽"). Si alguien
+    vuelve a escribir la moneda a mano en el codigo, el clon en rublos crea columnas con el nombre
+    equivocado y no se nota hasta que los numeros ya estan en Notion.
+    """
+
+    def test_el_sufijo_sale_de_la_moneda_base(self):
+        import config
+        viejo = config.SUFIJO
+        self.addCleanup(setattr, config, "SUFIJO", viejo)
+        config.SUFIJO = "₽"
+        self.assertEqual(config.columna("Monto"), "Monto ₽")
+        self.assertEqual(config.columna("Patrimonio neto"), "Patrimonio neto ₽")
+
+    def test_por_defecto_sigue_siendo_soles(self):
+        """La instalación de siempre no puede cambiar de columnas sola."""
+        import config
+        self.assertEqual(config.MONEDA_BASE, "PEN")
+        self.assertEqual(config.columna("Monto"), "Monto S/")
+
+    def test_no_queda_ninguna_columna_con_la_moneda_escrita_a_mano(self):
+        import re
+        raiz = Path(__file__).resolve().parents[1]
+        patron = re.compile(r'"(Monto|Saldo|Valor|Ahorrado|Ahorro|Objetivo|Mensual|Anual|Balance'
+                            r'|Ingresos|Gastos|Inversión|Por mes|Patrimonio neto) S/"')
+        culpables = []
+        for nombre in ("notion.py", "finanzas.py", "informes.py", "excel.py", "bot.py", "importar_hoja.py"):
+            for i, linea in enumerate((raiz / nombre).read_text(encoding="utf-8").splitlines(), 1):
+                if patron.search(linea):
+                    culpables.append("%s:%d" % (nombre, i))
+        self.assertEqual(culpables, [], "usá columna(...) en vez de escribir la moneda a mano")

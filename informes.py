@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from typing import Optional
 
 import categorias as C
+from config import columna
 import finanzas as F
 from notion import RESUMENES, p_date, p_number, p_select, p_text, p_title
 from telegram import esc
@@ -140,15 +141,15 @@ class Informe:
             "Periodo": p_title(self.p.clave),
             "Tipo": p_select(self.p.tipo),
             "Fechas": p_date(self.p.desde, self.p.hasta if self.p.hasta != self.p.desde else None),
-            "Ingresos S/": p_number(r.ingresos),
-            "Gastos S/": p_number(r.gastos),
-            "Ahorro S/": p_number(r.ahorro),
-            "Inversión S/": p_number(r.inversion),
-            "Balance S/": p_number(r.balance),
+            columna("Ingresos"): p_number(r.ingresos),
+            columna("Gastos"): p_number(r.gastos),
+            columna("Ahorro"): p_number(r.ahorro),
+            columna("Inversión"): p_number(r.inversion),
+            columna("Balance"): p_number(r.balance),
             "Tasa de ahorro": p_number(round(r.tasa_ahorro, 4) if r.tasa_ahorro is not None else None),
             "Necesidades %": p_number(round(r.parte("Necesidad"), 4) if r.gastos else None),
             "Deseos %": p_number(round(r.parte("Deseo"), 4) if r.gastos else None),
-            "Patrimonio neto S/": p_number(self.neto if self.items else None),
+            columna("Patrimonio neto"): p_number(self.neto if self.items else None),
             "Principales gastos": p_text(top),
             "Alertas": p_text(" · ".join(self.consejos[:5])),
         }

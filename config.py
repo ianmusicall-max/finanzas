@@ -50,6 +50,19 @@ def hoy():
     return ahora().date()
 
 
+# La moneda en la que se suma todo. Las columnas de Notion llevan su simbolo en el nombre
+# ("Monto S/", "Monto ₽"), asi que cambiarla crea columnas distintas: se define una vez, antes de
+# correr setup_notion.py, y no se toca mas. PEN es la de siempre, para no mover nada de lo que ya hay.
+MONEDA_BASE = (os.environ.get("MONEDA_BASE", "PEN").strip().upper() or "PEN")
+SIMBOLOS = {"PEN": "S/", "USD": "$", "RUB": "₽", "EUR": "€"}
+SUFIJO = SIMBOLOS.get(MONEDA_BASE, MONEDA_BASE)
+
+
+def columna(nombre: str) -> str:
+    """El nombre de una columna de Notion en la moneda base: columna("Monto") -> "Monto S/"."""
+    return "%s %s" % (nombre, SUFIJO)
+
+
 # Quien es el dueño de este sistema: elige perfiles/<PERFIL>.py, donde viven sus categorias,
 # sus bancos y sus alias. El codigo es el mismo para todos; esto es lo unico que cambia.
 PERFIL = os.environ.get("PERFIL", "jose").strip() or "jose"
