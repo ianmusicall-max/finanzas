@@ -1,11 +1,12 @@
 #!/bin/bash
-# Lo corre finanzas-autoupdate.timer cada 5 minutos. Si hay cambios en GitHub los baja,
+# Lo corre $SERVICIO-autoupdate.timer cada 5 minutos. Si hay cambios en GitHub los baja,
 # corre los tests y reinicia el bot. Si un test falla, vuelve a la version anterior y no reinicia.
-#   Ver lo que hizo:  journalctl -u finanzas-autoupdate --no-pager -n 20
+#   Ver lo que hizo:  journalctl -u $SERVICIO-autoupdate --no-pager -n 20
 #
 # Va en dos fases porque el merge reescribe este mismo archivo mientras bash lo esta leyendo:
 # la fase 1 baja los cambios y le pasa la posta a la version nueva del script.
 set -e
+. "$(dirname "$0")/comun.sh"
 cd /opt/finanzas
 
 if [ "$1" != "--ya-bajado" ]; then
@@ -21,17 +22,17 @@ antes="$2"
 # (2: token malo, 3: otra copia leyendo la cola). Hay que comprobar que quedo arriba y, si no,
 # limpiar el estado "failed" y levantarlo otra vez.
 levantar_bot() {
-  systemctl restart finanzas-bot
+  systemctl restart $SERVICIO-bot
   sleep 5
   for i in 1 2 3; do
-    systemctl is-active -q finanzas-bot && return 0
+    systemctl is-active -q $SERVICIO-bot && return 0
     echo "El bot no quedo arriba (intento $i):"
-    journalctl -u finanzas-bot --no-pager -n 5 -o cat
-    systemctl reset-failed finanzas-bot
-    systemctl start finanzas-bot
+    journalctl -u $SERVICIO-bot --no-pager -n 5 -o cat
+    systemctl reset-failed $SERVICIO-bot
+    systemctl start $SERVICIO-bot
     sleep 15
   done
-  systemctl is-active -q finanzas-bot || { echo ">> EL BOT SIGUE CAIDO"; return 1; }
+  systemctl is-active -q $SERVICIO-bot || { echo ">> EL BOT SIGUE CAIDO"; return 1; }
 }
 
 .venv/bin/pip install -q -r requirements.txt
@@ -40,9 +41,9 @@ if ! .venv/bin/python -m unittest discover -s tests -t . -q; then
   git reset -q --hard "$antes"
   exit 1
 fi
-sudo -u finanzas .venv/bin/python setup_notion.py >/dev/null   # agrega columnas nuevas si las hay
+sudo -u "$SERVICIO" .venv/bin/python setup_notion.py >/dev/null   # agrega columnas nuevas si las hay
 bash deploy/poner-timers.sh
-systemctl enable -q --now finanzas-avisos.timer   # recordatorios de cada mañana
-systemctl enable -q --now finanzas-vigia.timer    # si el bot se cae, lo levanta y avisa
+systemctl enable -q --now $SERVICIO-avisos.timer   # recordatorios de cada mañana
+systemctl enable -q --now $SERVICIO-vigia.timer    # si el bot se cae, lo levanta y avisa
 levantar_bot
 echo "Actualizado de ${antes:0:7} a $(git rev-parse --short HEAD)."

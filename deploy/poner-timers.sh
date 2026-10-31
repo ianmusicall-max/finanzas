@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
-# Copia los timers a systemd y les pone la zona horaria del .env.
+# Instala los servicios y timers de ESTA instalacion en systemd.
 #
-# Los .timer del repo dicen "America/Lima" porque es el sistema original. Un clon en otra ciudad
-# (Moscu) necesita que los resumenes salgan a SU hora, asi que al instalarlos se reemplaza por lo
-# que diga ZONA_HORARIA. Si no esta, queda Lima y nada cambia.
+# Los archivos del repo dicen "finanzas", /opt/finanzas y America/Lima porque es el sistema
+# original. Aca se copian cambiando el prefijo, la carpeta, el usuario y la zona por los de este
+# .env, asi dos personas pueden tener cada una los suyos sin pisarse.
 set -euo pipefail
-cp deploy/systemd/finanzas-* /etc/systemd/system/
-ZH=$(sed -n 's/^ZONA_HORARIA=//p' .env 2>/dev/null | tr -d " \"'" | head -1)
-sed -i "s|America/Lima|${ZH:-America/Lima}|g" /etc/systemd/system/finanzas-*.timer
+. "$(dirname "$0")/comun.sh"
+for origen in "$DIR"/deploy/systemd/finanzas-*; do
+  destino="/etc/systemd/system/$SERVICIO-$(basename "$origen" | sed 's/^finanzas-//')"
+  sed -e "s|/opt/finanzas|$DIR|g" \
+      -e "s|^User=finanzas$|User=$SERVICIO|" \
+      -e "s|^Group=finanzas$|Group=$SERVICIO|" \
+      -e "s|finanzas-|$SERVICIO-|g" \
+      -e "s|America/Lima|$ZONA|g" "$origen" > "$destino"
+done
 systemctl daemon-reload

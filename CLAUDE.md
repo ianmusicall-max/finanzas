@@ -268,6 +268,47 @@ diga `ZONA_HORARIA`, y lo llaman los tres scripts que instalaban los timers.
 **`.env.example` tenía el `NOTION_PARENT_PAGE_ID` real de José** en un repo público, y un clon lo
 habría copiado tal cual. Ahora es un hueco.
 
+## Dos sistemas en el mismo servidor (31/10/2026)
+
+El clon de Дарья vive en `/opt/daria`, en el mismo servidor que `/opt/finanzas`. Los servicios de
+systemd son **globales**: si los dos se llamaran `finanzas-bot`, el segundo que se instale le pisa
+el bot al primero. Por eso el prefijo sale de `SERVICIO` en el `.env` (por defecto `finanzas`, así
+la instalación de siempre no cambia), y es también el **usuario del sistema**.
+
+`deploy/poner-timers.sh` copia los units a systemd cambiando cuatro cosas: la carpeta
+(`/opt/finanzas` → la real), el usuario (`User=`/`Group=`), el prefijo (`finanzas-` → `$SERVICIO-`)
+y la zona (`America/Lima` → `ZONA_HORARIA`). `deploy/comun.sh` lee esos datos del `.env` y lo usan
+los tres scripts de deploy, que ya no nombran "finanzas" a mano.
+
+| | José | Дарья |
+|---|---|---|
+| Carpeta | `/opt/finanzas` | `/opt/daria` |
+| Servicios | `finanzas-bot`, `finanzas-diario.timer`… | `daria-bot`, `daria-diario.timer`… |
+| Usuario | `finanzas` | `daria` |
+| Zona de los timers | America/Lima | Europe/Moscow |
+
+Lo cubre `tests.test_perfiles.ServiciosDeSystemd`: que ninguna directiva de los units nombre el
+sistema de una forma que el instalador no reemplace, y que el instalador siga tocando las cuatro.
+**Al agregar un servicio nuevo**, el test avisa si quedó atado al sistema original.
+
+## El menú y el idioma salen del perfil (31/10/2026)
+
+A Дарья le aparecía el menú entero de José: 25 botones en español, con Deudas, Plan de deudas,
+Patrimonio, Pagos y Proyección, que ella no usa porque no tiene deudas ni tarjetas de crédito ni
+patrimonio. Se le habían personalizado los datos y no la interfaz.
+
+- El **perfil** dice qué opciones ve (`MENU_OPCIONES`, por filas, con el nombre del comando).
+- El **idioma** dice cómo se llaman (`idiomas/<IDIOMA>.py`, `IDIOMA` en el `.env`).
+- `bot.MENU` se arma con los dos. Los comandos que no están en el menú **siguen existiendo**: el
+  día que tenga una tarjeta de crédito se agrega `deudas` a su fila y ya funciona.
+
+`bot.MENU` descarta en silencio una opción sin nombre, así que un botón mal escrito no aparecería
+y nadie se enteraría: `tests.test_perfiles.MenuPorPerfil` comprueba que cada opción tenga nombre en
+todos los idiomas y que los idiomas cubran las mismas claves.
+
+**Falta**: los textos de adentro (preguntas de los formularios, confirmaciones, resúmenes) siguen
+en español. Son ~1.200 entre `bot.py`, `formularios.py`, `informes.py` y `finanzas.py`.
+
 ## Pendiente
 
 - ~~Confirmar que el servidor se actualiza solo~~: confirmado el 03/10/2026 (`/retirar` responde en Telegram,

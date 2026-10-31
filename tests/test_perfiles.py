@@ -236,3 +236,40 @@ class MenuPorPerfil(unittest.TestCase):
             self.assertNotIn(opcion, plano)
         for opcion in ("gasto", "hoy", "presupuesto", "reloj"):
             self.assertIn(opcion, plano)
+
+
+class ServiciosDeSystemd(unittest.TestCase):
+    """Dos sistemas en el mismo servidor no pueden compartir el nombre de los servicios.
+
+    `deploy/poner-timers.sh` instala los units cambiando cuatro cosas: la carpeta
+    (`/opt/finanzas`), el usuario (`User=`/`Group=`), el prefijo (`finanzas-`) y la zona horaria.
+    Si un archivo nombra el sistema original de otra forma, esa línea queda apuntando al de José
+    y el clon le pisa el bot al dueño — que es exactamente lo que no puede pasar.
+    """
+
+    DIRECTIVAS = ("ExecStart", "WorkingDirectory", "ReadWritePaths", "Unit", "User", "Group",
+                  "Environment=TZ", "OnCalendar")
+
+    def _units(self):
+        return sorted((Path(__file__).resolve().parents[1] / "deploy" / "systemd").glob("finanzas-*"))
+
+    def test_hay_units(self):
+        self.assertTrue(self._units(), "no encontré los archivos de systemd")
+
+    def test_lo_que_nombra_el_sistema_lo_cambia_el_instalador(self):
+        import re
+        cubierto = re.compile(r"/opt/finanzas|^(User|Group)=finanzas$|finanzas-|America/Lima")
+        for f in self._units():
+            for i, linea in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
+                linea = linea.strip()
+                if linea.startswith("#") or "=" not in linea:
+                    continue
+                if not linea.startswith(self.DIRECTIVAS):
+                    continue
+                if ("finanzas" in linea or "America/Lima" in linea) and not cubierto.search(linea):
+                    self.fail("%s:%d el instalador no cambiaría esto: %s" % (f.name, i, linea))
+
+    def test_el_instalador_toca_las_cuatro_cosas(self):
+        guion = (Path(__file__).resolve().parents[1] / "deploy" / "poner-timers.sh").read_text(encoding="utf-8")
+        for pieza in ("/opt/finanzas", "User=finanzas", "Group=finanzas", "finanzas-", "America/Lima"):
+            self.assertIn(pieza, guion, "poner-timers.sh ya no reemplaza %r" % pieza)
