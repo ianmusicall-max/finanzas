@@ -5,7 +5,7 @@
 # Dos fases, como auto-actualizar.sh: el pull reescribe este archivo mientras bash lo lee.
 set -e
 . "$(dirname "$0")/comun.sh"
-cd /opt/finanzas
+cd "$DIR"
 
 if [ "$1" != "--ya-bajado" ]; then
   git pull -q origin main

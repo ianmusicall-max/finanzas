@@ -7,7 +7,7 @@
 # la fase 1 baja los cambios y le pasa la posta a la version nueva del script.
 set -e
 . "$(dirname "$0")/comun.sh"
-cd /opt/finanzas
+cd "$DIR"
 
 if [ "$1" != "--ya-bajado" ]; then
   git fetch -q origin main

@@ -373,6 +373,24 @@ idioma se quedó sin traducirlo.
 **Falta**: los textos de `informes.py` y `finanzas.py` (resúmenes, consejos, plan de deudas) y
 los meses abreviados de `excel.py` siguen en español.
 
+## Los scripts de deploy nombraban "finanzas" a mano (31/10/2026)
+
+Los `.sh` se copian tal cual a las dos instalaciones, así que un `/opt/finanzas` escrito a mano
+hace que el sistema del segundo trabaje sobre el del primero. Había tres:
+
+- `actualizar.sh` y `auto-actualizar.sh` hacían `cd /opt/finanzas` **después** de leer
+  `comun.sh`. O sea: `daria-autoupdate.timer`, cada 5 minutos, hacía `git pull` y corría los
+  tests **en la carpeta de José**, y después reiniciaba `daria-bot`. Encima
+  `sudo -u daria .venv/bin/python setup_notion.py` salía desde ahí, con el `.env` equivocado.
+- `vigia.sh` era peor: ni siquiera leía `comun.sh`. Vigilaba `finanzas-bot`, lo encontraba vivo
+  y **salía sin mirar el bot que tenía que cuidar**. El bot de Дарья no tenía vigía, que es
+  justo lo que el vigía existe para evitar.
+
+Ahora todos leen `comun.sh` y usan `$DIR` y `$SERVICIO`. Lo cubre
+`tests.test_perfiles.ScriptsDeDeploy`, que lee cada script y falla si una línea de código (no un
+comentario) nombra la carpeta, el servicio o el usuario a mano. `poner-timers.sh` y los
+instaladores quedan fuera: son los que hacen el reemplazo y los que dan el valor por defecto.
+
 ## Pendiente
 
 - ~~Confirmar que el servidor se actualiza solo~~: confirmado el 03/10/2026 (`/retirar` responde en Telegram,

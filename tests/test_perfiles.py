@@ -197,6 +197,48 @@ class FormulaDeMetas(unittest.TestCase):
         self.assertNotIn("columna(", self._expresion())
 
 
+class ScriptsDeDeploy(unittest.TestCase):
+    """Ningún script de deploy puede nombrar a mano la carpeta ni el servicio.
+
+    Los scripts se copian tal cual a las dos instalaciones, así que un `/opt/finanzas` o un
+    `finanzas-bot` escrito a mano hace que el sistema del segundo trabaje sobre el del primero.
+    Pasó con tres: `actualizar.sh` y `auto-actualizar.sh` hacían `cd /opt/finanzas` (la
+    actualización automática de ella entraba a la carpeta de él), y `vigia.sh` ni siquiera leía
+    `comun.sh`: vigilaba `finanzas-bot`, lo encontraba vivo y salía contento **sin mirar el bot
+    que tenía que cuidar**. Un bot sin vigía y nadie enterándose, que es justo lo que el vigía
+    existe para evitar.
+    """
+
+    # Los que pueden nombrarlo: el que hace el reemplazo y los instaladores, que dan el valor
+    # por defecto de la instalación de siempre.
+    PERMITIDOS = {"poner-timers.sh", "instalar-todo.sh", "instalar.sh", "comun.sh"}
+
+    def test_ninguno_nombra_la_carpeta_ni_el_servicio(self):
+        raiz = Path(__file__).resolve().parents[1] / "deploy"
+        for script in sorted(raiz.glob("*.sh")):
+            if script.name in self.PERMITIDOS:
+                continue
+            for n, linea in enumerate(script.read_text().splitlines(), 1):
+                codigo = linea.split("#", 1)[0]
+                self.assertNotIn("/opt/finanzas", codigo,
+                                 "deploy/%s:%d nombra la carpeta a mano; usa $DIR" % (script.name, n))
+                self.assertNotIn("finanzas-", codigo,
+                                 "deploy/%s:%d nombra el servicio a mano; usa $SERVICIO-" % (script.name, n))
+                self.assertNotIn("-u finanzas", codigo,
+                                 "deploy/%s:%d nombra el usuario a mano; usa $SERVICIO" % (script.name, n))
+
+    def test_los_que_trabajan_leen_comun(self):
+        """Quien use $DIR o $SERVICIO tiene que haberlos leído de comun.sh."""
+        raiz = Path(__file__).resolve().parents[1] / "deploy"
+        for script in sorted(raiz.glob("*.sh")):
+            if script.name in ("comun.sh", "instalar-todo.sh"):
+                continue
+            texto = script.read_text()
+            if "$DIR" in texto or "$SERVICIO" in texto:
+                self.assertIn("comun.sh", texto,
+                              "deploy/%s usa $DIR o $SERVICIO sin leer comun.sh" % script.name)
+
+
 class MenuPorPerfil(unittest.TestCase):
     """Cada perfil elige qué botones ve; el idioma les pone el nombre.
 
