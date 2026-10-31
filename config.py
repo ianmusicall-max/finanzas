@@ -30,11 +30,44 @@ def _num(texto: str, defecto: float) -> float:
 # les llegan los resumenes diarios y semanales.
 TELEGRAM_USUARIOS = _ids(os.environ.get("TELEGRAM_USUARIOS", ""))
 
-# Moneda base: todo se suma en soles. Lo que entra en dolares, euros o rublos se
-# convierte con este tipo de cambio (se cambia con /tc en el bot).
-TC_USD = _num(os.environ.get("TC_USD", ""), 3.75)
-TC_EUR = _num(os.environ.get("TC_EUR", ""), 4.10)
-TC_RUB = _num(os.environ.get("TC_RUB", ""), 0.045)
+# La moneda en la que se suma todo. Las columnas de Notion llevan su simbolo en el nombre
+# ("Monto S/", "Monto ₽"), asi que cambiarla crea columnas distintas: se define una vez, antes de
+# correr setup_notion.py, y no se toca mas. PEN es la de siempre, para no mover nada de lo que ya hay.
+MONEDA_BASE = (os.environ.get("MONEDA_BASE", "PEN").strip().upper() or "PEN")
+SIMBOLOS = {"PEN": "S/", "USD": "$", "RUB": "₽", "EUR": "€"}
+SUFIJO = SIMBOLOS.get(MONEDA_BASE, MONEDA_BASE)
+# El rublo no se escribe con centimos: ₽ 1,500, no ₽ 1,500.00.
+DECIMALES = {"RUB": 0}
+
+
+def columna(nombre: str) -> str:
+    """El nombre de una columna de Notion en la moneda base: columna("Monto") -> "Monto S/"."""
+    return "%s %s" % (nombre, SUFIJO)
+
+
+# Cuantas unidades de cada moneda vale 1 dolar. De aca sale el tipo de cambio contra la
+# MONEDA_BASE que sea, y el respaldo para cuando no hay internet.
+#
+# Antes esto eran tres numeros sueltos (TC_USD=3.75 ...) que querian decir "soles por unidad":
+# el sistema entero estaba atado al sol. Con la base en rublos ese 3.75 habria convertido mal
+# cada monto en dolares, en silencio.
+# Los numeros estan elegidos para que con base PEN salgan exactamente los de siempre
+# (3.75 soles por dolar, 4.10 por euro, 0.045 por rublo): nada cambia para quien ya lo usa.
+POR_USD = {"USD": 1.0, "PEN": 3.75, "EUR": 0.914634, "RUB": 83.3333}
+
+
+def tc_defecto(moneda: str) -> float:
+    """Unidades de la MONEDA_BASE por 1 unidad de `moneda`, sin salir a internet."""
+    if moneda == MONEDA_BASE:
+        return 1.0
+    return POR_USD.get(MONEDA_BASE, 1.0) / POR_USD.get(moneda, 1.0)
+
+
+# Respaldo por si no hay conexion. Se puede fijar a mano en el .env con TC_USD, TC_EUR...,
+# siempre en unidades de la MONEDA_BASE (con base PEN, TC_USD son soles por dolar; con base
+# RUB, rublos por dolar). Normalmente no hace falta ponerlos: los de arriba ya sirven.
+TC_DEFECTO = {m: _num(os.environ.get("TC_%s" % m, ""), tc_defecto(m))
+              for m in POR_USD if m != MONEDA_BASE}
 # Si es 1 (lo normal), el tipo de cambio del dia se baja solo de internet; los de arriba
 # quedan de respaldo por si no hay conexion. Con /tc 3.38 se fija uno a mano.
 TC_AUTO = os.environ.get("TC_AUTO", "1").strip() not in ("0", "no", "false", "")
@@ -67,19 +100,6 @@ def ahora() -> datetime:
 
 def hoy():
     return ahora().date()
-
-
-# La moneda en la que se suma todo. Las columnas de Notion llevan su simbolo en el nombre
-# ("Monto S/", "Monto ₽"), asi que cambiarla crea columnas distintas: se define una vez, antes de
-# correr setup_notion.py, y no se toca mas. PEN es la de siempre, para no mover nada de lo que ya hay.
-MONEDA_BASE = (os.environ.get("MONEDA_BASE", "PEN").strip().upper() or "PEN")
-SIMBOLOS = {"PEN": "S/", "USD": "$", "RUB": "₽", "EUR": "€"}
-SUFIJO = SIMBOLOS.get(MONEDA_BASE, MONEDA_BASE)
-
-
-def columna(nombre: str) -> str:
-    """El nombre de una columna de Notion en la moneda base: columna("Monto") -> "Monto S/"."""
-    return "%s %s" % (nombre, SUFIJO)
 
 
 # El idioma de los botones y los textos del bot (idiomas/<IDIOMA>.py).

@@ -19,14 +19,14 @@ import excel as X
 import finanzas as F
 import informes as I
 import reloj as R
-from idiomas import BOTONES
-from config import DATA, TELEGRAM_USUARIOS, columna
+from idiomas import BOTONES, DIAS, MESES, t
+from config import DATA, MONEDA_BASE, TELEGRAM_USUARIOS, columna
 from notion import DEUDAS, METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, SUSCRIPCIONES, Notion, NotionError, cargar_bases, p_select
 from formularios import Formularios
 from lector import MONEDAS, Movimiento, NoEntendi, _numero, interpretar
 from telegram import Telegram, TelegramError, esc, guardar_offset, leer_offset, turno_del_bot
 
-AYUDA = (
+AYUDA = t(
     "💰 <b>Finanzas</b> · todo queda en Notion\n\n"
     "<b>Anotar</b> (con botones):\n"
     "<code>300 sofá falabella 6 cuotas</code> · compra a crédito en cuotas\n"
@@ -183,7 +183,7 @@ def leer_patrimonio(clase: str, texto: str):
     valor = _numero(m.group(1)) * (1000 if m.group(2) else 1)
     nombre = texto[:m.start()].strip(" :-")
     resto = texto[m.end():].split()
-    moneda = "PEN"
+    moneda = MONEDA_BASE
     extra = []
     for w in resto:
         wn = C.normal(w)
@@ -341,7 +341,7 @@ class Bot:
         if mov.tipo == "Ahorro" and nombre_meta and METAS in self.bases:
             meta = F.buscar_meta(F.metas(self.notion, self.bases), nombre_meta)
             if meta:
-                mov.categoria = "Fondo de emergencia" if "emergencia" in C.normal(meta["meta"]) else "Metas"
+                mov.categoria = C.ahorro_de_meta(meta["meta"])
                 mov.adivinada = True
         sus, nueva_sus = None, False
         if mov.tipo == "Gasto" and mov.categoria == F.CATEGORIA_SUSCRIPCIONES and SUSCRIPCIONES in self.bases:
@@ -356,8 +356,8 @@ class Bot:
         if sus:
             r = F.registrar_pago_suscripcion(self.notion, self.bases, sus["nombre"], mov.monto, mov.moneda, sus["cada"], mov.fecha, sus)
         l = ["%s <b>%s</b> · %s" % (C.emoji(mov.tipo, mov.categoria), esc(mov.tipo), esc(mov.categoria))]
-        monto = F.s3(F.soles(mov.monto, mov.moneda))
-        if mov.moneda != "PEN":
+        monto = F.s3(F.en_base(mov.monto, mov.moneda))
+        if mov.moneda != MONEDA_BASE:
             monto = "%s %s = %s\n<i>💱 1 %s = S/ %s</i>" % (mov.moneda, "{:,.2f}".format(mov.monto), monto,
                                                           mov.moneda, F.tipo_de_cambio(mov.moneda))
         l.append("%s\n%s" % (monto, esc(mov.descripcion)))
@@ -373,7 +373,7 @@ class Bot:
         if mov.tipo == "Gasto" and getattr(mov, "tarjeta", None) == "Crédito" and DEUDAS in self.bases:
             d = F.cargar_a_tarjeta(self.notion, self.bases, mov.medio, mov.monto, mov.moneda)
             self._credito_de[pid] = (d["id"], d["cargo"])
-            debe = F.s3(F.soles(d["saldo"], d["moneda"]))
+            debe = F.s3(F.en_base(d["saldo"], d["moneda"]))
             l.append("🧾 A crédito: %s %s. Ahora debes %s." % (
                 "creé la deuda" if d["nueva"] else "se sumó a", esc(d["deuda"]), debe))
             tarjeta = F.deuda_de_tarjeta(self.notion, self.bases, mov.medio)
@@ -391,7 +391,7 @@ class Bot:
                 delta = mov.monto if mov.tipo == "Ingreso" else -mov.monto
                 nuevo = F.mover_cuenta(self.notion, cuenta, delta)
                 self._cuenta_de[pid] = (cuenta["id"], delta)
-                l.append("🏦 %s ahora tiene %s" % (esc(cuenta["nombre"]), F.s3(F.soles(nuevo, cuenta["moneda"]))))
+                l.append("🏦 %s ahora tiene %s" % (esc(cuenta["nombre"]), F.s3(F.en_base(nuevo, cuenta["moneda"]))))
             else:
                 l.append("<i>💡 Para que siga el saldo de %s en %s: <code>/activo %s 1000 %s</code> con lo que tengas hoy.</i>" % (
                     esc(mov.medio), mov.moneda, esc(mov.medio), mov.moneda.lower()))
@@ -402,8 +402,8 @@ class Bot:
                 if alt and _pid(alt["id"]) != _pid(self._cuenta_de[pid][0]):
                     otra_cuenta.append(("🔁 Salió de %s" % alt["nombre"], "cb:%s:%s" % (pid, banco)))
         if meta:
-            nuevo = F.sumar_a_meta(self.notion, meta, F.soles(mov.monto, mov.moneda))
-            self._metas_de[pid] = (meta, F.soles(mov.monto, mov.moneda))
+            nuevo = F.sumar_a_meta(self.notion, meta, F.en_base(mov.monto, mov.moneda))
+            self._metas_de[pid] = (meta, F.en_base(mov.monto, mov.moneda))
             avance = nuevo / meta["objetivo"] if meta["objetivo"] else None
             l.append("🎯 %s: %s de %s (%s)" % (esc(meta["meta"]), F.s(nuevo), F.s(meta["objetivo"]), F.pct(avance)))
         if mov.tipo == "Gasto":
@@ -511,7 +511,7 @@ class Bot:
 
     @staticmethod
     def _en(monto: float, moneda: str) -> str:
-        return F.s(monto) if moneda == "PEN" else "%s %s" % (moneda, "{:,.2f}".format(monto))
+        return F.s(monto) if moneda == MONEDA_BASE else "%s %s" % (moneda, "{:,.2f}".format(monto))
 
     def _boton_ahorro(self, chat, data: str) -> None:
         p = self._por_ahorrar.get(chat)
@@ -548,7 +548,7 @@ class Bot:
         nombres = self._nombres_metas()
         p["metas"] = nombres
         botones = [[("🎯 " + n, "a:m:%d" % k)] for k, n in enumerate(nombres)]
-        botones.append([("🐷 Ahorro general", "a:m:g")])
+        botones.append([(t("🐷 Ahorro general"), "a:m:g")])
         extra = "" if nombres else "\n<i>Aún no tienes metas; puedes crear una con /meta Emergencia 10000</i>"
         self.decir(chat, "¿Para qué es lo que separas (%s)?%s" % (self._en(p["separar"], p["moneda"]), extra), botones)
 
@@ -559,8 +559,8 @@ class Bot:
             return
         meta = None if cual == "g" else p["metas"][int(cual)]
         mov = Movimiento(tipo="Ahorro", monto=p["separar"], moneda=p["moneda"],
-                         descripcion="Ahorro para %s" % meta if meta else "Ahorro",
-                         categoria="Fondo de emergencia" if meta and "emergencia" in C.normal(meta) else "Metas" if meta else "Ahorro general",
+                         descripcion=t("Ahorro para %s") % meta if meta else t("Ahorro"),
+                         categoria=C.ahorro_de_meta(meta),
                          medio=p["medio"], fecha=F.hoy())
         self._guardar(chat, mov, meta)
 
@@ -686,16 +686,16 @@ class Bot:
         cuenta_id, delta = self._cuenta_de[pid]
         todas = {_pid(c["id"]): c for c in F.cuentas(self.notion, self.bases)}
         antes = todas.get(_pid(cuenta_id))
-        alt = F.buscar_cuenta(self.notion, self.bases, banco, antes["moneda"] if antes else "PEN")
+        alt = F.buscar_cuenta(self.notion, self.bases, banco, antes["moneda"] if antes else MONEDA_BASE)
         if not alt:
             self.decir(chat, "No encuentro la cuenta de %s. Créala con <code>/activo %s 1000</code>." % (esc(banco), esc(banco)))
             return
         l = []
         if antes:
-            l.append("🏦 %s vuelve a %s" % (esc(antes["nombre"]), F.s3(F.soles(F.mover_cuenta(self.notion, antes, -delta), antes["moneda"]))))
+            l.append("🏦 %s vuelve a %s" % (esc(antes["nombre"]), F.s3(F.en_base(F.mover_cuenta(self.notion, antes, -delta), antes["moneda"]))))
         nuevo = F.mover_cuenta(self.notion, alt, delta)
         self._cuenta_de[pid] = (alt["id"], delta)
-        l.append("🏦 %s ahora tiene %s" % (esc(alt["nombre"]), F.s3(F.soles(nuevo, alt["moneda"]))))
+        l.append("🏦 %s ahora tiene %s" % (esc(alt["nombre"]), F.s3(F.en_base(nuevo, alt["moneda"]))))
         self.decir(chat, "🔁 Listo, salió de %s.\n%s" % (esc(alt["nombre"]), "\n".join(l)))
 
     def _deshacer(self, chat, pid: str) -> None:
@@ -902,7 +902,7 @@ class Bot:
             self.decir(chat, esc(exc))
             return
         _, antes = F.fijar_patrimonio(self.notion, self.bases, nombre, clase, tipo, valor, moneda)
-        ahora = F.soles(valor, moneda)
+        ahora = F.en_base(valor, moneda)
         cambio = ""
         if antes is not None:
             d = ahora - float(antes)
@@ -914,41 +914,44 @@ class Bot:
     def _inicio(self) -> str:
         """La pantalla de inicio: arriba, cuanto puedes gastar y cuanto llevas; despues lo importante."""
         hoy = F.hoy()
-        l = ["💰 <b>Finanzas</b> · %s %d de %s" % (["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"][hoy.weekday()],
-                                               hoy.day, F.MESES[hoy.month - 1].lower()), ""]
+        l = [t("💰 <b>Finanzas</b> · %s %d de %s") % (DIAS[hoy.weekday()], hoy.day,
+                                                      MESES[hoy.month - 1].lower()), ""]
         try:
             lim = F.estado_limite(self.notion, self.bases)
             if lim:
                 # primera linea: lo que queda hoy, lo primero que se ve
                 x, tc = lim["dia"], F.tipo_de_cambio(lim["moneda"])
-                l[0] = "📏 %s hoy: %s" % ("Te pasaste" if x["queda"] < 0 else "Quedan", F.s3(abs(x["queda"]) * tc))
-                l[1] = "💰 <b>Finanzas</b> · %s %d de %s\n" % (["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"][hoy.weekday()],
-                                                           hoy.day, F.MESES[hoy.month - 1].lower())
-                l.append("📏 <b>Para gastar en el día a día</b>")
+                l[0] = t("📏 %s hoy: %s") % (t("Te pasaste") if x["queda"] < 0 else t("Quedan"),
+                                             F.s3(abs(x["queda"]) * tc))
+                l[1] = t("💰 <b>Finanzas</b> · %s %d de %s\n") % (DIAS[hoy.weekday()], hoy.day,
+                                                                  MESES[hoy.month - 1].lower())
+                l.append(t("📏 <b>Para gastar en el día a día</b>"))
                 l.extend(I.lineas_limite(lim))
             else:
-                l.append("📏 Fija cuánto puedes gastar por día y aquí verás cuánto te queda hoy, en la semana y en el mes: "
-                         "<code>/limite 1500 rub</code>")
+                l.append(t("📏 Fija cuánto puedes gastar por día y aquí verás cuánto te queda hoy, "
+                           "en la semana y en el mes: <code>/limite %s</code>") % C.LIMITE_EJEMPLO)
             deudas = F.deudas(self.notion, self.bases)
             if deudas:
-                cuotas = sum(F.soles(d["cuota"], d["moneda"]) for d in deudas if d["cuota"])
+                cuotas = sum(F.en_base(d["cuota"], d["moneda"]) for d in deudas if d["cuota"])
                 l.append("")
-                l.append("💳 Deudas: <b>%s</b>%s" % (F.s3(sum(d["saldo_s"] for d in deudas)),
-                                                    " · cuotas %s al mes" % F.s(cuotas) if cuotas else ""))
+                l.append(t("💳 Deudas: <b>%s</b>%s") % (F.s3(sum(d["saldo_s"] for d in deudas)),
+                                                        t(" · cuotas %s al mes") % F.s(cuotas) if cuotas else ""))
             metas = [m for m in F.metas(self.notion, self.bases) if m["avance"] < 1]
             if metas:
                 l.append("🎯 " + " · ".join("%s %s" % (esc(m["meta"]), F.pct(m["avance"])) for m in metas[:4]))
             for r in F.avisos_de_hoy(self.notion, self.bases, hoy):
-                l.append("🔔 Hoy toca: %s%s" % (esc(r["nombre"]), I.monto_rec(r)))
+                l.append(t("🔔 Hoy toca: %s%s") % (esc(r["nombre"]), I.monto_rec(r)))
             pro = F.proyeccion(self.notion, self.bases, hoy)
             if pro:
-                l.append("%s Si no entra más dinero, cierras el mes con %s" % ("📈" if pro["cierre"] >= 0 else "📉", F.s3(pro["cierre"])))
+                l.append(t("%s Si no entra más dinero, cierras el mes con %s")
+                         % ("📈" if pro["cierre"] >= 0 else "📉", F.s3(pro["cierre"])))
             for x in F.renovaciones(self.notion, self.bases, hoy, 3):
-                l.append("🔁 %s se renueva el %s" % (esc(x["nombre"]), "/".join(reversed(x["proximo"][5:10].split("-")))))
+                l.append(t("🔁 %s se renueva el %s")
+                         % (esc(x["nombre"]), "/".join(reversed(x["proximo"][5:10].split("-")))))
         except NotionError:
-            l.append("<i>⚠️ Notion no respondió; prueba /start en un rato.</i>")
+            l.append(t("<i>⚠️ Notion no respondió; prueba /start en un rato.</i>"))
         l.append("")
-        l.append("Anotar: /gasto · /ingreso · /ahorro · /inversion\nTodos los comandos: /ayuda")
+        l.append(t("Anotar: /gasto · /ingreso · /ahorro · /inversion\nTodos los comandos: /ayuda"))
         return "\n".join(l)
 
     # ---- pagos del mes, proyeccion, plan de deudas y grafico
@@ -994,9 +997,9 @@ class Bot:
         extra, txt = None, ""
         m = re.search(r"\d[\d.,]*", arg or "")
         if m:
-            moneda = next((v for k, v in MONEDAS.items() if k in C.normal(arg).split()), "PEN")
+            moneda = next((v for k, v in MONEDAS.items() if k in C.normal(arg).split()), MONEDA_BASE)
             n = _numero(m.group(0))
-            extra, txt = F.soles(n, moneda), F.en_moneda(n, moneda)
+            extra, txt = F.en_base(n, moneda), F.en_moneda(n, moneda)
         self.decir(chat, I.texto_plan(self.notion, self.bases, extra, txt))
 
     def _corte(self, chat, arg: str) -> None:
@@ -1074,9 +1077,9 @@ class Bot:
             return
         m = re.search(r"\d[\d.,]*", arg)
         if not m:
-            self.decir(chat, "Escribe cuánto puedes gastar por día: <code>/limite 1500 rub</code>")
+            self.decir(chat, t("Escribe cuánto puedes gastar por día: <code>/limite %s</code>") % C.LIMITE_EJEMPLO)
             return
-        moneda = next((v for k, v in MONEDAS.items() if k in C.normal(arg).split()), "PEN")
+        moneda = next((v for k, v in MONEDAS.items() if k in C.normal(arg).split()), MONEDA_BASE)
         F.fijar_limite(_numero(m.group(0)), moneda)
         if not F.limite():
             self.decir(chat, "👌 Quité el límite del día a día.")
@@ -1104,7 +1107,7 @@ class Bot:
             self.decir(chat, esc(str(exc).replace("/activo Interbank 5200", "/deuda Tarjeta Falabella 1200")))
             return
         _, antes = F.fijar_deuda(self.notion, self.bases, nombre, tipo, saldo, moneda)
-        ahora = F.soles(saldo, moneda)
+        ahora = F.en_base(saldo, moneda)
         cambio = ""
         if antes is not None:
             d = ahora - float(antes)
@@ -1173,7 +1176,7 @@ class Bot:
                 return
             c = p["cuentas"][int(valor)]
             nuevo = F.mover_cuenta(self.notion, c, -round(p["pago_s"] / F.tipo_de_cambio(c["moneda"]), 2))
-            self.decir(chat, "🏦 %s ahora tiene %s" % (esc(c["nombre"]), F.s3(F.soles(nuevo, c["moneda"]))))
+            self.decir(chat, "🏦 %s ahora tiene %s" % (esc(c["nombre"]), F.s3(F.en_base(nuevo, c["moneda"]))))
 
     def _monto_pagado(self, chat, texto: str) -> None:
         p = self._pagando[chat]
@@ -1193,10 +1196,10 @@ class Bot:
         if nuevo <= 0:
             self.decir(chat, "🎉 ¡%s pagada por completo! Ya no aparece en tus deudas." % esc(d["deuda"]))
         else:
-            self.decir(chat, "✅ Pago a %s. Te queda: <b>%s</b>" % (esc(d["deuda"]), F.s3(F.soles(nuevo, d["moneda"]))))
+            self.decir(chat, "✅ Pago a %s. Te queda: <b>%s</b>" % (esc(d["deuda"]), F.s3(F.en_base(nuevo, d["moneda"]))))
         cuentas = F.cuentas(self.notion, self.bases)
         if cuentas:
-            self._pagando[chat] = {"deuda": d, "pago_s": F.soles(monto, moneda or d["moneda"]), "cuentas": cuentas}
+            self._pagando[chat] = {"deuda": d, "pago_s": F.en_base(monto, moneda or d["moneda"]), "cuentas": cuentas}
             botones = [[("🏦 %s (%s)" % (c["nombre"], self._en(c["valor"], c["moneda"])), "pc:%d" % k)]
                        for k, c in enumerate(cuentas[:10])]
             self.decir(chat, "¿De qué cuenta salió el pago?", botones + [[("No descontar", "pc:no")]])
@@ -1239,8 +1242,8 @@ class Bot:
         banco, ef, efectivo = F.retirar_efectivo(self.notion, self.bases, c, n)
         self._retiro_de[chat] = (c["id"], ef["id"], n)
         l = ["🏧 Retiraste <b>%s</b> de %s" % (self._en(n, c["moneda"]), esc(c["nombre"])),
-             "🏦 %s ahora tiene %s" % (esc(c["nombre"]), F.s3(F.soles(banco, c["moneda"]))),
-             "💵 %s ahora tiene %s" % (esc(ef["nombre"]), F.s3(F.soles(efectivo, c["moneda"]))),
+             "🏦 %s ahora tiene %s" % (esc(c["nombre"]), F.s3(F.en_base(banco, c["moneda"]))),
+             "💵 %s ahora tiene %s" % (esc(ef["nombre"]), F.s3(F.en_base(efectivo, c["moneda"]))),
              "<i>No cuenta como gasto. Cuando pagues en efectivo, elige el medio Efectivo y se descuenta de ahí.</i>"]
         if banco < 0:
             l.insert(2, "⚠️ El saldo de %s quedó en negativo; corrígelo con <code>/activo %s monto</code>." % (
@@ -1337,7 +1340,7 @@ class Bot:
             return
         l = ["%s <b>%s</b> · %s" % (C.emoji(mov["tipo"], mov["categoria"]), esc(mov["tipo"]), esc(mov["categoria"])),
              "%s%s" % (self._en(mov["monto"], mov["moneda"]),
-                       "" if mov["moneda"] == "PEN" else " = " + F.s(mov["monto_s"])),
+                       "" if mov["moneda"] == MONEDA_BASE else " = " + F.s(mov["monto_s"])),
              esc(mov["descripcion"])]
         extra = [x for x in (mov["medio"], (mov["tarjeta"] or "").lower() or None,
                              "%d cuotas" % mov["cuotas"] if mov.get("cuotas") else None,
@@ -1393,7 +1396,7 @@ class Bot:
             c = None
         if c:
             l.append("🏦 %s vuelve a %s" % (esc(c["nombre"]),
-                                            F.s3(F.soles(F.mover_cuenta(self.notion, c, -delta), c["moneda"]))))
+                                            F.s3(F.en_base(F.mover_cuenta(self.notion, c, -delta), c["moneda"]))))
         if pid in self._credito_de:
             deuda_id, cargo = self._credito_de.pop(pid)
             d = next((x for x in F.deudas(self.notion, self.bases, todas=True, con_cuotas=False)
@@ -1405,7 +1408,7 @@ class Bot:
             d = None
         if d:
             l.append("💳 %s vuelve a %s" % (esc(d["deuda"]),
-                                            F.s3(F.soles(F.pagar_deuda(self.notion, d, cargo, moneda), d["moneda"]))))
+                                            F.s3(F.en_base(F.pagar_deuda(self.notion, d, cargo, moneda), d["moneda"]))))
         if pid in self._metas_de:
             meta, monto = self._metas_de.pop(pid)
             actual = F.buscar_meta(F.metas(self.notion, self.bases), meta["meta"]) or meta
@@ -1420,14 +1423,14 @@ class Bot:
         if F.va_a_tarjeta(mov) and DEUDAS in self.bases:
             d = F.cargar_a_tarjeta(self.notion, self.bases, mov["medio"], mov["monto"], mov["moneda"])
             self._credito_de[pid] = (d["id"], d["cargo"])
-            l.append("💳 %s: ahora debes %s" % (esc(d["deuda"]), F.s3(F.soles(d["saldo"], d["moneda"]))))
+            l.append("💳 %s: ahora debes %s" % (esc(d["deuda"]), F.s3(F.en_base(d["saldo"], d["moneda"]))))
         if F.mueve_cuenta(mov) and PATRIMONIO in self.bases:
             c = F.buscar_cuenta(self.notion, self.bases, mov["medio"], mov["moneda"])
             if c:
                 delta = F.delta_cuenta(mov)
                 self._cuenta_de[pid] = (c["id"], delta)
                 l.append("🏦 %s ahora tiene %s" % (esc(c["nombre"]),
-                                                   F.s3(F.soles(F.mover_cuenta(self.notion, c, delta), c["moneda"]))))
+                                                   F.s3(F.en_base(F.mover_cuenta(self.notion, c, delta), c["moneda"]))))
         return l
 
     # ---- bucle

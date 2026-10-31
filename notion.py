@@ -11,7 +11,8 @@ from typing import Optional
 import requests
 
 import categorias as C
-from config import BASES, DATA, NOTION_PARENT_PAGE_ID, NOTION_TOKEN, columna
+from config import BASES, DATA, NOTION_PARENT_PAGE_ID, NOTION_TOKEN, SIMBOLOS, columna
+from idiomas import NOTION_PROP, NOTION_VALOR
 
 API = "https://api.notion.com/v1"
 VERSION = "2022-06-28"
@@ -51,6 +52,81 @@ def p_date(d, hasta=None) -> dict:
     return {"date": v}
 
 
+# ---------------------------------------------------------------- los nombres en Notion
+# El codigo nombra las columnas en espanol en todos lados (f.get("Monto")). Traducirlas ahi
+# habria sido tocar cientos de sitios, asi que la traduccion pasa SOLO aca, en la frontera:
+# al crear el esquema, al escribir una pagina, al filtrar y al leer una fila.
+
+# Las columnas cuyo valor es una llave del sistema y no un dato de la persona. Solo estas se
+# traducen. "Categoría", "Moneda" y "Medio de pago" quedan fuera a proposito: sus valores salen
+# del perfil y ya vienen en su idioma — y traducirlos los mezclaria, porque la cuenta "Salud" y
+# la categoria "Здоровье" terminarian siendo la misma palabra.
+COLUMNAS_LLAVE = {"Tipo", "Grupo", "Cuenta", "Tarjeta", "Frecuencia", "Origen", "Clase",
+                  "Prioridad", "Estado"}
+
+_PROP_INV = {v: k for k, v in NOTION_PROP.items()}
+_VALOR_INV = {v: k for k, v in NOTION_VALOR.items()}
+# El final de "Monto ₽" o "Saldo USD" no se traduce: es el simbolo o el codigo de la moneda.
+_SUFIJOS = set(SIMBOLOS) | set(SIMBOLOS.values())
+
+
+def _con_sufijo(nombre: str, mapa: dict) -> str:
+    base, _, suf = nombre.rpartition(" ")
+    if base and suf in _SUFIJOS:
+        return "%s %s" % (mapa.get(base, base), suf)
+    return mapa.get(nombre, nombre)
+
+
+def n_prop(nombre: str) -> str:
+    """El nombre de una base o columna como se llama en Notion: "Monto ₽" -> "Сумма ₽"."""
+    return _con_sufijo(nombre, NOTION_PROP)
+
+
+def es_prop(nombre: str) -> str:
+    """El camino de vuelta: como lo nombra el codigo."""
+    return _con_sufijo(nombre, _PROP_INV)
+
+
+def _props_a_notion(propiedades: dict) -> dict:
+    out = {}
+    for k, v in propiedades.items():
+        if k in COLUMNAS_LLAVE and isinstance(v, dict) and isinstance(v.get("select"), dict):
+            nombre = v["select"].get("name")
+            if nombre:
+                v = dict(v, select=dict(v["select"], name=NOTION_VALOR.get(nombre, nombre)))
+        out[n_prop(k)] = v
+    return out
+
+
+def _filtro_a_notion(f):
+    """Los filtros y los ordenes nombran columnas ({"property": "Fecha"})."""
+    if isinstance(f, list):
+        return [_filtro_a_notion(x) for x in f]
+    if not isinstance(f, dict):
+        return f
+    col = f.get("property")
+    out = {}
+    for k, v in f.items():
+        if k == "property" and isinstance(v, str):
+            out[k] = n_prop(v)
+        elif k == "select" and isinstance(v, dict) and col in COLUMNAS_LLAVE:
+            out[k] = {kk: NOTION_VALOR.get(vv, vv) if isinstance(vv, str) else vv
+                      for kk, vv in v.items()}
+        else:
+            out[k] = _filtro_a_notion(v) if isinstance(v, (dict, list)) else v
+    return out
+
+
+def _esquema_a_notion(esquema: dict) -> dict:
+    out = {}
+    for nombre, tipo in esquema.items():
+        if nombre in COLUMNAS_LLAVE and isinstance(tipo.get("select"), dict):
+            tipo = {"select": {"options": [{"name": NOTION_VALOR.get(o["name"], o["name"])}
+                                           for o in tipo["select"].get("options", [])]}}
+        out[n_prop(nombre)] = tipo
+    return out
+
+
 def leer(prop: dict):
     """Devuelve el valor plano de una propiedad tal como la manda Notion."""
     t = prop.get("type")
@@ -73,8 +149,15 @@ def leer(prop: dict):
 
 
 def fila(page: dict) -> dict:
-    """Una pagina de Notion como diccionario {propiedad: valor} mas id y url."""
-    out = {k: leer(v) for k, v in (page.get("properties") or {}).items()}
+    """Una pagina de Notion como diccionario {propiedad: valor} mas id y url.
+    Los nombres y las llaves vuelven al espanol, que es como los nombra el resto del codigo."""
+    out = {}
+    for k, v in (page.get("properties") or {}).items():
+        nombre = es_prop(k)
+        valor = leer(v)
+        if nombre in COLUMNAS_LLAVE and isinstance(valor, str):
+            valor = _VALOR_INV.get(valor, valor)
+        out[nombre] = valor
     out["_id"] = page.get("id")
     out["_url"] = page.get("url")
     return out
@@ -136,10 +219,11 @@ class Notion:
         return self._req("GET", "/databases/" + db_id)
 
     def crear_pagina(self, db_id: str, propiedades: dict) -> dict:
-        return self._req("POST", "/pages", {"parent": {"database_id": db_id}, "properties": propiedades})
+        return self._req("POST", "/pages", {"parent": {"database_id": db_id},
+                                            "properties": _props_a_notion(propiedades)})
 
     def editar_pagina(self, page_id: str, propiedades: dict) -> dict:
-        return self._req("PATCH", "/pages/" + page_id, {"properties": propiedades})
+        return self._req("PATCH", "/pages/" + page_id, {"properties": _props_a_notion(propiedades)})
 
     def archivar(self, page_id: str) -> dict:
         return self._req("PATCH", "/pages/" + page_id, {"archived": True})
@@ -152,9 +236,9 @@ class Notion:
         """Todas las filas que cumplen el filtro, pagina por pagina (Notion da 100 por vez)."""
         cuerpo = {"page_size": min(limite, 100)}
         if filtro:
-            cuerpo["filter"] = filtro
+            cuerpo["filter"] = _filtro_a_notion(filtro)
         if orden:
-            cuerpo["sorts"] = orden
+            cuerpo["sorts"] = _filtro_a_notion(orden)
         out = []
         while True:
             res = self._req("POST", "/databases/%s/query" % db_id, cuerpo)
@@ -195,7 +279,13 @@ TIPOS_DEUDA = ["Tarjeta de crédito", "Préstamo", "Hipoteca", "Persona", "Otra"
 
 
 def esquemas() -> dict:
+    """El esquema de cada base, con los nombres y las llaves ya en el idioma del .env.
+    La clave de afuera sigue en espanol: es la que guarda data/bases.json."""
     todas = sorted({c for t in C.TIPOS for c in C.nombres(t)})
+    return {base: _esquema_a_notion(esq) for base, esq in _esquemas_es(todas).items()}
+
+
+def _esquemas_es(todas: list) -> dict:
     return {
         MOVIMIENTOS: {
             "Descripción": {"title": {}},
@@ -242,7 +332,8 @@ def esquemas() -> dict:
             # como llamada. Si queda 'prop(columna("Objetivo"))' literal, Notion responde
             # "Type error with formula" y la base de Metas no se crea.
             "Avance": {"formula": {"expression": 'if(prop("%s") > 0, min(prop("%s") / prop("%s"), 1), 0)'
-                                                 % (columna("Objetivo"), columna("Ahorrado"), columna("Objetivo"))}},
+                                                 % (n_prop(columna("Objetivo")), n_prop(columna("Ahorrado")),
+                                                    n_prop(columna("Objetivo")))}},
             "Prioridad": _sel(["Muy importante", "Importante", "Puede esperar"]),
             "Fecha límite": {"date": {}},
         },
@@ -356,12 +447,12 @@ def crear_bases(notion: Notion, parent: str = NOTION_PARENT_PAGE_ID, log=print) 
                 if exc.status != 404:
                     raise NotionError("no pude verificar %s (%s); no creo nada para no duplicar" % (nombre, exc))
                 log("  %-12s estaba anotada pero no se encuentra; la creo de nuevo" % nombre)
-        existente = buscar_base_bajo(notion, nombre, parent)
+        existente = buscar_base_bajo(notion, n_prop(nombre), parent)
         if existente:
             ids[nombre] = existente
             log("  %-12s encontrada en Notion" % nombre)
         else:
-            ids[nombre] = notion.crear_base(nombre, props, parent, ICONOS.get(nombre, ""))["id"]
+            ids[nombre] = notion.crear_base(n_prop(nombre), props, parent, ICONOS.get(nombre, ""))["id"]
             log("  %-12s creada" % nombre)
         guardar_bases(ids)
     return ids

@@ -9,6 +9,7 @@ siguen usando `C.GASTOS`, `C.MEDIOS`, etc., y no hubo que tocar ninguno.
 """
 import importlib
 import unicodedata
+from typing import Optional
 
 from config import PERFIL
 
@@ -41,6 +42,23 @@ def por_tipo(tipo: str) -> dict:
 
 def nombres(tipo: str) -> list:
     return list(por_tipo(tipo).keys())
+
+
+def ahorro_de_meta(meta: Optional[str]) -> str:
+    """A que categoria va un ahorro: la reserva, una meta con nombre, o sin destino.
+
+    Lo decidian `bot.py` y `formularios.py` con los nombres en espanol escritos a mano
+    ("Fondo de emergencia" / "Metas" / "Ahorro general"), asi que en un perfil en ruso
+    escribian en Notion una categoria que no existe. Ahora lo dice el perfil, y para
+    reconocer la reserva se usan sus propias palabras clave de AHORROS.
+    """
+    if not meta:
+        return otros("Ahorro")
+    n = normal(meta)
+    claves = list(AHORROS.get(AHORRO_EMERGENCIA, ("", []))[1]) + [AHORRO_EMERGENCIA]
+    if any(normal(k) in n for k in claves if k):
+        return AHORRO_EMERGENCIA
+    return AHORRO_METAS
 
 
 def otros(tipo: str) -> str:

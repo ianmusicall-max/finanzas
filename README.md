@@ -329,6 +329,38 @@ Abre la página **Finanzas** en Notion. Cada base tiene pestañas arriba con los
 En **Deudas** puedes completar a mano la tasa anual, la cuota y el día de pago; el bot los usa en
 `/deudas` y en `/consejos` (te dice qué deuda pagar primero, la de mayor tasa).
 
+## El mismo sistema para otra persona (perfil, idioma y moneda)
+
+El código es uno solo. Lo que cambia de una persona a otra está en el `.env`:
+
+| Variable | Qué decide |
+|---|---|
+| `PERFIL` | `perfiles/<nombre>.py`: sus categorías, sus bancos, sus alias, qué botones ve |
+| `IDIOMA` | `idiomas/<código>.py`: cómo se llaman los botones y qué dicen los textos (`es`, `ru`) |
+| `MONEDA_BASE` | En qué moneda se suma todo: `PEN`, `RUB`, `USD`, `EUR` |
+| `ZONA_HORARIA` | El corte del día y la hora de los resúmenes |
+| `SERVICIO` | El prefijo de los servicios de systemd y el usuario del sistema |
+
+**La moneda base no es solo un símbolo.** De ella salen el tipo de cambio (`finanzas.tipo_de_cambio`
+devuelve *unidades de la moneda base* por unidad de otra), cómo se escribe cada monto (`F.s`), qué dos
+monedas lo acompañan (`MONEDAS_RESUMEN` del perfil) y el nombre de las columnas de Notion
+(`config.columna`). Se define **una vez, antes de correr `setup_notion.py`**, y no se toca más:
+cambiarla después crea columnas nuevas y deja las viejas con los datos dentro.
+
+**Los textos.** El bot traduce buscando la frase en español: `t("¿Qué fecha?")`. Una frase sin
+traducir sale en español en vez de romper el bot, así que se puede traducir de a poco — pero
+entonces el que se entera de lo que falta es quien usa el bot. Por eso `tests/test_idiomas.py` lee
+todos los `t("...")` del repo y, si a un idioma le falta alguno, **lo nombra entero**.
+
+**Notion también.** Las bases, las columnas y los valores que son llaves del sistema (Gasto,
+Activo, Débito…) se crean en el idioma del `.env`. El código sigue nombrándolos en español
+(`f.get("Monto")`): la traducción pasa **solo en la frontera**, dentro de `notion.py`. Lo que es
+dato de la persona —las categorías, los bancos, las metas— no se traduce nunca: ya viene del
+perfil en su idioma.
+
+Para agregar un idioma: copiar `idiomas/es.py`, traducir, y correr los tests.
+Para agregar una persona: copiar un `perfiles/*.py`, cambiar los datos, y correr los tests.
+
 ## Puesta en marcha
 
 1. **Bot nuevo de Telegram.** En **@BotFather**: `/newbot`, nombre "Mis Finanzas", usuario terminado en

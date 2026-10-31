@@ -201,8 +201,8 @@ class TipoDeCambioAutomatico(unittest.TestCase):
         self.internet({"rates": {"PEN": 3.38, "EUR": 0.85, "RUB": 79.0}})
         self.assertEqual(F.tipo_de_cambio("USD"), 3.38)
         self.assertAlmostEqual(F.tipo_de_cambio("RUB"), 3.38 / 79, places=5)
-        self.assertAlmostEqual(F.tipo_de_cambio("EUR"), round(3.38 / 0.85, 4))
-        F.soles(100, "USD")
+        self.assertAlmostEqual(F.tipo_de_cambio("EUR"), round(3.38 / 0.85, 6))
+        F.en_base(100, "USD")
         self.assertEqual(len(self.llamadas), 1)          # no vuelve a internet en cada calculo
 
     def test_segunda_fuente_si_la_primera_falla(self):
@@ -212,13 +212,13 @@ class TipoDeCambioAutomatico(unittest.TestCase):
 
     def test_sin_internet_usa_el_de_respaldo_y_no_insiste(self):
         self.internet(F.requests.ConnectionError(), F.requests.Timeout())
-        self.assertEqual(F.tipo_de_cambio("USD"), F.TC_USD)
+        self.assertEqual(F.tipo_de_cambio("USD"), F.TC_DEFECTO["USD"])
         F.tipo_de_cambio("RUB")
         self.assertEqual(len(self.llamadas), 2)          # no reintenta antes de 30 minutos
 
     def test_datos_absurdos_se_descartan(self):
         self.internet({"rates": {"PEN": 0, "EUR": 0.9, "RUB": 80}}, {"usd": {"pen": 3.4, "eur": 0.9, "rub": 80000}})
-        self.assertEqual(F.tipo_de_cambio("USD"), F.TC_USD)
+        self.assertEqual(F.tipo_de_cambio("USD"), F.TC_DEFECTO["USD"])
 
     def test_el_intento_queda_anotado_antes_de_salir_a_internet(self):
         """Si la fuente cuelga y el servicio se reinicia en ese rato, no se vuelve a colgar."""
@@ -233,7 +233,7 @@ class TipoDeCambioAutomatico(unittest.TestCase):
         # el servicio arranca de nuevo y lee el mismo ajustes.json: no reintenta antes de 30 minutos
         self.internet({"rates": {"PEN": 3.38, "EUR": 0.85, "RUB": 79.0}})
         self.llamadas.clear()
-        self.assertEqual(F.tipo_de_cambio("USD"), F.TC_USD)
+        self.assertEqual(F.tipo_de_cambio("USD"), F.TC_DEFECTO["USD"])
         self.assertEqual(self.llamadas, [])
 
     def test_a_mano_manda_y_auto_lo_quita(self):

@@ -8,6 +8,7 @@ cubierto por el solo hecho de existir.
 """
 
 import importlib
+import os
 import pkgutil
 import sys
 import unittest
@@ -119,6 +120,7 @@ class MonedaBase(unittest.TestCase):
         self.assertEqual(config.columna("Monto"), "Monto ₽")
         self.assertEqual(config.columna("Patrimonio neto"), "Patrimonio neto ₽")
 
+    @unittest.skipIf(os.environ.get("MONEDA_BASE"), "el .env fija otra moneda base")
     def test_por_defecto_sigue_siendo_soles(self):
         """La instalación de siempre no puede cambiar de columnas sola."""
         import config
@@ -163,6 +165,7 @@ class ZonaHoraria(unittest.TestCase):
             config._desfase("Marte/Olympus")
         self.assertIn("ZONA_HORARIA", str(e.exception))
 
+    @unittest.skipIf(os.environ.get("ZONA_HORARIA"), "el .env fija otra zona")
     def test_por_defecto_sigue_siendo_lima(self):
         import config
         self.assertEqual(config.ZONA_HORARIA, "America/Lima")
@@ -178,13 +181,17 @@ class FormulaDeMetas(unittest.TestCase):
 
     def _expresion(self):
         import notion
-        return notion.esquemas()[notion.METAS]["Avance"]["formula"]["expression"]
+        esq = notion.esquemas()[notion.METAS]
+        return esq[notion.n_prop("Avance")]["formula"]["expression"]
 
     def test_la_formula_nombra_las_columnas_de_verdad(self):
+        import notion
         from config import columna
         e = self._expresion()
-        self.assertIn('prop("%s")' % columna("Objetivo"), e)
-        self.assertIn('prop("%s")' % columna("Ahorrado"), e)
+        # Con el nombre que tienen en Notion: la formula las nombra dentro de un texto, asi que
+        # no la alcanza la traduccion de las llaves del esquema.
+        self.assertIn('prop("%s")' % notion.n_prop(columna("Objetivo")), e)
+        self.assertIn('prop("%s")' % notion.n_prop(columna("Ahorrado")), e)
 
     def test_no_quedo_la_llamada_sin_evaluar(self):
         self.assertNotIn("columna(", self._expresion())

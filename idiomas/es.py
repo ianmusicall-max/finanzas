@@ -11,3 +11,19 @@ BOTONES = {
     "comparar": "📊 Comparar", "buscar": "🔍 Buscar", "consejos": "💡 Consejos",
     "tc": "💱 Tipo de cambio", "ajustar": "⚙️ Ajustar", "ver": "👁 Ver",
 }
+
+DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre",
+         "octubre", "noviembre", "diciembre"]
+
+# El idioma en el que esta escrito el codigo: no hay nada que traducir.
+TEXTOS = {}
+
+# El nombre de la cuenta de efectivo en Notion: "Efectivo", "Efectivo dólares"...
+EFECTIVO = "Efectivo"
+MONEDA_NOMBRE = {"USD": "dólares", "RUB": "rublos", "EUR": "euros", "PEN": "soles"}
+MESES_SOLO = MESES
+
+# Notion esta escrito en el idioma del codigo: no hay nada que traducir.
+NOTION_PROP = {}
+NOTION_VALOR = {}

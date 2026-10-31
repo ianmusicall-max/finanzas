@@ -19,24 +19,25 @@ from datetime import date, timedelta
 from typing import Optional
 
 import categorias as C
-from config import AJUSTES, DATA, hoy
+from config import AJUSTES, DATA, MONEDA_BASE, hoy
+from idiomas import BOTONES, t
 from lector import FECHA, Movimiento, NoEntendi, _numero
 
 # paso: (pregunta, tipo de respuesta)
 PASOS = {
-    "fecha": ("📅 ¿Qué fecha?", "fecha"),
-    "medio": ("🏦 ¿De qué cuenta sale?\n<i>El banco, la billetera o el efectivo con el que pagaste.</i>", "opciones"),
-    "medio_in": ("🏦 ¿A qué cuenta entró el dinero?", "opciones"),
-    "frecuencia": ("🗓 ¿Es un pago del mes o un pago anual?\n<i>Los anuales (por ejemplo iCloud o la VPN del año) "
-                   "cuentan contra el presupuesto anual, no contra el del mes.</i>", "opciones"),
-    "tarjeta": ("💳 ¿Crédito o débito?\n<i>Si es crédito, se suma a la deuda de esa tarjeta.</i>", "opciones"),
-    "cuotas": ("🧾 ¿En cuántas cuotas?\n<i>Si lo pagas todo en el próximo estado de cuenta, "
-               "elige «Un solo pago».</i>", "opciones"),
-    "categoria": ("🏷 ¿Qué categoría?", "opciones"),
-    "meta": ("🎯 ¿Para qué meta es?", "opciones"),
-    "moneda": ("💱 ¿En qué moneda?", "opciones"),
-    "descripcion": ("📝 Escribe una descripción corta (por ejemplo: <i>almuerzo con Ana</i>).", "texto"),
-    "importe": ("💰 ¿Cuánto fue? Escribe solo el número (por ejemplo: <code>45.50</code>).", "numero"),
+    "fecha": (t("📅 ¿Qué fecha?"), "fecha"),
+    "medio": (t("🏦 ¿De qué cuenta sale?\n<i>El banco, la billetera o el efectivo con el que pagaste.</i>"), "opciones"),
+    "medio_in": (t("🏦 ¿A qué cuenta entró el dinero?"), "opciones"),
+    "frecuencia": (t("🗓 ¿Es un pago del mes o un pago anual?\n<i>Los anuales (por ejemplo iCloud o la VPN del año) "
+                     "cuentan contra el presupuesto anual, no contra el del mes.</i>"), "opciones"),
+    "tarjeta": (t("💳 ¿Crédito o débito?\n<i>Si es crédito, se suma a la deuda de esa tarjeta.</i>"), "opciones"),
+    "cuotas": (t("🧾 ¿En cuántas cuotas?\n<i>Si lo pagas todo en el próximo estado de cuenta, "
+                 "elige «Un solo pago».</i>"), "opciones"),
+    "categoria": (t("🏷 ¿Qué categoría?"), "opciones"),
+    "meta": (t("🎯 ¿Para qué meta es?"), "opciones"),
+    "moneda": (t("💱 ¿En qué moneda?"), "opciones"),
+    "descripcion": (t("📝 Escribe una descripción corta (por ejemplo: <i>almuerzo con Ana</i>)."), "texto"),
+    "importe": (t("💰 ¿Cuánto fue? Escribe solo el número (por ejemplo: <code>45.50</code>)."), "numero"),
 }
 
 FORMULARIOS = {
@@ -45,17 +46,31 @@ FORMULARIOS = {
     "ahorro": ("Ahorro", ["fecha", "meta", "medio", "moneda", "importe"]),
     "inversion": ("Inversión", ["fecha", "categoria", "medio", "moneda", "descripcion", "importe"]),
 }
-TITULOS = {"gasto": "➖ Nuevo gasto", "ingreso": "➕ Nuevo ingreso", "ahorro": "🐷 Nuevo ahorro",
-           "inversion": "📈 Nueva inversión"}
+TITULOS = {"gasto": t("➖ Nuevo gasto"), "ingreso": t("➕ Nuevo ingreso"), "ahorro": t("🐷 Nuevo ahorro"),
+           "inversion": t("📈 Nueva inversión")}
 TIPOS_TARJETA = ["Débito", "Crédito"]
 UN_PAGO = "Un solo pago"
 CUOTAS = [UN_PAGO, "3", "6", "9", "12", "18", "24", "36"]
-ETIQUETAS = {"fecha": "Fecha", "medio": "Medio de pago", "medio_in": "Medio de pago",
-             "tarjeta": "Tarjeta", "cuotas": "Cuotas", "frecuencia": "Pago",
-             "categoria": "Categoría", "meta": "Meta", "moneda": "Moneda", "descripcion": "Descripción",
-             "importe": "Importe"}
+ETIQUETAS = {"fecha": t("Fecha"), "medio": t("Medio de pago"), "medio_in": t("Medio de pago"),
+             "tarjeta": t("Tarjeta"), "cuotas": t("Cuotas"), "frecuencia": t("Pago"),
+             "categoria": t("Categoría"), "meta": t("Meta"), "moneda": t("Moneda"),
+             "descripcion": t("Descripción"), "importe": t("Importe")}
 SIN_META = "Sin meta (ahorro general)"
-CANCELAR = [("✖️ Cancelar", "f:no")]
+CANCELAR = [(t("✖️ Cancelar"), "f:no")]
+
+
+def _etiqueta(paso: str, tipo: str, o: str) -> str:
+    """Lo que se LEE en el boton. El valor de `o` no cambia: es el que se compara y el que va a
+    Notion, asi que traducirlo partiria los datos en dos idiomas. Los nombres propios (un medio
+    de pago, una meta, una categoria) salen del perfil y ya estan en su idioma; `t()` los
+    devuelve tal cual porque no estan en el diccionario."""
+    if paso == "categoria":
+        return "%s %s" % (C.emoji(tipo, o), o)
+    if paso == "tarjeta":
+        return ("💳 " if o == "Débito" else "🧾 ") + t(o)
+    if paso == "cuotas":
+        return t(UN_PAGO) if o == UN_PAGO else t("%s cuotas") % o
+    return t(o)
 
 
 # ---------------------------------------------------------------- recuerdos
@@ -125,9 +140,9 @@ def _cargar_estados() -> dict:
 
 def _fecha_texto(d: date) -> str:
     if d == hoy():
-        return "hoy (%s)" % d.strftime("%d/%m")
+        return t("hoy (%s)") % d.strftime("%d/%m")
     if d == hoy() - timedelta(days=1):
-        return "ayer (%s)" % d.strftime("%d/%m")
+        return t("ayer (%s)") % d.strftime("%d/%m")
     return d.strftime("%d/%m/%Y")
 
 
@@ -152,7 +167,7 @@ class Formularios:
     def cancelar(self, chat) -> list:
         self.estado.pop(chat, None)
         self._guardar()
-        return [{"texto": "Cancelado. No se guardó nada."}]
+        return [{"texto": t("Cancelado. No se guardó nada.")}]
 
     # ---------------------------------------------------------------- inicio
     def iniciar(self, chat, forma: str) -> list:
@@ -218,25 +233,17 @@ class Formularios:
         if clase == "opciones":
             lista = self.opciones(chat, paso)
             tipo = FORMULARIOS[self.estado[chat]["forma"]][0]
-            pares = []
-            for k, o in enumerate(lista):
-                etiqueta = o
-                if paso == "categoria":
-                    etiqueta = "%s %s" % (C.emoji(tipo, o), o)
-                pares.append((etiqueta, "f:%s:%d" % (paso, k)))
-            if paso == "tarjeta":
-                pares = [("💳 " + o if o == "Débito" else "🧾 " + o, d) for (o, d) in pares]
-            if paso == "cuotas":
-                pares = [(o if o == UN_PAGO else o + " cuotas", d) for (o, d) in pares]
+            pares = [(_etiqueta(paso, tipo, o), "f:%s:%d" % (paso, k)) for k, o in enumerate(lista)]
             por_fila = 4 if paso in ("moneda", "cuotas") else 3 if paso in ("medio", "medio_in") else 2
             return [{"texto": pregunta, "botones": _botones(pares, por_fila) + [CANCELAR]}]
         if clase == "fecha":
             d = hoy()
-            return [{"texto": pregunta + "\n<i>O escribe la fecha: 15/09</i>", "botones": [
-                [("Hoy %s" % d.strftime("%d/%m"), "f:fecha:0"), ("Ayer", "f:fecha:1"), ("Anteayer", "f:fecha:2")],
+            return [{"texto": pregunta + t("\n<i>O escribe la fecha: 15/09</i>"), "botones": [
+                [(t("Hoy %s") % d.strftime("%d/%m"), "f:fecha:0"), (t("Ayer"), "f:fecha:1"),
+                 (t("Anteayer"), "f:fecha:2")],
                 CANCELAR]}]
         if clase == "texto":
-            return [{"texto": pregunta, "botones": [[("Omitir", "f:descripcion:-")], CANCELAR]}]
+            return [{"texto": pregunta, "botones": [[(t("Omitir"), "f:descripcion:-")], CANCELAR]}]
         return [{"texto": pregunta, "botones": [CANCELAR]}]
 
     # ---------------------------------------------------------------- respuestas
@@ -269,7 +276,7 @@ class Formularios:
             return self._resumen(chat)
         paso, _, valor = data.partition(":")
         if paso != self._paso(chat):
-            return [{"texto": "Ese botón era de una pregunta anterior."}] + self._preguntar(chat)
+            return [{"texto": t("Ese botón era de una pregunta anterior.")}] + self._preguntar(chat)
         e = self.estado[chat]
         if paso == "fecha":
             e["datos"]["fecha"] = hoy() - timedelta(days=int(valor))
@@ -289,40 +296,40 @@ class Formularios:
         paso = self._paso(chat)
         e = self.estado[chat]
         if paso is None:
-            return [{"texto": "Toca Guardar, Corregir o Cancelar."}] + self._resumen(chat)
+            return [{"texto": t("Toca Guardar, Corregir o Cancelar.")}] + self._resumen(chat)
         clase = PASOS[paso][1]
-        t = texto.strip()
+        escrito = texto.strip()
         if clase == "fecha":
-            m = FECHA.search(t)
+            m = FECHA.search(escrito)
             if not m:
-                return [{"texto": "No entendí la fecha. Escríbela así: <code>15/09</code> o toca un botón."}]
+                return [{"texto": t("No entendí la fecha. Escríbela así: <code>15/09</code> o toca un botón.")}]
             d, mes = int(m.group(1)), int(m.group(2))
             anio = int(m.group(3)) if m.group(3) else hoy().year
             anio += 2000 if anio < 100 else 0
             try:
                 f = date(anio, mes, d)
             except ValueError:
-                return [{"texto": "Esa fecha no existe. Prueba otra vez."}]
+                return [{"texto": t("Esa fecha no existe. Prueba otra vez.")}]
             if not m.group(3) and f > hoy():
                 f = date(anio - 1, mes, d)
             e["datos"]["fecha"] = f
         elif clase == "numero":
             try:
-                n = _numero(t.replace(" ", "").lstrip("S/$€₽").strip())
+                n = _numero(escrito.replace(" ", "").lstrip("S/$€₽").strip())
             except ValueError:
-                return [{"texto": "Escribe solo el número, por ejemplo <code>45.50</code>."}]
+                return [{"texto": t("Escribe solo el número, por ejemplo <code>45.50</code>.")}]
             if n <= 0:
-                return [{"texto": "El importe tiene que ser mayor que cero."}]
+                return [{"texto": t("El importe tiene que ser mayor que cero.")}]
             e["datos"]["importe"] = round(n, 2)
         elif clase == "texto":
-            e["datos"]["descripcion"] = t[:200]
+            e["datos"]["descripcion"] = escrito[:200]
         else:
             # pregunta de botones: se acepta escribir la opcion
             lista = self.opciones(chat, paso)
-            hit = next((o for o in lista if C.normal(o) == C.normal(t)), None) or \
-                next((o for o in lista if C.normal(t) and C.normal(t) in C.normal(o)), None)
+            hit = next((o for o in lista if C.normal(o) == C.normal(escrito)), None) or \
+                next((o for o in lista if C.normal(escrito) and C.normal(escrito) in C.normal(o)), None)
             if not hit:
-                return [{"texto": "Elige una de las opciones con los botones."}] + self._preguntar(chat)
+                return [{"texto": t("Elige una de las opciones con los botones.")}] + self._preguntar(chat)
             e["datos"][paso] = hit
         return self._avanzar(chat)
 
@@ -345,7 +352,7 @@ class Formularios:
         e = self.estado[chat]
         d = e["datos"]
         tipo = FORMULARIOS[e["forma"]][0]
-        l = ["<b>%s</b> · revisa antes de guardar" % TITULOS[e["forma"]], ""]
+        l = [t("<b>%s</b> · revisa antes de guardar") % TITULOS[e["forma"]], ""]
         for paso in self._pasos(chat):
             v = d.get(paso)
             if paso == "fecha":
@@ -357,19 +364,20 @@ class Formularios:
             elif paso == "descripcion" and not v:
                 v = "—"
             l.append("%s: <b>%s</b>" % (ETIQUETAS[paso], v))
-        return [{"texto": "\n".join(l), "botones": [[("✅ Guardar", "f:ok"), ("✏️ Corregir", "f:fix")], CANCELAR]}]
+        return [{"texto": "\n".join(l),
+                 "botones": [[(t("✅ Guardar"), "f:ok"), (t("✏️ Corregir"), "f:fix")], CANCELAR]}]
 
     def _menu_corregir(self, chat) -> list:
         e = self.estado[chat]
         pares = [(ETIQUETAS[p], "f:edit:" + p) for p in self._pasos(chat)]
-        return [{"texto": "¿Qué quieres corregir?", "botones": _botones(pares, 3)}]
+        return [{"texto": t("¿Qué quieres corregir?"), "botones": _botones(pares, 3)}]
 
     def reempezar(self) -> dict:
         """Cuando ya no queda nada de ese formulario: en vez de dejar la pregunta muda, botones
         para arrancar de nuevo (los "m:" los entiende el bot, como los del menu)."""
-        return {"texto": "Ese formulario ya no está (me reinicié). Empezamos de nuevo:",
-                "botones": [[("➖ Gasto", "m:gasto"), ("➕ Ingreso", "m:ingreso")],
-                            [("🐷 Ahorro", "m:ahorro"), ("📈 Inversión", "m:inversion")]]}
+        return {"texto": t("Ese formulario ya no está (me reinicié). Empezamos de nuevo:"),
+                "botones": [[(BOTONES["gasto"], "m:gasto"), (BOTONES["ingreso"], "m:ingreso")],
+                            [(BOTONES["ahorro"], "m:ahorro"), (BOTONES["inversion"], "m:inversion")]]}
 
     def terminar(self, chat):
         """Saca el movimiento listo para guardar y cierra el formulario.
@@ -380,15 +388,14 @@ class Formularios:
         tipo = FORMULARIOS[e["forma"]][0]
         meta = d.get("meta")
         if e["forma"] == "ahorro":
-            if meta and meta != SIN_META:
-                categoria = "Fondo de emergencia" if "emergencia" in C.normal(meta) else "Metas"
-            else:
-                meta, categoria = None, "Ahorro general"
-            descripcion = "Ahorro para %s" % meta if meta else "Ahorro"
+            if not meta or meta == SIN_META:
+                meta = None
+            categoria = C.ahorro_de_meta(meta)
+            descripcion = t("Ahorro para %s") % meta if meta else t("Ahorro")
         else:
             categoria = d["categoria"]
             descripcion = d.get("descripcion") or categoria
-        mov = Movimiento(tipo=tipo, monto=d["importe"], moneda=d.get("moneda", "PEN"),
+        mov = Movimiento(tipo=tipo, monto=d["importe"], moneda=d.get("moneda") or MONEDA_BASE,
                          descripcion=descripcion[:1].upper() + descripcion[1:], categoria=categoria,
                          medio=d.get("medio") or d.get("medio_in"), fecha=d.get("fecha") or hoy(),
                          cuenta="Gastos" if tipo == "Gasto" else None,
