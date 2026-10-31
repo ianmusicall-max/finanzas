@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from config import DATA, ahora
+from idiomas import t
 
 ESTADO = DATA / "reloj.json"
 
@@ -64,8 +65,8 @@ def reloj(minutos: float) -> str:
     """45.2 -> '45 min'. 95 -> '1 h 35 min'."""
     m = int(round(minutos))
     if m < 60:
-        return "%d min" % m
-    return "%d h %02d min" % divmod(m, 60)
+        return t("%d min") % m
+    return t("%d h %02d min") % divmod(m, 60)
 
 
 # ---------------------------------------------------------------- empezar, ver, terminar
@@ -74,35 +75,35 @@ def iniciar(chat, tarea: str, tope: Optional[int] = None) -> str:
     d = _leer()
     corriendo = d["corriendo"].get(str(chat))
     if corriendo:
-        return ("⏱ Ya tienes <b>%s</b> corriendo, van %s.\nCiérralo con /reloj fin o déjalo con "
-                "/reloj corta." % (corriendo["tarea"], reloj(_minutos(corriendo["desde"]))))
+        return (t("⏱ Ya tienes <b>%s</b> corriendo, van %s.\nCiérralo con /reloj fin o déjalo con "
+                  "/reloj corta.") % (corriendo["tarea"], reloj(_minutos(corriendo["desde"]))))
     if not tarea:
-        return "¿Qué estás haciendo? Por ejemplo: <code>/reloj facebook 45</code>"
+        return t("¿Qué estás haciendo? Por ejemplo: <code>/reloj facebook 45</code>")
     d["corriendo"][str(chat)] = {"tarea": tarea.strip(), "desde": ahora().isoformat(),
                                  "tope": int(tope) if tope else None, "avisos": 0}
     _escribir(d)
     h = _historial(d, tarea)
     extra = ""
     if tope:
-        extra = "\nTe aviso a los %d min." % tope
+        extra = t("\nTe aviso a los %d min.") % tope
     elif h["veces"]:
-        extra = "\nLa última vez te tomó %s." % reloj(h["ultimo"])
+        extra = t("\nLa última vez te tomó %s.") % reloj(h["ultimo"])
     if h["veces"]:
-        extra += "\nPromedio de <b>%s</b>: %s (%d veces)." % (tarea.strip(), reloj(h["promedio"]), h["veces"])
-    return "▶️ <b>%s</b>, arrancando.%s" % (tarea.strip(), extra)
+        extra += t("\nPromedio de <b>%s</b>: %s (%d veces).") % (tarea.strip(), reloj(h["promedio"]), h["veces"])
+    return t("▶️ <b>%s</b>, arrancando.%s") % (tarea.strip(), extra)
 
 
 def estado(chat) -> str:
     d = _leer()
     c = d["corriendo"].get(str(chat))
     if not c:
-        return "No tienes nada corriendo. Arranca con <code>/reloj facebook 45</code>."
+        return t("No tienes nada corriendo. Arranca con <code>/reloj facebook 45</code>.")
     van = _minutos(c["desde"])
-    txt = "⏱ <b>%s</b>: van %s." % (c["tarea"], reloj(van))
+    txt = t("⏱ <b>%s</b>: van %s.") % (c["tarea"], reloj(van))
     if c["tope"]:
         falta = c["tope"] - van
-        txt += ("\nTe pasaste por %s del tope de %d min." % (reloj(-falta), c["tope"])) if falta < 0 \
-            else ("\nQuedan %s de los %d min." % (reloj(falta), c["tope"]))
+        txt += (t("\nTe pasaste por %s del tope de %d min.") % (reloj(-falta), c["tope"])) if falta < 0 \
+            else (t("\nQuedan %s de los %d min.") % (reloj(falta), c["tope"]))
     return txt
 
 
@@ -110,7 +111,7 @@ def terminar(chat) -> str:
     d = _leer()
     c = d["corriendo"].pop(str(chat), None)
     if not c:
-        return "No tenías nada corriendo."
+        return t("No tenías nada corriendo.")
     van = _minutos(c["desde"])
     d["hechos"].append({"tarea": c["tarea"], "minutos": round(van, 1), "fecha": ahora().date().isoformat()})
     mismos = [h for h in d["hechos"] if _clave(h["tarea"]) == _clave(c["tarea"])]
@@ -119,12 +120,12 @@ def terminar(chat) -> str:
         d["hechos"] = [h for h in d["hechos"] if id(h) not in sobran]
     _escribir(d)
     h = _historial(d, c["tarea"])
-    txt = "⏹ <b>%s</b>: %s." % (c["tarea"], reloj(van))
+    txt = t("⏹ <b>%s</b>: %s.") % (c["tarea"], reloj(van))
     if c["tope"]:
-        txt += " Te pasaste %s del tope." % reloj(van - c["tope"]) if van > c["tope"] + 0.5 \
-            else " Dentro del tope de %d min. 👏" % c["tope"]
+        txt += t(" Te pasaste %s del tope.") % reloj(van - c["tope"]) if van > c["tope"] + 0.5 \
+            else t(" Dentro del tope de %d min. 👏") % c["tope"]
     if h["veces"] > 1:
-        txt += "\n\nPromedio: <b>%s</b> · mejor %s · peor %s (%d veces)." % (
+        txt += t("\n\nPromedio: <b>%s</b> · mejor %s · peor %s (%d veces).") % (
             reloj(h["promedio"]), reloj(h["minimo"]), reloj(h["maximo"]), h["veces"])
     return txt
 
@@ -133,9 +134,9 @@ def cortar(chat) -> str:
     d = _leer()
     c = d["corriendo"].pop(str(chat), None)
     if not c:
-        return "No tenías nada corriendo."
+        return t("No tenías nada corriendo.")
     _escribir(d)
-    return "✖️ <b>%s</b> cortado, no se guardó (iban %s)." % (c["tarea"], reloj(_minutos(c["desde"])))
+    return t("✖️ <b>%s</b> cortado, no se guardó (iban %s).") % (c["tarea"], reloj(_minutos(c["desde"])))
 
 
 # ------------------------------------------------- los botones: primero el tope, despues el nombre
@@ -175,7 +176,7 @@ def olvidar(chat) -> str:
     habia = d["pendiente"].pop(str(chat), None)
     if habia is not None:
         _escribir(d)
-    return "👌 Listo, no arranco nada."
+    return t("👌 Listo, no arranco nada.")
 
 
 def con_texto(chat, texto: str) -> str:
@@ -183,15 +184,15 @@ def con_texto(chat, texto: str) -> str:
     d = _leer()
     p = d["pendiente"].get(str(chat))
     if p is None:
-        return "Ese botón ya no sirve. Empieza otra vez con /reloj."
+        return t("Ese botón ya no sirve. Empieza otra vez con /reloj.")
     if p.get("paso") == "tope":
         minutos = _minutos_de(texto)
         if not minutos:
-            return ("Escribe solo cuánto tiempo, por ejemplo <code>90</code> minutos, "
-                    "<code>2 horas</code> o <code>1h30</code>.")
+            return t("Escribe solo cuánto tiempo, por ejemplo <code>90</code> minutos, "
+                     "<code>2 horas</code> o <code>1h30</code>.")
         p["tope"], p["paso"] = minutos, "nombre"
         _escribir(d)
-        return "⏱ %s. ✏️ ¿Y qué vas a hacer?" % reloj(minutos)
+        return t("⏱ %s. ✏️ ¿Y qué vas a hacer?") % reloj(minutos)
     d["pendiente"].pop(str(chat), None)
     _escribir(d)
     return iniciar(chat, texto[:60], p.get("tope") or None)
@@ -232,14 +233,14 @@ def tareas() -> str:
     for h in d["hechos"]:
         nombres.setdefault(_clave(h["tarea"]), h["tarea"])
     if not nombres:
-        return "Todavía no has cronometrado nada. Arranca con <code>/reloj facebook 45</code>."
+        return t("Todavía no has cronometrado nada. Arranca con <code>/reloj facebook 45</code>.")
     filas = []
     for clave, nombre in nombres.items():
         s = _historial(d, nombre)
-        filas.append((s["promedio"] * s["veces"], "• <b>%s</b> · %s de promedio · %d %s" % (
-            nombre, reloj(s["promedio"]), s["veces"], "vez" if s["veces"] == 1 else "veces")))
+        filas.append((s["promedio"] * s["veces"], t("• <b>%s</b> · %s de promedio · %d %s") % (
+            nombre, reloj(s["promedio"]), s["veces"], t("vez") if s["veces"] == 1 else t("veces"))))
     filas.sort(reverse=True)
-    return "⏱ <b>Tu tiempo</b>\n\n%s" % "\n".join(t for _, t in filas)
+    return t("⏱ <b>Tu tiempo</b>\n\n%s") % "\n".join(x for _, x in filas)
 
 
 # ---------------------------------------------------------------- lo que avisa el bot
@@ -255,11 +256,11 @@ def vencidos(hasta: Optional[datetime] = None) -> list:
         van = _minutos(c["desde"], hasta)
         hechos = int(c.get("avisos") or 0)
         if hechos == 0 and van >= c["tope"]:
-            avisos.append((int(chat), "⏰ <b>%s</b>: llegaste al tope de %d min.\n/reloj fin para cerrarlo." % (
+            avisos.append((int(chat), t("⏰ <b>%s</b>: llegaste al tope de %d min.\n/reloj fin para cerrarlo.") % (
                 c["tarea"], c["tope"])))
             c["avisos"], cambio = 1, True
         elif hechos == 1 and van >= c["tope"] * (1 + RECORDAR):
-            avisos.append((int(chat), "⏰ <b>%s</b>: vas %s, %s pasado del tope.\nNo te vuelvo a molestar." % (
+            avisos.append((int(chat), t("⏰ <b>%s</b>: vas %s, %s pasado del tope.\nNo te vuelvo a molestar.") % (
                 c["tarea"], reloj(van), reloj(van - c["tope"]))))
             c["avisos"], cambio = AVISOS, True
     if cambio:

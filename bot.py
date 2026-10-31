@@ -19,7 +19,7 @@ import excel as X
 import finanzas as F
 import informes as I
 import reloj as R
-from idiomas import BOTONES, DIAS, MESES, t
+from idiomas import BOTONES, COMANDOS, DIAS, MESES, t
 from config import DATA, MONEDA_BASE, TELEGRAM_USUARIOS, columna
 from notion import DEUDAS, METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, SUSCRIPCIONES, Notion, NotionError, cargar_bases, p_select
 from formularios import Formularios
@@ -69,34 +69,37 @@ AYUDA = t(
 # que no es el suyo.
 MENU = [[(BOTONES[op], "m:" + op) for op in fila if op in BOTONES] for fila in C.MENU_OPCIONES]
 
-# Topes del reloj de trabajo. Se toca uno y el bot pregunta que vas a hacer.
-RELOJ_TOPES = [[("⏱ 15 min", "rj:15"), ("⏱ 30 min", "rj:30"), ("⏱ 45 min", "rj:45")],
-               [("⏱ 1 hora", "rj:60"), ("⏱ 2 horas", "rj:120"), ("⏱ 3 horas", "rj:180")],
-               [("⏱ 4 horas", "rj:240"), ("⏱ 6 horas", "rj:360"), ("⏱ 8 horas", "rj:480")],
-               [("✏️ Otro", "rj:x"), ("♾ Sin tope", "rj:0")],
-               [("📊 Mis tiempos", "rj:tareas")]]
-RELOJ_CORRE = [[("⏹ Terminar", "rj:fin"), ("✖️ Cortar", "rj:corta")]]
+# El nombre que escribe la persona -> el que entiende el codigo. Vacio si el idioma es el del
+# codigo, y entonces no cambia nada.
+COMANDOS_INV = {"/" + suyo: "/" + propio for propio, suyo in COMANDOS.items()}
 
-MENU_VER = [[("📏 Límite", "m:limite"), ("🧾 Presupuesto", "m:presupuesto")],
-            [("💳 Deudas", "m:deudas"), ("🏦 Patrimonio", "m:patrimonio")],
-            [("🎯 Metas", "m:metas"), ("🔁 Suscripciones", "m:suscripciones")],
-            [("📊 Comparar", "m:comparar"), ("💡 Consejos", "m:consejos")],
-            [("📗 Excel", "m:excel"), ("🔍 Buscar", "m:buscar")],
-            [("🧾 Últimos", "m:ultimos"), ("💱 Tipo de cambio", "m:tc")]]
+# Topes del reloj de trabajo. Se toca uno y el bot pregunta que vas a hacer.
+RELOJ_TOPES = [[(t("⏱ 15 min"), "rj:15"), (t("⏱ 30 min"), "rj:30"), (t("⏱ 45 min"), "rj:45")],
+               [(t("⏱ 1 hora"), "rj:60"), (t("⏱ 2 horas"), "rj:120"), (t("⏱ 3 horas"), "rj:180")],
+               [(t("⏱ 4 horas"), "rj:240"), (t("⏱ 6 horas"), "rj:360"), (t("⏱ 8 horas"), "rj:480")],
+               [(t("✏️ Otro"), "rj:x"), (t("♾ Sin tope"), "rj:0")],
+               [(t("📊 Mis tiempos"), "rj:tareas")]]
+RELOJ_CORRE = [[(t("⏹ Terminar"), "rj:fin"), (t("✖️ Cortar"), "rj:corta")]]
+
+# Se arma con los mismos nombres del menu, para no escribirlos dos veces (y que no se queden
+# sin traducir la mitad).
+MENU_VER = [[(BOTONES[a], "m:" + a), (BOTONES[b], "m:" + b)] for a, b in
+            (("limite", "presupuesto"), ("deudas", "patrimonio"), ("metas", "suscripciones"),
+             ("comparar", "consejos"), ("excel", "buscar"), ("ultimos", "tc"))]
 
 # Ajustar: cada boton pide un dato y lo que se escribe despues va a ese comando.
 AJUSTES_BOT = {
-    "limite": ("📏 Límite diario", "/limite", "📏 ¿Cuánto puedes gastar por día en el día a día?\nEscribe el monto y la moneda, por ejemplo: <code>1500 rub</code> · <code>64</code> (soles) · <code>19 usd</code>"),
-    "presupuesto": ("🧾 Presupuesto", "/presupuesto", "🧾 Escribe la categoría y el tope.\nAl mes: <code>supermercado 855</code> · Pagos de una vez al año: <code>suscripciones anual 600</code>"),
-    "cuenta": ("🏦 Saldo de una cuenta", "/activo", "🏦 Escribe la cuenta y cuánto tiene hoy, por ejemplo: <code>T-Bank 25000 rub</code> · <code>Interbank dólares 1497 usd</code>"),
-    "deuda": ("💳 Deuda nueva o saldo", "/deuda", "💳 Escribe la deuda y cuánto debes hoy, por ejemplo: <code>Tarjeta BBVA 1200</code> · <code>Juan 200 usd</code>"),
-    "meta": ("🎯 Meta de ahorro", "/meta", "🎯 Escribe la meta y el objetivo en soles, por ejemplo: <code>Viaje a Cusco 5000</code>"),
-    "tc": ("💱 Tipo de cambio", "/tc", "💱 Escribe el tipo de cambio: <code>3.38</code> (dólar) · <code>rub 0.0428</code> · o <code>auto</code> para el del día"),
+    "limite": (t("📏 Límite diario"), "/limite", t("📏 ¿Cuánto puedes gastar por día en el día a día?\nEscribe el monto y la moneda, por ejemplo: <code>1500 rub</code> · <code>64</code> (soles) · <code>19 usd</code>")),
+    "presupuesto": (t("🧾 Presupuesto"), "/presupuesto", t("🧾 Escribe la categoría y el tope.\nAl mes: <code>supermercado 855</code> · Pagos de una vez al año: <code>suscripciones anual 600</code>")),
+    "cuenta": (t("🏦 Saldo de una cuenta"), "/activo", t("🏦 Escribe la cuenta y cuánto tiene hoy, por ejemplo: <code>T-Bank 25000 rub</code> · <code>Interbank dólares 1497 usd</code>")),
+    "deuda": (t("💳 Deuda nueva o saldo"), "/deuda", t("💳 Escribe la deuda y cuánto debes hoy, por ejemplo: <code>Tarjeta BBVA 1200</code> · <code>Juan 200 usd</code>")),
+    "meta": (t("🎯 Meta de ahorro"), "/meta", t("🎯 Escribe la meta y el objetivo, por ejemplo: <code>Viaje a Cusco 5000</code>")),
+    "tc": (t("💱 Tipo de cambio"), "/tc", t("💱 Escribe el tipo de cambio: <code>3.38</code> (dólar) · <code>rub 0.0428</code> · o <code>auto</code> para el del día")),
 }
 MENU_AJUSTAR = [[(AJUSTES_BOT["limite"][0], "aj:limite"), (AJUSTES_BOT["presupuesto"][0], "aj:presupuesto")],
                 [(AJUSTES_BOT["cuenta"][0], "aj:cuenta"), (AJUSTES_BOT["deuda"][0], "aj:deuda")],
-                [("💸 Pagar una deuda", "m:pago"), (AJUSTES_BOT["meta"][0], "aj:meta")],
-                [(AJUSTES_BOT["tc"][0], "aj:tc"), ("↩️ Deshacer lo último", "m:deshacer")]]
+                [(BOTONES["pago"], "m:pago"), (AJUSTES_BOT["meta"][0], "aj:meta")],
+                [(AJUSTES_BOT["tc"][0], "aj:tc"), (BOTONES["deshacer"], "m:deshacer")]]
 
 METODOS = (
     "🧭 <b>Formas de manejar tu dinero</b>\n\n"
@@ -355,17 +358,19 @@ class Bot:
         self._ultimo[chat] = pid
         if sus:
             r = F.registrar_pago_suscripcion(self.notion, self.bases, sus["nombre"], mov.monto, mov.moneda, sus["cada"], mov.fecha, sus)
-        l = ["%s <b>%s</b> · %s" % (C.emoji(mov.tipo, mov.categoria), esc(mov.tipo), esc(mov.categoria))]
+        l = ["%s <b>%s</b> · %s" % (C.emoji(mov.tipo, mov.categoria), esc(t(mov.tipo)), esc(mov.categoria))]
         monto = F.s3(F.en_base(mov.monto, mov.moneda))
         if mov.moneda != MONEDA_BASE:
-            monto = "%s %s = %s\n<i>💱 1 %s = S/ %s</i>" % (mov.moneda, "{:,.2f}".format(mov.monto), monto,
-                                                          mov.moneda, F.tipo_de_cambio(mov.moneda))
+            # El cambio, en la moneda base: aqui habia otro "S/" escrito a mano.
+            monto = "%s %s = %s\n<i>💱 1 %s = %s</i>" % (
+                mov.moneda, "{:,.2f}".format(mov.monto), monto, mov.moneda,
+                F.en_moneda(F.tipo_de_cambio(mov.moneda), MONEDA_BASE))
         l.append("%s\n%s" % (monto, esc(mov.descripcion)))
         extra = []
         if getattr(mov, "cuenta", None) and mov.cuenta != "Gastos":
-            extra.append("cuenta " + mov.cuenta)
+            extra.append(t("cuenta %s") % t(mov.cuenta))
         if mov.medio:
-            extra.append(mov.medio + (" · " + mov.tarjeta.lower() if getattr(mov, "tarjeta", None) else ""))
+            extra.append(mov.medio + (" · " + t(mov.tarjeta).lower() if getattr(mov, "tarjeta", None) else ""))
         if mov.fecha != F.hoy():
             extra.append(mov.fecha.strftime("%d/%m/%Y"))
         if extra:
@@ -718,12 +723,12 @@ class Bot:
             if R.corriendo(chat):
                 self.decir(chat, R.estado(chat), RELOJ_CORRE)
             else:
-                self.decir(chat, "⏱ <b>Reloj de trabajo</b>\n¿Cuánto tiempo le das?", RELOJ_TOPES)
-        elif clave in ("fin", "termine", "listo", "ya", "stop", "para"):
+                self.decir(chat, t("⏱ <b>Reloj de trabajo</b>\n¿Cuánto tiempo le das?"), RELOJ_TOPES)
+        elif clave in ("fin", "termine", "listo", "ya", "stop", "para", "end", "done", "finish"):
             self.decir(chat, R.terminar(chat), MENU)
-        elif clave in ("corta", "cortar", "cancela", "cancelar", "borra", "olvida"):
+        elif clave in ("corta", "cortar", "cancela", "cancelar", "borra", "olvida", "cancel", "drop"):
             self.decir(chat, R.cortar(chat), MENU)
-        elif clave in ("tareas", "tiempo", "tiempos", "promedio", "promedios"):
+        elif clave in ("tareas", "tiempo", "tiempos", "promedio", "promedios", "tasks", "times"):
             self.decir(chat, R.tareas(), MENU)
         elif a.isdigit():                       # "/reloj 45": un bloque sin nombre
             self.decir(chat, R.iniciar(chat, "trabajo", int(a)), MENU)
@@ -773,6 +778,10 @@ class Bot:
     def _comando(self, chat, texto: str) -> None:
         partes = texto.split(maxsplit=1)
         cmd = C.normal(partes[0].split("@")[0])
+        # Cada idioma escribe los comandos a su manera (/expense), pero el bot despacha sobre
+        # los nombres del codigo. Asi los de siempre siguen funcionando: un mensaje viejo o un
+        # enlace de antes no se rompe.
+        cmd = COMANDOS_INV.get(cmd, cmd)
         arg = partes[1].strip() if len(partes) > 1 else ""
         forzar = {"/gasto": "Gasto", "/ingreso": "Ingreso", "/ahorro": "Ahorro", "/inversion": "Inversión"}
         if cmd in ("/start", "/menu", "/inicio"):
@@ -1338,7 +1347,7 @@ class Bot:
         if not mov:
             self.decir(chat, "Ese movimiento ya no está. Mira /ultimos otra vez.")
             return
-        l = ["%s <b>%s</b> · %s" % (C.emoji(mov["tipo"], mov["categoria"]), esc(mov["tipo"]), esc(mov["categoria"])),
+        l = ["%s <b>%s</b> · %s" % (C.emoji(mov["tipo"], mov["categoria"]), esc(t(mov["tipo"])), esc(mov["categoria"])),
              "%s%s" % (self._en(mov["monto"], mov["moneda"]),
                        "" if mov["moneda"] == MONEDA_BASE else " = " + F.s(mov["monto_s"])),
              esc(mov["descripcion"])]

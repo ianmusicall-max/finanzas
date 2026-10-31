@@ -9,6 +9,7 @@ tenga su traduccion. Cuando falte una, el test la nombra entera.
 """
 import ast
 import importlib
+import re
 import pathlib
 import unittest
 
@@ -16,11 +17,16 @@ RAIZ = pathlib.Path(__file__).resolve().parent.parent
 IDIOMAS = sorted(p.stem for p in (RAIZ / "idiomas").glob("*.py") if not p.stem.startswith("_"))
 ORIGEN = "es"   # el idioma en el que esta escrito el codigo
 
-# Frases que llegan a t() dentro de una variable, asi que leyendo el codigo no se ven:
-# son los VALORES de las opciones de formularios.py (viajan a Notion, por eso siguen en espanol)
-# y lo que se traduce es solo su etiqueta.
-POR_VARIABLE = ["Débito", "Crédito", "Un solo pago", "Mensual", "Anual",
-                "Sin meta (ahorro general)"]
+def por_variable() -> list:
+    """Frases que llegan a `t()` dentro de una variable, así que leyendo el código no se ven.
+
+    Son las llaves del sistema: viajan a Notion y se comparan en el código, por eso el VALOR
+    sigue en español y lo que se traduce es solo lo que se lee en pantalla —
+    `t(mov.tipo)`, `t(mov.cuenta)`, la etiqueta de una opción del formulario.
+    """
+    import categorias as C
+    return (["Débito", "Crédito", "Un solo pago", "Mensual", "Anual",
+             "Sin meta (ahorro general)"] + list(C.TIPOS) + list(C.CUENTAS))
 
 
 def frases_del_codigo() -> list:
@@ -37,7 +43,7 @@ def frases_del_codigo() -> list:
 
 class TodosLosIdiomas(unittest.TestCase):
     def setUp(self):
-        self.frases = frases_del_codigo() + POR_VARIABLE
+        self.frases = frases_del_codigo() + por_variable()
 
     def test_hay_frases_que_traducir(self):
         """Si esto da cero es que alguien deshizo los t() sin querer."""
@@ -86,6 +92,72 @@ class TodosLosIdiomas(unittest.TestCase):
             self.assertEqual(len(m.MESES_SOLO), 12, idioma)
             self.assertTrue(all(m.DIAS), idioma)
             self.assertTrue(all(m.MESES) and all(m.MESES_SOLO), idioma)
+
+
+class ComandosEnCadaIdioma(unittest.TestCase):
+    """Cada idioma puede llamar a los comandos como quiera, con dos condiciones.
+
+    Telegram **no acepta cirílico en los comandos**: solo letras latinas minúsculas, números y
+    guión bajo. Un `/расход` no sería un enlace azul ni aparecería en el menú de "/". Y el
+    nombre tiene que apuntar a un comando que el bot entienda de verdad, porque si no el
+    usuario lee en la ayuda algo que no funciona.
+    """
+
+    VALIDO = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
+
+    def grupos_del_bot(self) -> list:
+        """Los comandos que `Bot._comando` despacha, agrupados por sinónimos.
+
+        `cmd in ("/ayuda", "/help", "/comandos")` es un grupo: los tres hacen lo mismo, así que
+        un idioma puede usar cualquiera de ellos sin tapar nada.
+        """
+        fuente = (RAIZ / "bot.py").read_text()
+        cuerpo = fuente[fuente.index("def _comando("):][:6000]
+        grupos = [{c[1:] for c in re.findall(r'"(/[a-z]+)"', tupla)}
+                  for tupla in re.findall(r"cmd in \(([^)]*)\)", cuerpo)]
+        sueltos = {c[1:] for c in re.findall(r'"(/[a-z]+)"', cuerpo)}
+        for g in grupos:
+            sueltos -= g
+        return grupos + [{c} for c in sueltos]
+
+    def comandos_del_bot(self) -> set:
+        return set().union(*self.grupos_del_bot())
+
+    def test_son_nombres_que_telegram_acepta(self):
+        for idioma in IDIOMAS:
+            for propio, suyo in importlib.import_module("idiomas.%s" % idioma).COMANDOS.items():
+                self.assertRegex(suyo, self.VALIDO,
+                                 "idiomas/%s.py: /%s no es un comando válido de Telegram "
+                                 "(solo a-z, 0-9 y _)" % (idioma, suyo))
+
+    def test_apuntan_a_comandos_que_existen(self):
+        reales = self.comandos_del_bot()
+        for idioma in IDIOMAS:
+            mapa = importlib.import_module("idiomas.%s" % idioma).COMANDOS
+            fantasma = sorted(p for p in mapa if p not in reales)
+            self.assertEqual(fantasma, [], "\nidiomas/%s.py nombra comandos que el bot no "
+                             "despacha:\n%s" % (idioma, "\n".join("  /" + f for f in fantasma)))
+
+    def test_no_tapan_otro_comando(self):
+        """Si un idioma llamara "plan" al comando del mes, "/plan" dejaría de ser el plan.
+
+        Un sinónimo del mismo comando sí vale: "ayuda" -> "help" no tapa nada, porque el bot
+        ya atiende los dos en el mismo sitio.
+        """
+        grupos = self.grupos_del_bot()
+        for idioma in IDIOMAS:
+            mapa = importlib.import_module("idiomas.%s" % idioma).COMANDOS
+            for propio, suyo in mapa.items():
+                for g in grupos:
+                    if suyo in g and propio not in g:
+                        self.fail("idiomas/%s.py: /%s ya es el comando de otra cosa (%s)"
+                                  % (idioma, suyo, " · ".join("/" + x for x in sorted(g))))
+
+    def test_la_vuelta_no_es_ambigua(self):
+        for idioma in IDIOMAS:
+            mapa = importlib.import_module("idiomas.%s" % idioma).COMANDOS
+            self.assertEqual(len(set(mapa.values())), len(mapa),
+                             "idiomas/%s.py: dos comandos se llaman igual" % idioma)
 
 
 class NotionEnCadaIdioma(unittest.TestCase):
