@@ -309,6 +309,70 @@ todos los idiomas y que los idiomas cubran las mismas claves.
 **Falta**: los textos de adentro (preguntas de los formularios, confirmaciones, resúmenes) siguen
 en español. Son ~1.200 entre `bot.py`, `formularios.py`, `informes.py` y `finanzas.py`.
 
+## Todo en su idioma, Notion incluido (31/10/2026)
+
+El menú ya salía en ruso, pero lo de adentro no: los formularios, la pantalla de inicio, cada
+monto (en soles) y todo Notion seguían en español. Tres cosas escritas a mano eran **bugs
+silenciosos** para ella, de la misma familia que el `"Otros"` de `finanzas.py`:
+
+- Guardar un ahorro escribía en Notion `"Fondo de emergencia"` / `"Metas"` / `"Ahorro general"`,
+  categorías que no existen en su base. Ahora lo decide `C.ahorro_de_meta()` con
+  `AHORRO_EMERGENCIA` / `AHORRO_METAS` del perfil, reconociendo la reserva por las **palabras
+  clave de `AHORROS`**, no por la palabra "emergencia".
+- `"PEN"` suelto en ~20 sitios como moneda por defecto: cada fila de Notion sin moneda se leía
+  como soles.
+- `/start` proponía `/limite 1500 rub` a cualquiera. Ahora es `LIMITE_EJEMPLO` del perfil.
+
+**Los textos** se traducen buscando el español, no con una clave inventada: `t("¿Qué fecha?")`.
+Con claves el código deja de decir lo que sale en pantalla, y un error de tipeo muestra la clave
+cruda. Así una frase sin traducir **sale en español en vez de romper el bot**, que es lo que
+permite traducir de a poco — pero entonces el que se entera de lo que falta es quien usa el bot.
+Por eso `tests/test_idiomas.py` lee todos los `t("...")` del repo y, si a un idioma le falta
+alguno, **lo nombra entero**.
+
+Al envolver los textos de `formularios.py`, la función `t()` chocó con una variable local `t`
+(el texto que escribió la persona) en `_texto`. Es **exactamente el tropiezo de `col()` contra
+`columna()`** de más arriba; se llama `escrito`, que además dice qué es.
+
+**La moneda base** no era solo un símbolo: el tipo de cambio entero era "soles por unidad"
+(`finanzas.soles`, `_descargar_tc`, `s()`, `s3()`). Ahora es "unidades de la `MONEDA_BASE` por
+unidad", sale de `config.POR_USD` y `soles()` se llama **`en_base()`**, porque con la base en
+rublos el nombre mentía. Los números de `POR_USD` están elegidos para que con base PEN den
+exactamente los de siempre (3.75 / 4.10 / 0.045): la instalación de José no cambia en nada.
+Las dos monedas que acompañan a cada monto las dice el perfil (`MONEDAS_RESUMEN`).
+
+**Ojo con los `TC_USD` del `.env`**: significan "unidades de la base por dólar". Un `.env`
+copiado de otra instalación los trae en la moneda de la otra y convierte mal todo sin avisar.
+Por eso en `.env.example` quedaron comentados: sin ellos el sistema calcula unos razonables.
+
+### Notion en el idioma de su dueño
+
+Las bases, las columnas y los valores que son llaves del sistema se crean en el idioma del
+`.env` (`NOTION_PROP` y `NOTION_VALOR` en `idiomas/<código>.py`). **El código los sigue nombrando
+en español** (`f.get("Monto")`, `p_select("Gasto")`): traducir eso habrían sido cientos de
+sitios. La traducción pasa **solo en la frontera**, en `notion.py`: `_esquema_a_notion`,
+`_props_a_notion`, `_filtro_a_notion` y `fila()`. Ningún otro módulo cambió.
+
+Lo delicado es **qué valores se traducen**. Solo los de `notion.COLUMNAS_LLAVE` (Tipo, Grupo,
+Cuenta, Tarjeta, Frecuencia, Origen, Clase, Prioridad, Estado). Las categorías, los medios de
+pago y las monedas quedan fuera **a propósito**: salen del perfil y ya vienen en su idioma, y
+traducirlos los mezclaría — la cuenta `"Salud"` y la categoría `"Здоровье"` serían la misma
+palabra, y al leer de Notion no se sabría cuál era. Por eso la traducción es **por columna**, y
+hay un test de que ningún par de nombres se traduce igual (`test_la_vuelta_no_es_ambigua`).
+
+Dos detalles que no se ven:
+- El símbolo del final (`Monto ₽`, `Saldo USD`) no se traduce: `n_prop` lo separa y lo vuelve a
+  pegar.
+- La fórmula de Metas nombra columnas **dentro de un texto**, así que la traducción de las
+  llaves no la alcanza: se escribe ya con `n_prop(columna("Objetivo"))`. Si no, Notion contesta
+  "Type error with formula" y la base no se crea.
+
+**Al agregar una columna o un valor nuevo**, `tests/test_idiomas.py` avisa por nombre si algún
+idioma se quedó sin traducirlo.
+
+**Falta**: los textos de `informes.py` y `finanzas.py` (resúmenes, consejos, plan de deudas) y
+los meses abreviados de `excel.py` siguen en español.
+
 ## Pendiente
 
 - ~~Confirmar que el servidor se actualiza solo~~: confirmado el 03/10/2026 (`/retirar` responde en Telegram,

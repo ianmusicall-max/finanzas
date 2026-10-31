@@ -1,6 +1,7 @@
 """Categorias y medios de pago."""
 
 import sys
+import os
 import unittest
 from pathlib import Path
 
@@ -9,6 +10,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import categorias as C  # noqa: E402
 
 
+@unittest.skipIf(os.environ.get("PERFIL", "jose") != "jose",
+                 "la tarjeta Sip es del perfil de José")
 class TarjetaOhEsSip(unittest.TestCase):
     """El banco renombró la Tarjeta OH a Sip (21/10/2026). Era un solo producto, no dos.
 

@@ -23,3 +23,7 @@ TEXTOS = {}
 EFECTIVO = "Efectivo"
 MONEDA_NOMBRE = {"USD": "dólares", "RUB": "rublos", "EUR": "euros", "PEN": "soles"}
 MESES_SOLO = MESES
+
+# Notion esta escrito en el idioma del codigo: no hay nada que traducir.
+NOTION_PROP = {}
+NOTION_VALOR = {}

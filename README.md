@@ -352,6 +352,12 @@ traducir sale en español en vez de romper el bot, así que se puede traducir de
 entonces el que se entera de lo que falta es quien usa el bot. Por eso `tests/test_idiomas.py` lee
 todos los `t("...")` del repo y, si a un idioma le falta alguno, **lo nombra entero**.
 
+**Notion también.** Las bases, las columnas y los valores que son llaves del sistema (Gasto,
+Activo, Débito…) se crean en el idioma del `.env`. El código sigue nombrándolos en español
+(`f.get("Monto")`): la traducción pasa **solo en la frontera**, dentro de `notion.py`. Lo que es
+dato de la persona —las categorías, los bancos, las metas— no se traduce nunca: ya viene del
+perfil en su idioma.
+
 Para agregar un idioma: copiar `idiomas/es.py`, traducir, y correr los tests.
 Para agregar una persona: copiar un `perfiles/*.py`, cambiar los datos, y correr los tests.
 

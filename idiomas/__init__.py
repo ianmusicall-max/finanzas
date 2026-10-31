@@ -30,6 +30,8 @@ MESES = _idioma.MESES              # el que acompana a un numero: "31 de octubre
 MESES_SOLO = _idioma.MESES_SOLO    # el que va suelto: "Octubre" / "октябрь" (en ruso cambia)
 EFECTIVO = _idioma.EFECTIVO
 MONEDA_NOMBRE = _idioma.MONEDA_NOMBRE
+NOTION_PROP = _idioma.NOTION_PROP      # como se llaman las bases y columnas en Notion
+NOTION_VALOR = _idioma.NOTION_VALOR    # los valores que son llaves del sistema
 
 
 def t(frase: str) -> str:

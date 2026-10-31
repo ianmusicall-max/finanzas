@@ -88,5 +88,84 @@ class TodosLosIdiomas(unittest.TestCase):
             self.assertTrue(all(m.MESES) and all(m.MESES_SOLO), idioma)
 
 
+class NotionEnCadaIdioma(unittest.TestCase):
+    """Notion tambien habla el idioma de su dueño: los nombres de las bases, los de las
+    columnas y los valores que son llaves del sistema."""
+
+    def esquema_es(self):
+        """Los nombres tal como los escribe el codigo, sin traducir."""
+        import categorias as C
+        import notion
+        todas = sorted({c for t in C.TIPOS for c in C.nombres(t)})
+        return notion._esquemas_es(todas)
+
+    def test_cada_idioma_nombra_todas_las_bases_y_columnas(self):
+        import notion
+        from config import SIMBOLOS
+        sufijos = set(SIMBOLOS) | set(SIMBOLOS.values())
+        esquema = self.esquema_es()
+        nombres = set(esquema)                                  # las bases
+        for props in esquema.values():
+            for col in props:
+                base, _, suf = col.rpartition(" ")
+                nombres.add(base if base and suf in sufijos else col)
+        for idioma in IDIOMAS:
+            if idioma == ORIGEN:
+                continue
+            mapa = importlib.import_module("idiomas.%s" % idioma).NOTION_PROP
+            faltan = sorted(n for n in nombres if n not in mapa)
+            self.assertEqual(faltan, [], "\nidiomas/%s.py no nombra en Notion:\n%s"
+                             % (idioma, "\n".join("  " + n for n in faltan)))
+
+    def test_cada_idioma_traduce_las_llaves(self):
+        import notion
+        valores = set()
+        for props in self.esquema_es().values():
+            for col, tipo in props.items():
+                if col in notion.COLUMNAS_LLAVE and isinstance(tipo.get("select"), dict):
+                    valores |= {o["name"] for o in tipo["select"]["options"]}
+        valores.discard("—")
+        for idioma in IDIOMAS:
+            if idioma == ORIGEN:
+                continue
+            mapa = importlib.import_module("idiomas.%s" % idioma).NOTION_VALOR
+            faltan = sorted(v for v in valores if v not in mapa)
+            self.assertEqual(faltan, [], "\nidiomas/%s.py no traduce las llaves:\n%s"
+                             % (idioma, "\n".join("  " + v for v in faltan)))
+
+    def test_la_vuelta_no_es_ambigua(self):
+        """Dos nombres distintos no pueden traducirse igual: al leer de Notion no se sabria
+        cual era, y una columna terminaria leyendose como otra."""
+        for idioma in IDIOMAS:
+            m = importlib.import_module("idiomas.%s" % idioma)
+            for cual, mapa in (("NOTION_PROP", m.NOTION_PROP), ("NOTION_VALOR", m.NOTION_VALOR)):
+                repetidos = {}
+                for es, otro in mapa.items():
+                    repetidos.setdefault(otro, []).append(es)
+                choques = {k: v for k, v in repetidos.items() if len(v) > 1}
+                self.assertEqual(choques, {}, "idiomas/%s.py: %s traduce igual %s"
+                                 % (idioma, cual, choques))
+
+    def test_ida_y_vuelta_de_una_fila(self):
+        """Lo que se escribe en Notion se tiene que poder volver a leer igual."""
+        import notion
+        props = {"Tipo": notion.p_select("Gasto"), "Cuenta": notion.p_select("Gastos"),
+                 "Categoría": notion.p_select("Cualquiera"), "Monto": notion.p_number(45)}
+        enviado = notion._props_a_notion(props)
+        pagina = {"properties": {k: dict(v, type=list(v)[0]) for k, v in enviado.items()}}
+        leido = notion.fila(pagina)
+        self.assertEqual(leido["Tipo"], "Gasto")
+        self.assertEqual(leido["Cuenta"], "Gastos")
+        self.assertEqual(leido["Categoría"], "Cualquiera")   # del perfil: no se toca
+        self.assertEqual(leido["Monto"], 45)
+
+    def test_el_simbolo_de_la_moneda_no_se_traduce(self):
+        import notion
+        from config import SUFIJO
+        self.assertTrue(notion.n_prop("Monto " + SUFIJO).endswith(" " + SUFIJO))
+        self.assertEqual(notion.es_prop(notion.n_prop("Monto " + SUFIJO)), "Monto " + SUFIJO)
+        self.assertEqual(notion.es_prop(notion.n_prop("Monto USD")), "Monto USD")
+
+
 if __name__ == "__main__":
     unittest.main()

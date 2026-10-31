@@ -195,3 +195,82 @@ TEXTOS = {
         "<code>/tc 83</code> · <code>/tc pen 22</code> · курс валют\n"
         "/deshacer · удалить последнюю запись (для старой — /ultimos)",
 }
+
+# ---------------------------------------------------------------- Notion
+# Como se llaman en SU Notion las bases y las columnas. El codigo las sigue nombrando en
+# espanol: la traduccion pasa solo en la frontera (notion.fila / crear_pagina / consultar),
+# asi no hubo que tocar los cientos de sitios que dicen f.get("Monto").
+#
+# El simbolo o el codigo de moneda del final no va aca: "Monto ₽" se arma solo (notion.n_prop).
+NOTION_PROP = {
+    # las bases
+    "Movimientos": "Движения", "Presupuesto": "Бюджет", "Patrimonio": "Капитал",
+    "Metas": "Цели", "Resúmenes": "Сводки", "Deudas": "Долги",
+    "Suscripciones": "Подписки", "Recordatorios": "Напоминания",
+
+    # columnas comunes
+    "Descripción": "Описание", "Tipo": "Тип", "Categoría": "Категория", "Grupo": "Группа",
+    "Cuenta": "Счёт", "Monto": "Сумма", "Moneda": "Валюта", "Tipo de cambio": "Курс",
+    "Medio de pago": "Способ оплаты", "Tarjeta": "Карта", "Cuotas": "Части",
+    "Frecuencia": "Периодичность", "Fecha": "Дата", "Origen": "Источник", "Creado": "Создано",
+    "Notas": "Заметки", "Nombre": "Название", "Estado": "Статус", "Día": "День",
+
+    # presupuesto
+    "Mensual": "Бюджет месяца", "Anual": "Бюджет года",
+
+    # patrimonio
+    "Clase": "Класс", "Valor": "Стоимость", "Actualizado": "Обновлено",
+
+    # metas
+    "Meta": "Цель", "Objetivo": "Сколько нужно", "Ahorrado": "Накоплено",
+    "Avance": "Прогресс", "Prioridad": "Приоритет", "Fecha límite": "Срок",
+
+    # resumenes
+    "Periodo": "Период", "Fechas": "Даты", "Ingresos": "Доходы", "Gastos": "Расходы",
+    "Ahorro": "Накопления", "Inversión": "Вложения", "Balance": "Баланс",
+    "Tasa de ahorro": "Норма сбережений", "Necesidades %": "Нужное %", "Deseos %": "Желания %",
+    "Patrimonio neto": "Чистый капитал", "Principales gastos": "Главные расходы",
+    "Alertas": "Предупреждения",
+
+    # recordatorios y suscripciones
+    "Recordatorio": "Напоминание", "Deuda": "Долг", "Último": "Последний",
+    "Próxima fecha": "Следующая дата", "Suscripción": "Подписка",
+    "Cada (meses)": "Каждые (месяцев)", "Por mes": "В месяц",
+    "Último pago": "Последний платёж", "Próximo pago": "Следующий платёж",
+
+    # deudas
+    "Acreedor": "Кредитор", "Monto original": "Изначальная сумма", "Saldo": "Остаток",
+    "Tasa anual": "Годовая ставка", "Cuota mensual": "Платёж в месяц",
+    "Día de corte": "День выписки", "Día de pago": "День платежа", "Inicio": "Начало",
+}
+
+# Los valores de las columnas que son llaves del sistema (notion.COLUMNAS_LLAVE). Las
+# categorias, los medios de pago y las monedas NO estan aca: salen del perfil y ya vienen
+# en ruso.
+NOTION_VALOR = {
+    # Tipo de movimiento
+    "Gasto": "Расход", "Ingreso": "Доход", "Ahorro": "Накопление", "Inversión": "Вложение",
+    # Grupo
+    "Necesidad": "Нужное", "Deseo": "Желание",
+    # Cuenta
+    "Gastos": "Расходы", "Salud": "Здоровье", "Educación": "Обучение",
+    # Tarjeta y frecuencia
+    "Débito": "Дебет", "Crédito": "Кредит", "Mensual": "Ежемесячный", "Anual": "Годовой",
+    # Origen
+    "Telegram": "Telegram", "Hoja 2025": "Таблица 2025", "Manual": "Вручную",
+    # Patrimonio
+    "Activo": "Актив", "Pasivo": "Пассив", "Efectivo y bancos": "Наличные и счета",
+    "Inversiones": "Вложения", "Cripto": "Крипто", "Inmueble": "Недвижимость",
+    "Vehículo": "Транспорт", "Por cobrar": "К получению", "Otro activo": "Другой актив",
+    "Tarjeta de crédito": "Кредитная карта", "Préstamo": "Заём", "Hipoteca": "Ипотека",
+    "Por pagar": "К оплате", "Otra deuda": "Другой долг",
+    # Metas
+    "Muy importante": "Очень важно", "Importante": "Важно", "Puede esperar": "Может подождать",
+    # Resumenes
+    "Diario": "Ежедневная", "Semanal": "Еженедельная",
+    # Recordatorios
+    "Pago": "Платёж", "Deuda": "Долг", "Retiro": "Снятие", "Otro": "Другое",
+    # Suscripciones y deudas
+    "Pausado": "На паузе", "Activa": "Активна", "Cancelada": "Отменена",
+    "Persona": "Человек", "Otra": "Прочее", "Pagada": "Погашен",
+}
