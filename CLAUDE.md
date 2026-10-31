@@ -213,6 +213,61 @@ promedio. Nació para medir las publicaciones de Facebook y no pasarse de hora.
 Lo cubre `tests.test_reloj`, que apunta `reloj.DATA`/`reloj.ESTADO` a un temporal y le cambia
 `reloj.ahora` por un reloj falso (si no, los tests esperarían de verdad).
 
+## Perfiles: el mismo código para dos personas (30/10/2026)
+
+El usuario está clonando el sistema para **Дарья** (Moscú, rublos, sin deudas, todas sus tarjetas
+de débito). Las categorías y los bancos son datos personales, así que vivían en `categorias.py` y
+no se podían compartir. Ahora:
+
+- `categorias.py` tiene **solo la lógica** (`normal`, `buscar_categoria`, `buscar_medio`,
+  `vigente`, `deuda_de_tarjeta`…) y lo **estructural**: `TIPOS`, `GRUPOS`, `CUENTAS`, `ACTIVOS`,
+  `PASIVOS`, `LIQUIDOS`. Eso último son llaves que el código usa y guarda en Notion tal cual, así
+  que **no son cosa de cada perfil**.
+- `perfiles/<nombre>.py` tiene los datos personales. Se elige con `PERFIL` en el `.env`
+  (`PERFIL=jose` por defecto, así la instalación de siempre no cambia).
+- `categorias.py` reexporta el perfil con `import *` **a propósito**: los diez módulos que hacen
+  `import categorias as C` siguen usando `C.GASTOS`, `C.MEDIOS`… y no hubo que tocar ninguno.
+
+**Dos cosas que estaban escritas a mano y le habrían roto el sistema a ella en silencio**:
+
+- `finanzas.py` ponía `"Otros"` como respaldo cuando una fila de Notion viene sin categoría, en 3
+  lugares. Para un perfil en ruso eso escribía una categoría inexistente. Ahora es `C.otros("Gasto")`,
+  y cada perfil declara sus catch-all en `OTROS`.
+- `bot.py` comparaba `mov.categoria != "Retiro de ahorro"` para no ofrecer apartar ahorro cuando el
+  ingreso *es* un retiro del ahorro. En ruso nunca daba verdadero. Ahora es `C.RETIRO_AHORRO`.
+
+`tests/test_perfiles.py` es un **contrato que corre sobre todos los perfiles**: que los catch-all de
+`OTROS` existan de verdad, que `RETIRO_AHORRO` sea una categoría de ingreso, que las tarjetas y
+billeteras estén en `MEDIOS`, que los alias apunten a medios que existen. Un perfil nuevo queda
+cubierto por el solo hecho de existir — es lo que atrapa la clase de bug de arriba.
+
+**Al agregar un perfil**: copiar uno existente, cambiar los datos, y correr los tests. Si algo no
+cierra, el contrato lo dice por nombre.
+
+### Lo que cambia de una persona a otra, todo en el `.env`
+
+| Variable | Qué decide |
+|---|---|
+| `PERFIL` | Qué `perfiles/<nombre>.py` se carga: categorías, bancos, alias |
+| `MONEDA_BASE` | El símbolo de las columnas de Notion (`columna()` en `config.py`): "Monto S/" o "Monto ₽". **Se define una vez, antes de `setup_notion.py`**: cambiarla después crea columnas nuevas y deja las viejas con los datos adentro |
+| `ZONA_HORARIA` | El corte del día (`config.ahora()`) y la hora de los resúmenes |
+
+**La moneda base** estaba escrita a mano en **68 lugares de 6 archivos**. Ahora sale de
+`config.columna()`. Hay un test que recorre esos archivos buscando `"Monto S/"` literales: si
+alguien vuelve a escribir la moneda a mano, el clon en rublos se rompería en silencio.
+
+Al hacerlo, el primer intento llamó `col()` a la función y chocó con una variable de bucle llamada
+`col` en `finanzas.py` (`UnboundLocalError` en 39 tests). Por eso se llama `columna()`.
+
+**La zona horaria** no usa tzdata a propósito: ni Lima ni Moscú tienen horario de verano, así que
+basta el desfase fijo (`config.ZONAS`). También acepta `UTC+3` o `-5` a mano, y si no entiende la
+zona **no arranca** en vez de sacar los resúmenes a cualquier hora. Los `.timer` del repo dicen
+`America/Lima`; `deploy/poner-timers.sh` los copia a systemd reemplazando esa cadena por lo que
+diga `ZONA_HORARIA`, y lo llaman los tres scripts que instalaban los timers.
+
+**`.env.example` tenía el `NOTION_PARENT_PAGE_ID` real de José** en un repo público, y un clon lo
+habría copiado tal cual. Ahora es un hueco.
+
 ## Pendiente
 
 - ~~Confirmar que el servidor se actualiza solo~~: confirmado el 03/10/2026 (`/retirar` responde en Telegram,

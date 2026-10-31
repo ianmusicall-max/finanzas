@@ -1395,7 +1395,12 @@ class Comparar(Base):
         if d.day < pasado.hasta.day:
             self.assertIn("hasta el día %d" % d.day, t)
             self.assertIn("antes S/ 200.00", t)            # los 50 del fin de mes quedan fuera
-        self.assertNotIn("antes S/ 250.00", t)
+            self.assertNotIn("antes S/ 250.00", t)
+        else:
+            # Hoy es el ultimo dia del mes pasado o mas: la ventana lo cubre entero, asi que los
+            # 50 del fin de mes SI entran. Antes esto estaba afuera del if y el test fallaba todos
+            # los fines de mes, aunque el calculo estuviera bien.
+            self.assertIn("antes S/ 250.00", t)
 
     def test_sin_nada_no_explota(self):
         self.assertIn("Todavía no hay movimientos", self.di("/comparar"))

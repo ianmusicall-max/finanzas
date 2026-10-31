@@ -31,7 +31,7 @@ levantar_bot() {
 .venv/bin/pip install -q -r requirements.txt
 .venv/bin/python -m unittest discover -s tests -t . -q || echo ">> OJO: fallaron tests"
 sudo -u finanzas .venv/bin/python setup_notion.py >/dev/null   # agrega columnas nuevas si las hay
-cp deploy/systemd/finanzas-* /etc/systemd/system/ && systemctl daemon-reload
+bash deploy/poner-timers.sh
 systemctl enable -q --now finanzas-avisos.timer   # recordatorios de cada mañana
 systemctl enable -q --now finanzas-vigia.timer    # si el bot se cae, lo levanta y avisa
 systemctl enable -q --now finanzas-autoupdate.timer   # desde ahora se actualiza solo cada 5 minutos

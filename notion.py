@@ -11,7 +11,7 @@ from typing import Optional
 import requests
 
 import categorias as C
-from config import BASES, DATA, NOTION_PARENT_PAGE_ID, NOTION_TOKEN
+from config import BASES, DATA, NOTION_PARENT_PAGE_ID, NOTION_TOKEN, columna
 
 API = "https://api.notion.com/v1"
 VERSION = "2022-06-28"
@@ -206,7 +206,7 @@ def esquemas() -> dict:
             "Monto": _num(),
             "Moneda": _sel(C.MONEDAS),
             "Tipo de cambio": _num(),
-            "Monto S/": _num(),
+            columna("Monto"): _num(),
             "Monto USD": _num(),
             "Monto RUB": _num(),
             "Medio de pago": _sel(C.MEDIOS),
@@ -219,8 +219,8 @@ def esquemas() -> dict:
         },
         PRESUPUESTO: {
             "Categoría": {"title": {}},
-            "Mensual S/": _num(),
-            "Anual S/": _num(),
+            columna("Mensual"): _num(),
+            columna("Anual"): _num(),
             "Grupo": _sel(C.GRUPOS),
             "Notas": {"rich_text": {}},
         },
@@ -230,15 +230,15 @@ def esquemas() -> dict:
             "Tipo": _sel(C.ACTIVOS + C.PASIVOS),
             "Valor": _num(),
             "Moneda": _sel(C.MONEDAS),
-            "Valor S/": _num(),
+            columna("Valor"): _num(),
             "Actualizado": {"date": {}},
             "Notas": {"rich_text": {}},
         },
         METAS: {
             "Meta": {"title": {}},
-            "Objetivo S/": _num(),
-            "Ahorrado S/": _num(),
-            "Avance": {"formula": {"expression": 'if(prop("Objetivo S/") > 0, min(prop("Ahorrado S/") / prop("Objetivo S/"), 1), 0)'}},
+            columna("Objetivo"): _num(),
+            columna("Ahorrado"): _num(),
+            "Avance": {"formula": {"expression": 'if(prop(columna("Objetivo")) > 0, min(prop(columna("Ahorrado")) / prop(columna("Objetivo")), 1), 0)'}},
             "Prioridad": _sel(["Muy importante", "Importante", "Puede esperar"]),
             "Fecha límite": {"date": {}},
         },
@@ -246,15 +246,15 @@ def esquemas() -> dict:
             "Periodo": {"title": {}},
             "Tipo": _sel(["Diario", "Semanal", "Mensual"]),
             "Fechas": {"date": {}},
-            "Ingresos S/": _num(),
-            "Gastos S/": _num(),
-            "Ahorro S/": _num(),
-            "Inversión S/": _num(),
-            "Balance S/": _num(),
+            columna("Ingresos"): _num(),
+            columna("Gastos"): _num(),
+            columna("Ahorro"): _num(),
+            columna("Inversión"): _num(),
+            columna("Balance"): _num(),
             "Tasa de ahorro": _num("percent"),
             "Necesidades %": _num("percent"),
             "Deseos %": _num("percent"),
-            "Patrimonio neto S/": _num(),
+            columna("Patrimonio neto"): _num(),
             "Principales gastos": {"rich_text": {}},
             "Alertas": {"rich_text": {}},
         },
@@ -275,7 +275,7 @@ def esquemas() -> dict:
             "Monto": _num(),
             "Moneda": _sel(C.MONEDAS),
             "Cada (meses)": _num(),
-            "Por mes S/": _num(),
+            columna("Por mes"): _num(),
             "Último pago": {"date": {}},
             "Próximo pago": {"date": {}},
             "Estado": _sel(["Activa", "Cancelada"]),
@@ -287,7 +287,7 @@ def esquemas() -> dict:
             "Monto original": _num(),
             "Saldo": _num(),
             "Moneda": _sel(C.MONEDAS),
-            "Saldo S/": _num(),
+            columna("Saldo"): _num(),
             "Saldo USD": _num(),
             "Saldo RUB": _num(),
             "Tasa anual": _num("percent"),

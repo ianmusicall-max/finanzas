@@ -16,6 +16,7 @@ from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
 import categorias as C
+from config import columna
 import finanzas as F
 
 TITULO = Font(bold=True, size=14)
@@ -143,8 +144,8 @@ def libro(notion, bases: dict, hoy: Optional[date] = None) -> bytes:
     ws = wb.create_sheet("Metas")
     filas = [(m["meta"], m["ahorrado"], m["objetivo"], max(m["objetivo"] - m["ahorrado"], 0), m["avance"],
               F.en_dolares(m["ahorrado"]), F.en_dolares(m["objetivo"])) for m in metas]
-    fin = _tabla(ws, 1, ["Meta", "Ahorrado S/", "Objetivo S/", "Falta S/", "Avance", "Ahorrado $", "Objetivo $"], filas,
-                 {"Ahorrado S/": SOLES, "Objetivo S/": SOLES, "Falta S/": SOLES, "Avance": PORCENTAJE,
+    fin = _tabla(ws, 1, ["Meta", columna("Ahorrado"), columna("Objetivo"), "Falta S/", "Avance", "Ahorrado $", "Objetivo $"], filas,
+                 {columna("Ahorrado"): SOLES, columna("Objetivo"): SOLES, "Falta S/": SOLES, "Avance": PORCENTAJE,
                   "Ahorrado $": DOLARES, "Objetivo $": DOLARES})
     if metas:
         _grafico(ws, "barra", "Ahorrado vs objetivo (S/)", (2, 1, 3, fin), (1, 2, 1, fin), "J2")
@@ -170,8 +171,8 @@ def libro(notion, bases: dict, hoy: Optional[date] = None) -> bytes:
         d = por_mes.get(k, {})
         ing, gas = round(d.get("Ingreso", 0), 2), round(d.get("Gasto", 0), 2)
         filas.append((MESES[k - 1], ing, gas, round(d.get("Ahorro", 0), 2), round(ing - gas, 2)))
-    fin = _tabla(ws, 1, ["Mes", "Ingresos S/", "Gastos S/", "Ahorro S/", "Balance S/"], filas,
-                 {"Ingresos S/": SOLES, "Gastos S/": SOLES, "Ahorro S/": SOLES, "Balance S/": SOLES})
+    fin = _tabla(ws, 1, ["Mes", columna("Ingresos"), columna("Gastos"), columna("Ahorro"), columna("Balance")], filas,
+                 {columna("Ingresos"): SOLES, columna("Gastos"): SOLES, columna("Ahorro"): SOLES, columna("Balance"): SOLES})
     _grafico(ws, "columna", "Ingresos vs gastos por mes (S/)", (2, 1, 3, fin), (1, 2, 1, fin), "G2")
     _grafico(ws, "linea", "Balance por mes (S/)", (5, 1, 5, fin), (1, 2, 1, fin), "G20")
 
