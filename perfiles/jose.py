@@ -111,3 +111,15 @@ OTROS = {"Gasto": "Otros", "Ingreso": "Otros ingresos",
 # El bot ofrece apartar una parte de cada ingreso, menos cuando el ingreso es justo sacar plata
 # del ahorro (`bot.py`). Tiene que ser una de las categorias de INGRESOS de arriba.
 RETIRO_AHORRO = "Retiro de ahorro"
+
+# Que botones ve en /start, por filas. Los nombres son los del comando (m:<nombre> en bot.py) y
+# el texto de cada uno sale del idioma, no de aca: asi el mismo menu sirve en cualquier idioma.
+MENU_OPCIONES = [["gasto", "ingreso", "ahorro"],
+                 ["retirar", "reloj"],
+                 ["hoy", "semana", "mes"],
+                 ["limite", "presupuesto", "deudas"],
+                 ["patrimonio", "metas", "suscripciones"],
+                 ["pagos", "proyeccion", "plan"],
+                 ["ingresos", "excel", "grafico"],
+                 ["comparar", "buscar", "consejos"],
+                 ["tc", "ajustar"]]

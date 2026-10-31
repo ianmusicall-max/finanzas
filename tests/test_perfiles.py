@@ -188,3 +188,51 @@ class FormulaDeMetas(unittest.TestCase):
 
     def test_no_quedo_la_llamada_sin_evaluar(self):
         self.assertNotIn("columna(", self._expresion())
+
+
+class MenuPorPerfil(unittest.TestCase):
+    """Cada perfil elige qué botones ve; el idioma les pone el nombre.
+
+    `bot.MENU` descarta en silencio una opción sin nombre, así que un botón mal escrito
+    simplemente no aparecería y nadie se enteraría. Por eso se comprueba acá.
+    """
+
+    def _idiomas(self):
+        import importlib
+        import pkgutil
+
+        import idiomas
+        return {m.name: importlib.import_module("idiomas.%s" % m.name)
+                for m in pkgutil.iter_modules(idiomas.__path__)}
+
+    def test_cada_opcion_tiene_nombre_en_todos_los_idiomas(self):
+        for nombre in NOMBRES:
+            p = cargar(nombre)
+            for fila in p.MENU_OPCIONES:
+                for opcion in fila:
+                    for idioma, mod in self._idiomas().items():
+                        with self.subTest(perfil=nombre, opcion=opcion, idioma=idioma):
+                            self.assertIn(opcion, mod.BOTONES)
+
+    def test_ningun_boton_repetido_ni_fila_vacia(self):
+        for nombre in NOMBRES:
+            p = cargar(nombre)
+            plano = [op for fila in p.MENU_OPCIONES for op in fila]
+            with self.subTest(perfil=nombre):
+                self.assertEqual(len(plano), len(set(plano)))
+                self.assertTrue(all(fila for fila in p.MENU_OPCIONES))
+
+    def test_todos_los_idiomas_nombran_las_mismas_opciones(self):
+        """Si un idioma se queda corto, a esa persona le faltan botones sin aviso."""
+        claves = {i: set(m.BOTONES) for i, m in self._idiomas().items()}
+        for idioma, k in claves.items():
+            with self.subTest(idioma=idioma):
+                self.assertEqual(k, claves["es"])
+
+    def test_el_menu_de_daria_deja_fuera_lo_que_no_usa(self):
+        """No tiene deudas ni tarjetas de crédito: esos botones solo le ocupan la pantalla."""
+        plano = [op for fila in cargar("daria").MENU_OPCIONES for op in fila]
+        for opcion in ("deudas", "plan", "patrimonio", "pagos", "proyeccion", "consejos"):
+            self.assertNotIn(opcion, plano)
+        for opcion in ("gasto", "hoy", "presupuesto", "reloj"):
+            self.assertIn(opcion, plano)

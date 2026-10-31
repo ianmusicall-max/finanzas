@@ -19,6 +19,7 @@ import excel as X
 import finanzas as F
 import informes as I
 import reloj as R
+from idiomas import BOTONES
 from config import DATA, TELEGRAM_USUARIOS, columna
 from notion import DEUDAS, METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, SUSCRIPCIONES, Notion, NotionError, cargar_bases, p_select
 from formularios import Formularios
@@ -62,15 +63,11 @@ AYUDA = (
     "/deshacer · borra lo último que anotaste (para uno viejo, /ultimos)"
 )
 
-MENU = [[("➖ Gasto", "m:gasto"), ("➕ Ingreso", "m:ingreso"), ("🐷 Ahorro", "m:ahorro")],
-        [("🏧 Retirar efectivo", "m:retirar"), ("⏱ Reloj", "m:reloj")],
-        [("📅 Hoy", "m:hoy"), ("🗓 Semana", "m:semana"), ("📆 Mes", "m:mes")],
-        [("📏 Límite", "m:limite"), ("🧾 Presupuesto", "m:presupuesto"), ("💳 Deudas", "m:deudas")],
-        [("🏦 Patrimonio", "m:patrimonio"), ("🎯 Metas", "m:metas"), ("🔁 Suscripciones", "m:suscripciones")],
-        [("🔔 Pagos del mes", "m:pagos"), ("📈 Proyección", "m:proyeccion"), ("📉 Plan deudas", "m:plan")],
-        [("💰 Ingresos", "m:ingresos"), ("📗 Excel", "m:excel"), ("🖼 Gráfico", "m:grafico")],
-        [("📊 Comparar", "m:comparar"), ("🔍 Buscar", "m:buscar"), ("💡 Consejos", "m:consejos")],
-        [("💱 Tipo de cambio", "m:tc"), ("⚙️ Ajustar", "m:ajustar")]]
+# El menu de /start: el perfil dice que opciones, el idioma como se llaman.
+# Antes estaba escrito aca y era el mismo para todos, asi que un clon veia botones que no le
+# servian (deudas y patrimonio para alguien que no tiene ni una cosa ni la otra) y en un idioma
+# que no es el suyo.
+MENU = [[(BOTONES[op], "m:" + op) for op in fila if op in BOTONES] for fila in C.MENU_OPCIONES]
 
 # Topes del reloj de trabajo. Se toca uno y el bot pregunta que vas a hacer.
 RELOJ_TOPES = [[("⏱ 15 min", "rj:15"), ("⏱ 30 min", "rj:30"), ("⏱ 45 min", "rj:45")],
