@@ -405,6 +405,35 @@ valer para todos vive en `tests/test_perfiles.py` y `tests/test_idiomas.py`, que
 *todos* los perfiles e idiomas por su cuenta. `tests.test_perfiles.EntornoDeLosTests` avisa en
 una línea si alguien quita el pin.
 
+## Los comandos van en el idioma, pero en letras latinas (31/10/2026)
+
+Telegram **no acepta cirílico en los comandos**: solo `a-z`, números y guión bajo. Un
+`/расход` no sería un enlace azul ni saldría en el menú de «/». Así que el perfil en ruso los
+tiene en inglés (`/expense`, `/today`, `/limit`, `/timer`…), que es lo que más se entiende sin
+ser español.
+
+`COMANDOS` en `idiomas/<código>.py` dice cómo se escribe cada uno; `bot.COMANDOS_INV` lo
+traduce de vuelta en una línea, antes de despachar. **Los nombres en español siguen
+funcionando** porque el despacho es sobre ellos: un mensaje viejo o un enlace de antes no se
+rompe.
+
+`tests.test_idiomas.ComandosEnCadaIdioma` comprueba que cada nombre sea válido para Telegram,
+que apunte a un comando que el bot despacha de verdad, y que no tape otro. Lo último sabe de
+sinónimos: `"ayuda" -> "help"` vale, porque el bot ya atiende los dos en el mismo `cmd in (...)`.
+
+Quedaron traducidos también el **Reloj** entero (`reloj.py`) y los menús de **Ver** y
+**Ajustes**. Dos detalles del ruso que obligaron a cambiar el código:
+
+- Los topes del reloj no se pueden armar con `%d`: en español ya salía «1 horas», y el ruso
+  tiene tres formas (1 час, 2 часа, 8 часов). Van escritos enteros, uno por idioma.
+- «%d veces» tiene el mismo problema. La frase rusa se escribe «раз: 5», que vale para
+  cualquier número, y la palabra suelta se traduce como cadena vacía.
+
+**Ojo con `data/ajustes.json`**: si guarda un tipo de cambio fijado a mano (`/tc 3.38`) y
+después cambia la moneda base, ese número se lee en la moneda nueva y convierte mal **sin
+avisar**. Se limpia desde el bot con `/tc auto`.
+
+
 ## Pendiente
 
 - ~~Confirmar que el servidor se actualiza solo~~: confirmado el 03/10/2026 (`/retirar` responde en Telegram,

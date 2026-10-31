@@ -32,6 +32,7 @@ EFECTIVO = _idioma.EFECTIVO
 MONEDA_NOMBRE = _idioma.MONEDA_NOMBRE
 NOTION_PROP = _idioma.NOTION_PROP      # como se llaman las bases y columnas en Notion
 NOTION_VALOR = _idioma.NOTION_VALOR    # los valores que son llaves del sistema
+COMANDOS = _idioma.COMANDOS            # como se escribe cada comando en este idioma
 
 
 def t(frase: str) -> str:

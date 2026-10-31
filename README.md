@@ -358,6 +358,10 @@ Activo, Débito…) se crean en el idioma del `.env`. El código sigue nombránd
 dato de la persona —las categorías, los bancos, las metas— no se traduce nunca: ya viene del
 perfil en su idioma.
 
+**Los comandos** también salen del idioma (`COMANDOS`), pero en letras latinas: Telegram no
+acepta cirílico en los comandos. Los nombres en español siguen funcionando siempre, así que un
+mensaje viejo no se rompe.
+
 Para agregar un idioma: copiar `idiomas/es.py`, traducir, y correr los tests.
 Para agregar una persona: copiar un `perfiles/*.py`, cambiar los datos, y correr los tests.
 

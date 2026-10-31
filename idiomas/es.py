@@ -10,6 +10,7 @@ BOTONES = {
     "ingresos": "💰 Ingresos", "excel": "📗 Excel", "grafico": "🖼 Gráfico",
     "comparar": "📊 Comparar", "buscar": "🔍 Buscar", "consejos": "💡 Consejos",
     "tc": "💱 Tipo de cambio", "ajustar": "⚙️ Ajustar", "ver": "👁 Ver",
+    "ultimos": "🧾 Últimos", "pago": "💸 Pagar una deuda", "deshacer": "↩️ Deshacer lo último",
 }
 
 DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
@@ -27,3 +28,6 @@ MESES_SOLO = MESES
 # Notion esta escrito en el idioma del codigo: no hay nada que traducir.
 NOTION_PROP = {}
 NOTION_VALOR = {}
+
+# Los comandos se escriben como los nombra el codigo: no hay nada que cambiar.
+COMANDOS = {}

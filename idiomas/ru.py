@@ -10,6 +10,7 @@ BOTONES = {
     "ingresos": "💰 Доходы", "excel": "📗 Excel", "grafico": "🖼 График",
     "comparar": "📊 Сравнить", "buscar": "🔍 Поиск", "consejos": "💡 Советы",
     "tc": "💱 Курс", "ajustar": "⚙️ Настройки", "ver": "👁 Посмотреть",
+    "ultimos": "🧾 Последние", "pago": "💸 Погасить долг", "deshacer": "↩️ Отменить последнее",
 }
 
 DIAS = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
@@ -117,9 +118,9 @@ TEXTOS = {
     "📏 Fija cuánto puedes gastar por día y aquí verás cuánto te queda hoy, en la semana y en el mes: "
     "<code>/limite %s</code>":
         "📏 Задайте, сколько можно тратить в день, и здесь будет видно, сколько осталось "
-        "на сегодня, на неделю и на месяц: <code>/limite %s</code>",
+        "на сегодня, на неделю и на месяц: <code>/limit %s</code>",
     "Escribe cuánto puedes gastar por día: <code>/limite %s</code>":
-        "Напишите, сколько можно тратить в день: <code>/limite %s</code>",
+        "Напишите, сколько можно тратить в день: <code>/limit %s</code>",
     "💳 Deudas: <b>%s</b>%s": "💳 Долги: <b>%s</b>%s",
     " · cuotas %s al mes": " · платёж %s в месяц",
     "🔔 Hoy toca: %s%s": "🔔 Сегодня: %s%s",
@@ -129,8 +130,101 @@ TEXTOS = {
     "<i>⚠️ Notion no respondió; prueba /start en un rato.</i>":
         "<i>⚠️ Notion не ответил; попробуйте /start чуть позже.</i>",
     "Anotar: /gasto · /ingreso · /ahorro · /inversion\nTodos los comandos: /ayuda":
-        "Записать: /gasto · /ingreso · /ahorro\nВсе команды: /ayuda",
+        "Записать: /expense · /income · /savings\nВсе команды: /help",
     "🐷 Ahorro general": "🐷 Общие накопления",
+
+    # ---------------------------------------------------------------- ajustes
+    "📏 Límite diario": "📏 Лимит на день",
+    "📏 ¿Cuánto puedes gastar por día en el día a día?\nEscribe el monto y la moneda, por ejemplo: "
+    "<code>1500 rub</code> · <code>64</code> (soles) · <code>19 usd</code>":
+        "📏 Сколько можно тратить в день на повседневное?\nНапишите сумму и валюту, например: "
+        "<code>1500</code> (рубли) · <code>19 usd</code> · <code>64 pen</code>",
+    "🧾 Presupuesto": "🧾 Бюджет",
+    "🧾 Escribe la categoría y el tope.\nAl mes: <code>supermercado 855</code> · Pagos de una vez al año: "
+    "<code>suscripciones anual 600</code>":
+        "🧾 Напишите категорию и предел.\nВ месяц: <code>продукты 20000</code> · Раз в год: "
+        "<code>подписки год 6000</code>",
+    "🏦 Saldo de una cuenta": "🏦 Остаток на счёте",
+    "🏦 Escribe la cuenta y cuánto tiene hoy, por ejemplo: <code>T-Bank 25000 rub</code> · "
+    "<code>Interbank dólares 1497 usd</code>":
+        "🏦 Напишите счёт и сколько на нём сегодня, например: <code>Т-Банк 25000</code> · "
+        "<code>BBVA 1497 usd</code>",
+    "💳 Deuda nueva o saldo": "💳 Новый долг или остаток",
+    "💳 Escribe la deuda y cuánto debes hoy, por ejemplo: <code>Tarjeta BBVA 1200</code> · "
+    "<code>Juan 200 usd</code>":
+        "💳 Напишите долг и сколько должны сегодня, например: <code>Карта BBVA 1200</code> · "
+        "<code>Аня 200 usd</code>",
+    "🎯 Meta de ahorro": "🎯 Цель накоплений",
+    "🎯 Escribe la meta y el objetivo, por ejemplo: <code>Viaje a Cusco 5000</code>":
+        "🎯 Напишите цель и сколько нужно, например: <code>Отпуск 100000</code>",
+    "💱 Tipo de cambio": "💱 Курс валют",
+    "💱 Escribe el tipo de cambio: <code>3.38</code> (dólar) · <code>rub 0.0428</code> · "
+    "o <code>auto</code> para el del día":
+        "💱 Напишите курс: <code>83</code> (доллар) · <code>pen 22</code> · "
+        "или <code>auto</code> — курс дня",
+
+    # ---------------------------------------------------------------- reloj
+    "⏱ <b>Reloj de trabajo</b>\n¿Cuánto tiempo le das?":
+        "⏱ <b>Таймер работы</b>\nСколько времени на это даёте?",
+    "⏱ 15 min": "⏱ 15 мин", "⏱ 30 min": "⏱ 30 мин", "⏱ 45 min": "⏱ 45 мин",
+    "⏱ 1 hora": "⏱ 1 час", "⏱ 2 horas": "⏱ 2 часа", "⏱ 3 horas": "⏱ 3 часа",
+    "⏱ 4 horas": "⏱ 4 часа", "⏱ 6 horas": "⏱ 6 часов", "⏱ 8 horas": "⏱ 8 часов",
+    "✏️ Otro": "✏️ Другое", "♾ Sin tope": "♾ Без предела",
+    "📊 Mis tiempos": "📊 Моё время",
+    "⏹ Terminar": "⏹ Завершить", "✖️ Cortar": "✖️ Сбросить",
+
+    # ---------------------------------------------------------------- al guardar
+    # Son los mismos valores que van a Notion, pero el texto de la pantalla puede diferir del
+    # nombre de la columna, asi que cada uno tiene su diccionario.
+    "Gasto": "Расход", "Ingreso": "Доход", "Ahorro": "Накопление", "Inversión": "Вложение",
+    "cuenta %s": "счёт %s", "Gastos": "Расходы", "Salud": "Здоровье", "Educación": "Обучение",
+
+    # ---------------------------------------------------------------- el reloj por dentro
+    "%d min": "%d мин",
+    "%d h %02d min": "%d ч %02d мин",
+    "⏱ Ya tienes <b>%s</b> corriendo, van %s.\nCiérralo con /reloj fin o déjalo con "
+    "/reloj corta.":
+        "⏱ У вас уже идёт <b>%s</b>, прошло %s.\nЗакройте через /timer stop или сбросьте "
+        "через /timer cancel.",
+    "¿Qué estás haciendo? Por ejemplo: <code>/reloj facebook 45</code>":
+        "Чем вы заняты? Например: <code>/timer фейсбук 45</code>",
+    "\nTe aviso a los %d min.": "\nНапомню через %d мин.",
+    "\nLa última vez te tomó %s.": "\nВ прошлый раз заняло %s.",
+    "\nPromedio de <b>%s</b>: %s (%d veces).": "\nВ среднем <b>%s</b>: %s (раз: %d).",
+    "▶️ <b>%s</b>, arrancando.%s": "▶️ <b>%s</b>, начали.%s",
+    "No tienes nada corriendo. Arranca con <code>/reloj facebook 45</code>.":
+        "Сейчас ничего не идёт. Начните так: <code>/timer фейсбук 45</code>.",
+    "⏱ <b>%s</b>: van %s.": "⏱ <b>%s</b>: прошло %s.",
+    "\nTe pasaste por %s del tope de %d min.": "\nПревышение на %s от предела в %d мин.",
+    "\nQuedan %s de los %d min.": "\nОсталось %s из %d мин.",
+    "No tenías nada corriendo.": "Ничего не шло.",
+    "⏹ <b>%s</b>: %s.": "⏹ <b>%s</b>: %s.",
+    " Te pasaste %s del tope.": " Превышение на %s.",
+    " Dentro del tope de %d min. 👏": " Уложились в %d мин. 👏",
+    "\n\nPromedio: <b>%s</b> · mejor %s · peor %s (%d veces).":
+        "\n\nВ среднем: <b>%s</b> · лучший %s · худший %s (раз: %d).",
+    "✖️ <b>%s</b> cortado, no se guardó (iban %s).":
+        "✖️ <b>%s</b> сброшен, не сохранено (прошло %s).",
+    "👌 Listo, no arranco nada.": "👌 Хорошо, ничего не запускаю.",
+    "Ese botón ya no sirve. Empieza otra vez con /reloj.":
+        "Эта кнопка уже не работает. Начните заново: /timer.",
+    "Escribe solo cuánto tiempo, por ejemplo <code>90</code> minutos, <code>2 horas</code> "
+    "o <code>1h30</code>.":
+        "Напишите только время, например <code>90</code> минут, <code>2 часа</code> "
+        "или <code>1h30</code>.",
+    "⏱ %s. ✏️ ¿Y qué vas a hacer?": "⏱ %s. ✏️ А чем будете заняты?",
+    "Todavía no has cronometrado nada. Arranca con <code>/reloj facebook 45</code>.":
+        "Вы ещё ничего не засекали. Начните так: <code>/timer фейсбук 45</code>.",
+    # El ruso tiene tres formas de "veces" (1 раз, 2 раза, 5 раз) y el codigo solo elige entre
+    # dos, asi que la frase se escribe con "раз: 5", que vale para cualquier numero, y la
+    # palabra suelta queda vacia.
+    "• <b>%s</b> · %s de promedio · %d %s": "• <b>%s</b> · в среднем %s · раз: %d%s",
+    "vez": "", "veces": "",
+    "⏱ <b>Tu tiempo</b>\n\n%s": "⏱ <b>Ваше время</b>\n\n%s",
+    "⏰ <b>%s</b>: llegaste al tope de %d min.\n/reloj fin para cerrarlo.":
+        "⏰ <b>%s</b>: достигнут предел в %d мин.\n/timer stop — закрыть.",
+    "⏰ <b>%s</b>: vas %s, %s pasado del tope.\nNo te vuelvo a molestar.":
+        "⏰ <b>%s</b>: прошло %s, превышение на %s.\nБольше не беспокою.",
 
     # ---------------------------------------------------------------- /ayuda
     # Solo los comandos que ella usa. Los demas siguen existiendo, pero llenarle la ayuda de
@@ -172,28 +266,30 @@ TEXTOS = {
         "💰 <b>Финансы</b> · всё сохраняется в Notion\n\n"
         "<b>Записать</b> (кнопками):\n"
         "<code>450 обед</code> · можно просто написать сумму и что это было\n"
-        "/gasto · /ingreso · /ahorro\n\n"
+        "/expense · /income · /savings\n\n"
         "<b>Посмотреть</b>\n"
-        "/hoy · /ayer · /semana · /mes · сводки\n"
-        "/limite · сколько потрачено сегодня, за неделю и за месяц\n"
-        "/presupuesto · сколько ушло по каждой категории\n"
-        "/comparar · этот месяц против прошлого, по категориям\n"
-        "/metas · продвижение по целям накоплений\n"
-        "/proyeccion · с чем закроется месяц, если больше денег не поступит\n"
-        "/ingresos · сколько приносит каждый источник, месяц за месяцем\n"
-        "/consejos · что улучшить, судя по вашим цифрам\n"
+        "/today · /yesterday · /week · /month · сводки\n"
+        "/limit · сколько потрачено сегодня, за неделю и за месяц\n"
+        "/budget · сколько ушло по каждой категории\n"
+        "/compare · этот месяц против прошлого, по категориям\n"
+        "/goals · продвижение по целям накоплений\n"
+        "/forecast · с чем закроется месяц, если больше денег не поступит\n"
+        "/earnings · сколько приносит каждый источник, месяц за месяцем\n"
+        "/tips · что улучшить, судя по вашим цифрам\n"
         "/excel · всё в Excel с графиками\n"
-        "/ultimos · последние записи, с кнопками исправить сумму или удалить\n"
-        "/reloj · таймер на задачу: выбираете срок, пишете чем заняты, и бот напомнит\n"
-        "/reloj fin · закрыть блок: сколько заняло и каково среднее · /reloj tareas\n"
-        "<code>/buscar аптека</code> · поиск по всей истории (<code>/buscar такси месяц</code>)\n\n"
+        "/last · последние записи, с кнопками исправить сумму или удалить\n"
+        "/timer · таймер на задачу: выбираете срок, пишете чем заняты, и бот напомнит\n"
+        "/timer stop · закрыть блок: сколько заняло и каково среднее · /timer tasks\n"
+        "<code>/search аптека</code> · поиск по всей истории (<code>/search такси месяц</code>)\n\n"
         "<b>Настроить</b>\n"
-        "<code>/limite 1500</code> · сколько можно тратить в день\n"
-        "<code>/presupuesto кафе 8000</code>\n"
-        "<code>/meta Отпуск 100000</code>\n"
-        "<code>/activo Сбер 50000</code> · сколько лежит на счету\n"
-        "<code>/tc 83</code> · <code>/tc pen 22</code> · курс валют\n"
-        "/deshacer · удалить последнюю запись (для старой — /ultimos)",
+        "<code>/limit 1500</code> · сколько можно тратить в день\n"
+        "<code>/budget кафе 8000</code>\n"
+        "<code>/goal Отпуск 100000</code>\n"
+        "<code>/asset Сбер 50000</code> · сколько лежит на счету\n"
+        "<code>/rate 83</code> · <code>/rate pen 22</code> · курс валют\n"
+        "/undo · удалить последнюю запись (для старой — /last)\n\n"
+        "<i>Команды латиницей: Telegram не принимает кириллицу в командах. "
+        "Старые испанские названия тоже работают.</i>",
 }
 
 # ---------------------------------------------------------------- Notion
@@ -273,4 +369,27 @@ NOTION_VALOR = {
     # Suscripciones y deudas
     "Pausado": "На паузе", "Activa": "Активна", "Cancelada": "Отменена",
     "Persona": "Человек", "Otra": "Прочее", "Pagada": "Погашен",
+}
+
+# ---------------------------------------------------------------- los comandos
+# Telegram NO acepta comandos en cirilico: solo letras latinas, numeros y guion bajo. Un
+# "/расход" no seria un enlace azul ni saldria en el menu de "/". Asi que van en ingles, que
+# es lo que mas se entiende sin ser espanol.
+#
+# La clave es como lo nombra el codigo; el valor, como lo escribe ella. Los nombres en espanol
+# SIGUEN funcionando (el bot despacha sobre ellos), asi que un mensaje viejo o un enlace de
+# antes no se rompe.
+COMANDOS = {
+    "gasto": "expense", "ingreso": "income", "ahorro": "savings", "inversion": "investment",
+    "retirar": "cash", "reloj": "timer", "pomodoro": "pomodoro",
+    "hoy": "today", "ayer": "yesterday", "semana": "week", "mes": "month",
+    "limite": "limit", "presupuesto": "budget", "comparar": "compare",
+    "deudas": "debts", "deuda": "debt", "pago": "pay", "plan": "plan", "corte": "cutoff",
+    "patrimonio": "networth", "activo": "asset",
+    "metas": "goals", "meta": "goal",
+    "suscripciones": "subscriptions", "pagos": "payments",
+    "proyeccion": "forecast", "ingresos": "earnings", "consejos": "tips",
+    "metodos": "methods", "grafico": "chart", "excel": "excel",
+    "buscar": "search", "ultimos": "last", "deshacer": "undo", "cancelar": "cancel",
+    "tc": "rate", "ayuda": "help",
 }
