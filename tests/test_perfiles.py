@@ -166,3 +166,25 @@ class ZonaHoraria(unittest.TestCase):
     def test_por_defecto_sigue_siendo_lima(self):
         import config
         self.assertEqual(config.ZONA_HORARIA, "America/Lima")
+
+
+class FormulaDeMetas(unittest.TestCase):
+    """La base Metas tiene una fórmula de Notion que nombra dos columnas.
+
+    Esos nombres llevan la moneda, así que hay que interpolarlos. Si queda el texto literal
+    `prop(columna("Objetivo"))`, Notion contesta "Type error with formula" y la base no se crea
+    — y las tres anteriores sí, así que parece que todo anduvo hasta que falta una.
+    """
+
+    def _expresion(self):
+        import notion
+        return notion.esquemas()[notion.METAS]["Avance"]["formula"]["expression"]
+
+    def test_la_formula_nombra_las_columnas_de_verdad(self):
+        from config import columna
+        e = self._expresion()
+        self.assertIn('prop("%s")' % columna("Objetivo"), e)
+        self.assertIn('prop("%s")' % columna("Ahorrado"), e)
+
+    def test_no_quedo_la_llamada_sin_evaluar(self):
+        self.assertNotIn("columna(", self._expresion())
