@@ -65,6 +65,12 @@ INVERSIONES = {
 # Las cuentas del formulario de gastos: a que bolsillo se carga el gasto.
 MONEDAS = ["PEN", "RUB", "USD", "EUR"]
 
+# Las otras dos monedas que salen al lado de cada monto (F.s3). La base no va aca.
+# El dolar y el rublo: cobra en dolares y tiene gastos en Rusia.
+# Cuanto propone el bot como limite del dia a dia, en la MONEDA_BASE (solo un ejemplo).
+LIMITE_EJEMPLO = 50
+MONEDAS_RESUMEN = ["USD", "RUB"]
+
 # Gastos que se pagan una vez al mes y no cuentan para el limite del dia a dia (/limite).
 CATEGORIAS_FIJAS = {"Vivienda", "Universidad", "Padres", "Servicios", "Servicios Rusia", "Suscripciones",
                     "Gastos financieros", "Comisiones Banco", "Cursos y aprendizaje", "Salud y Bienestar",
@@ -110,6 +116,12 @@ OTROS = {"Gasto": "Otros", "Ingreso": "Otros ingresos",
 
 # El bot ofrece apartar una parte de cada ingreso, menos cuando el ingreso es justo sacar plata
 # del ahorro (`bot.py`). Tiene que ser una de las categorias de INGRESOS de arriba.
+# Cuando se aparta plata: a que categoria va segun si es para la reserva, para una meta
+# con nombre, o sin destino (esa ultima es OTROS["Ahorro"]). Las dos tienen que estar en
+# AHORROS de arriba. Antes estaban escritas a mano en espanol dentro del codigo.
+AHORRO_EMERGENCIA = "Fondo de emergencia"
+AHORRO_METAS = "Metas"
+
 RETIRO_AHORRO = "Retiro de ahorro"
 
 # Que botones ve en /start, por filas. Los nombres son los del comando (m:<nombre> en bot.py) y

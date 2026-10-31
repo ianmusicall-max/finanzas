@@ -59,6 +59,12 @@ INVERSIONES = {
 # Rublos primero: es la moneda base. El dolar y el sol se convierten al cambio del dia.
 MONEDAS = ["RUB", "USD", "PEN"]
 
+# Las otras dos monedas que salen al lado de cada monto (F.s3). La base no va aca.
+# El dolar y el sol: lo que le llega de Peru.
+# Cuanto propone el bot como limite del dia a dia, en la MONEDA_BASE (solo un ejemplo).
+LIMITE_EJEMPLO = 1500
+MONEDAS_RESUMEN = ["USD", "PEN"]
+
 # Lo que se paga una vez al mes y no cuenta para el limite del dia a dia.
 CATEGORIAS_FIJAS = {"Квартира", "Подписки"}
 
@@ -86,6 +92,12 @@ RENOMBRADAS = {}
 
 OTROS = {"Gasto": "Разное", "Ingreso": "Прочие доходы",
          "Ahorro": "Накопления", "Inversión": "Прочие вложения"}
+
+# Cuando se aparta plata: a que categoria va segun si es para la reserva, para una meta
+# con nombre, o sin destino (esa ultima es OTROS["Ahorro"]). Las dos tienen que estar en
+# AHORROS de arriba. Antes estaban escritas a mano en espanol dentro del codigo.
+AHORRO_EMERGENCIA = "Резерв"
+AHORRO_METAS = "Цели"
 
 RETIRO_AHORRO = "Снятие с накоплений"
 

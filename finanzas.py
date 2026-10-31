@@ -15,12 +15,10 @@ import categorias as C
 import requests
 
 import config
-from config import AJUSTES, DATA, TC_EUR, TC_RUB, TC_USD, ahora, columna, hoy
+from config import (AJUSTES, DATA, DECIMALES, MONEDA_BASE, SIMBOLOS, TC_DEFECTO, ahora, columna, hoy)
+from idiomas import DIAS, EFECTIVO, MESES, MONEDA_NOMBRE
 from notion import (DEUDAS, METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, RECORDATORIOS, SUSCRIPCIONES, NotionError, p_date, p_number, p_select, p_text, p_title)
 
-MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre",
-         "octubre", "noviembre", "diciembre"]
-DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
 
 
 # ---------------------------------------------------------------- tipo de cambio
@@ -33,7 +31,8 @@ def ajustes() -> dict:
 
 
 # Tipo de cambio del dia: dos fuentes gratuitas sin clave, la segunda de respaldo.
-# Las dos dan cuanto vale 1 dolar en cada moneda; de ahi sale cuantos soles vale 1 USD, 1 EUR o 1 RUB.
+# Las dos dan cuanto vale 1 dolar en cada moneda; de ahi sale cuanto vale 1 USD, 1 EUR... en la
+# MONEDA_BASE, sea la que sea. Antes estaba escrito que la base era el sol.
 FUENTES_TC = [
     ("https://open.er-api.com/v6/latest/USD", lambda j: j["rates"]),
     ("https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json",
@@ -42,7 +41,6 @@ FUENTES_TC = [
 VIGENCIA_TC = 6 * 3600      # se vuelve a bajar cada 6 horas
 REINTENTO_TC = 30 * 60      # si no hubo internet, no se reintenta antes de 30 minutos
 ESPERA_TC = 5               # por fuente: si cuelga, se corta a los 5 segundos y usa el de respaldo
-DEFECTO_TC = {"USD": TC_USD, "EUR": TC_EUR, "RUB": TC_RUB}
 
 
 def _guardar_ajustes(a: dict) -> None:
@@ -51,17 +49,22 @@ def _guardar_ajustes(a: dict) -> None:
 
 
 def _descargar_tc() -> Optional[dict]:
-    """{"USD": soles por dolar, "EUR": ..., "RUB": ...} o None si ninguna fuente respondio bien."""
+    """{"USD": unidades de la base por dolar, ...} o None si ninguna fuente respondio bien."""
     for url, leer in FUENTES_TC:
         try:
             r = requests.get(url, timeout=ESPERA_TC)
             r.raise_for_status()
             por_usd = leer(r.json())
-            pen, eur, rub = float(por_usd["PEN"]), float(por_usd["EUR"]), float(por_usd["RUB"])
-            tc = {"USD": round(pen, 4), "EUR": round(pen / eur, 4), "RUB": round(pen / rub, 6)}
+            # El dolar vale 1 dolar: las fuentes no lo listan.
+            por = lambda m: 1.0 if m == "USD" else float(por_usd[m])
+            base = por(MONEDA_BASE)
+            tc = {m: round(base / por(m), 6) for m in TC_DEFECTO}
         except (requests.RequestException, ValueError, KeyError, TypeError, ZeroDivisionError):
             continue
-        if 2 < tc["USD"] < 6 and 2 < tc["EUR"] < 7 and 0.01 < tc["RUB"] < 0.2:   # descarta datos absurdos
+        # Descarta datos absurdos. Antes los limites estaban escritos en soles (2 < USD < 6), asi
+        # que con otra moneda base habrian rechazado siempre el cambio bueno: ahora se comparan
+        # contra el respaldo del .env, que esta en la misma moneda.
+        if all(TC_DEFECTO[m] / 3 < v < TC_DEFECTO[m] * 3 for m, v in tc.items()):
             return tc
     return None
 
@@ -87,7 +90,7 @@ def tc_automatico() -> dict:
             a["auto"] = auto = nuevo
             # historial de un valor por dia, para avisar cuando el cambio esta bueno
             h = a.setdefault("historial_tc", {})
-            h[hoy().isoformat()] = {m: nuevo[m] for m in ("USD", "EUR", "RUB")}
+            h[hoy().isoformat()] = {m: nuevo[m] for m in TC_DEFECTO}
             for viejo in sorted(h)[:-90]:
                 h.pop(viejo, None)
             a["intento_tc"] = t
@@ -105,10 +108,11 @@ def tc_fijo(moneda: str) -> Optional[float]:
 
 
 def tipo_de_cambio(moneda: str) -> float:
-    """Soles por 1 unidad de la moneda: el fijado a mano, si no el del dia, si no el del .env."""
-    if moneda not in DEFECTO_TC:
+    """Unidades de la MONEDA_BASE por 1 unidad de `moneda`: el fijado a mano, si no el del dia,
+    si no el del .env. La moneda base vale 1 contra si misma."""
+    if moneda == MONEDA_BASE or moneda not in TC_DEFECTO:
         return 1.0
-    return tc_fijo(moneda) or float(tc_automatico().get(moneda) or DEFECTO_TC[moneda])
+    return tc_fijo(moneda) or float(tc_automatico().get(moneda) or TC_DEFECTO[moneda])
 
 
 def fijar_tipo_de_cambio(moneda: str, valor: float) -> None:
@@ -120,36 +124,52 @@ def fijar_tipo_de_cambio(moneda: str, valor: float) -> None:
 def tc_a_automatico() -> None:
     """Quita los tipos de cambio fijados a mano y fuerza a bajar el del dia."""
     a = ajustes()
-    for m in DEFECTO_TC:
+    for m in TC_DEFECTO:
         a.pop(m, None)
     a.pop("intento_tc", None)
     (a.get("auto") or {}).pop("ts", None)
     _guardar_ajustes(a)
 
 
-def soles(monto: float, moneda: str) -> float:
+def en_moneda(monto: float, moneda: str) -> str:
+    """₽ 1,500 · $ 19.00 · S/ 64.00. El rublo no lleva centimos (config.DECIMALES)."""
+    return "%s %s" % (SIMBOLOS.get(moneda, moneda),
+                      ("{:,.%df}" % DECIMALES.get(moneda, 2)).format(monto))
+
+
+def en_base(monto: float, moneda: str) -> float:
+    """El monto pasado a la MONEDA_BASE. Se llamaba `soles`, y con la base en rublos el nombre
+    mentia: devolvia rublos."""
     return round(monto * tipo_de_cambio(moneda), 2)
 
 
+def desde_base(monto_base: Optional[float], moneda: str) -> float:
+    """El camino de vuelta: de la moneda base a otra."""
+    return round(float(monto_base or 0) / tipo_de_cambio(moneda), DECIMALES.get(moneda, 2))
+
+
 def s(n: Optional[float]) -> str:
-    """S/ 1,234.50 (o -S/ 20.00)."""
+    """El monto en la moneda base: S/ 1,234.50 · ₽ 1,500 (o -S/ 20.00)."""
     n = float(n or 0)
-    return ("-" if n < 0 else "") + "S/ {:,.2f}".format(abs(n))
+    return ("-" if n < 0 else "") + en_moneda(abs(n), MONEDA_BASE)
 
 
-def en_dolares(soles_: float) -> float:
-    return round(float(soles_ or 0) / tipo_de_cambio("USD"), 2)
+# Las columnas fijas "Monto USD" y "Monto RUB" de Notion.
+def en_dolares(monto_base: float) -> float:
+    return desde_base(monto_base, "USD")
 
 
-def en_rublos(soles_: float) -> float:
-    return round(float(soles_ or 0) / tipo_de_cambio("RUB"), 0)
+def en_rublos(monto_base: float) -> float:
+    return desde_base(monto_base, "RUB")
 
 
 def s3(n: Optional[float]) -> str:
-    """El mismo monto en soles, dolares y rublos: S/ 1,000.00 · $ 296.03 · ₽ 23,385"""
+    """El mismo monto en la moneda base y en las otras dos del perfil (`MONEDAS_RESUMEN`):
+    S/ 1,000.00 · $ 296.03 · ₽ 23,385  ·  o  ₽ 1,000 · $ 12.05 · S/ 45.18"""
     n = float(n or 0)
     signo = "-" if n < 0 else ""
-    return "%s · %s$ {:,.2f} · %s₽ {:,.0f}".format(abs(en_dolares(n)), abs(en_rublos(n))) % (s(n), signo, signo)
+    otras = [signo + en_moneda(abs(desde_base(n, m)), m) for m in C.MONEDAS_RESUMEN]
+    return " · ".join([s(n)] + otras)
 
 
 def pct(x: Optional[float]) -> str:
@@ -213,23 +233,13 @@ def mes(d: Optional[date] = None) -> Periodo:
 
 # ---------------------------------------------------------------- limite del dia a dia
 
-SIMBOLO = {"PEN": "S/ ", "USD": "$ ", "RUB": "₽ ", "EUR": "€ "}
-
-
-def en_moneda(monto: float, moneda: str) -> str:
-    """₽ 1,500 · $ 19.00 · S/ 64.00"""
-    if moneda == "RUB":
-        return "₽ {:,.0f}".format(monto)
-    return SIMBOLO.get(moneda, moneda + " ") + "{:,.2f}".format(monto)
-
-
 def limite() -> Optional[tuple]:
     """(monto por dia, moneda) que se fijo con /limite, o None."""
     l = ajustes().get("limite") or {}
-    return (float(l["monto"]), l.get("moneda", "PEN")) if l.get("monto") else None
+    return (float(l["monto"]), l.get("moneda") or MONEDA_BASE) if l.get("monto") else None
 
 
-def fijar_limite(monto: float, moneda: str = "PEN") -> None:
+def fijar_limite(monto: float, moneda: str = MONEDA_BASE) -> None:
     a = ajustes()
     if monto > 0:
         a["limite"] = {"monto": round(float(monto), 2), "moneda": moneda}
@@ -314,7 +324,7 @@ def movimientos(notion, bases: dict, desde: date, hasta: date) -> list:
     for f in filas:
         monto_s = f.get(columna("Monto"))
         if monto_s is None:   # fila escrita a mano en Notion, sin la columna en soles
-            monto_s = soles(f.get("Monto") or 0, f.get("Moneda") or "PEN")
+            monto_s = en_base(f.get("Monto") or 0, f.get("Moneda") or MONEDA_BASE)
         out.append({"id": f["_id"], "url": f.get("_url"), "tipo": f.get("Tipo") or "Gasto",
                     "categoria": C.vigente(f.get("Categoría") or C.otros("Gasto")), "monto_s": float(monto_s or 0),
                     "fecha": (f.get("Fecha") or "")[:10], "descripcion": f.get("Descripción") or "",
@@ -344,10 +354,10 @@ def buscar(notion, bases: dict, texto: str, desde: Optional[date] = None,
             continue
         monto_s = f.get(columna("Monto"))
         if monto_s is None:
-            monto_s = soles(f.get("Monto") or 0, f.get("Moneda") or "PEN")
+            monto_s = en_base(f.get("Monto") or 0, f.get("Moneda") or MONEDA_BASE)
         out.append({"id": f["_id"], "tipo": f.get("Tipo") or "Gasto", "categoria": C.vigente(f.get("Categoría") or C.otros("Gasto")),
                     "descripcion": f.get("Descripción") or "", "monto_s": float(monto_s or 0),
-                    "monto": float(f.get("Monto") or 0), "moneda": f.get("Moneda") or "PEN",
+                    "monto": float(f.get("Monto") or 0), "moneda": f.get("Moneda") or MONEDA_BASE,
                     "medio": f.get("Medio de pago"), "fecha": (f.get("Fecha") or "")[:10]})
     return sorted(out, key=lambda m: m["fecha"], reverse=True)
 
@@ -364,12 +374,12 @@ def movimiento(notion, bases: dict, page_id: str) -> Optional[dict]:
         return None
     if not f or f.get("Tipo") is None and f.get("Monto") is None:
         return None
-    monto, moneda = float(f.get("Monto") or 0), f.get("Moneda") or "PEN"
+    monto, moneda = float(f.get("Monto") or 0), f.get("Moneda") or MONEDA_BASE
     monto_s = f.get(columna("Monto"))
     return {"id": f.get("_id") or page_id, "tipo": f.get("Tipo") or "Gasto",
             "categoria": C.vigente(f.get("Categoría") or C.otros("Gasto")), "descripcion": f.get("Descripción") or "",
             "monto": monto, "moneda": moneda,
-            "monto_s": float(monto_s if monto_s is not None else soles(monto, moneda)),
+            "monto_s": float(monto_s if monto_s is not None else en_base(monto, moneda)),
             "medio": f.get("Medio de pago"), "tarjeta": f.get("Tarjeta"), "cuenta": f.get("Cuenta"),
             "frecuencia": f.get("Frecuencia"), "fecha": (f.get("Fecha") or "")[:10],
             "cuotas": int(f.get("Cuotas")) if f.get("Cuotas") else None}
@@ -576,14 +586,14 @@ def patrimonio(notion, bases: dict) -> list:
     for f in notion.consultar(bases[PATRIMONIO], limite=300):
         # como en Deudas: lo que vale es Valor y Moneda (se pueden editar a mano en Notion);
         # Valor S/ se recalcula con el cambio del dia y se corrige en Notion si quedo distinto
-        valor_s = soles(f.get("Valor") or 0, f.get("Moneda") or "PEN")
+        valor_s = en_base(f.get("Valor") or 0, f.get("Moneda") or MONEDA_BASE)
         if f.get(columna("Valor")) is None or abs(float(f[columna("Valor")]) - valor_s) > 0.01:
             try:
                 notion.editar_pagina(f["_id"], {columna("Valor"): p_number(valor_s)})
             except NotionError:
                 pass
         out.append({"id": f["_id"], "nombre": f.get("Nombre") or "?", "clase": f.get("Clase") or "Activo",
-                    "tipo": f.get("Tipo") or "", "valor": f.get("Valor") or 0, "moneda": f.get("Moneda") or "PEN",
+                    "tipo": f.get("Tipo") or "", "valor": f.get("Valor") or 0, "moneda": f.get("Moneda") or MONEDA_BASE,
                     "valor_s": float(valor_s or 0), "actualizado": f.get("Actualizado")})
     return out
 
@@ -596,11 +606,12 @@ def neto(items: list) -> tuple:
     return round(act, 2), round(pas, 2), round(act - pas, 2), round(liq, 2)
 
 
-def fijar_patrimonio(notion, bases: dict, nombre: str, clase: str, tipo: str, valor: float, moneda: str = "PEN") -> tuple:
+def fijar_patrimonio(notion, bases: dict, nombre: str, clase: str, tipo: str, valor: float,
+                     moneda: str = MONEDA_BASE) -> tuple:
     """Crea o actualiza una cuenta, bien o deuda por nombre. Devuelve (pagina, valor anterior en soles o None)."""
     existentes = notion.consultar(bases[PATRIMONIO], {"property": "Nombre", "title": {"equals": nombre}}, limite=5)
     props = {"Nombre": p_title(nombre), "Clase": p_select(clase), "Tipo": p_select(tipo), "Valor": p_number(valor),
-             "Moneda": p_select(moneda), columna("Valor"): p_number(soles(valor, moneda)), "Actualizado": p_date(hoy())}
+             "Moneda": p_select(moneda), columna("Valor"): p_number(en_base(valor, moneda)), "Actualizado": p_date(hoy())}
     if existentes:
         antes = existentes[0].get(columna("Valor"))
         return notion.editar_pagina(existentes[0]["_id"], props), antes
@@ -612,7 +623,7 @@ def cuentas(notion, bases: dict) -> list:
     if PATRIMONIO not in bases:
         return []
     return [{"id": f["_id"], "nombre": f.get("Nombre") or "?", "valor": float(f.get("Valor") or 0),
-             "moneda": f.get("Moneda") or "PEN"}
+             "moneda": f.get("Moneda") or MONEDA_BASE}
             for f in notion.consultar(bases[PATRIMONIO], limite=300)
             if (f.get("Clase") or "Activo") == "Activo" and (f.get("Tipo") or "Efectivo y bancos") in C.LIQUIDOS]
 
@@ -631,14 +642,17 @@ def buscar_cuenta(notion, bases: dict, medio: Optional[str], moneda: str) -> Opt
 def mover_cuenta(notion, cuenta: dict, delta: float) -> float:
     """Suma (o resta) al saldo de una cuenta, en su moneda. Devuelve el saldo nuevo."""
     nuevo = round(cuenta["valor"] + delta, 2)
-    notion.editar_pagina(cuenta["id"], {"Valor": p_number(nuevo), columna("Valor"): p_number(soles(nuevo, cuenta["moneda"])),
+    notion.editar_pagina(cuenta["id"], {"Valor": p_number(nuevo), columna("Valor"): p_number(en_base(nuevo, cuenta["moneda"])),
                                         "Actualizado": p_date(hoy())})
     return nuevo
 
 
 def nombre_efectivo(moneda: str) -> str:
-    """La cuenta de la billetera en cada moneda: "Efectivo", "Efectivo dólares", "Efectivo rublos"."""
-    return "Efectivo" if moneda == "PEN" else "Efectivo " + {"USD": "dólares", "RUB": "rublos", "EUR": "euros"}.get(moneda, moneda)
+    """La cuenta de la billetera en cada moneda: "Efectivo", "Efectivo dólares" / "Наличные",
+    "Наличные доллары". El nombre va a Notion, asi que sale del idioma, no escrito a mano."""
+    if moneda == MONEDA_BASE:
+        return EFECTIVO
+    return "%s %s" % (EFECTIVO, MONEDA_NOMBRE.get(moneda, moneda))
 
 
 def es_efectivo(cuenta: dict) -> bool:
@@ -689,7 +703,7 @@ def recordatorios(notion, bases: dict) -> list:
                 pass
         out.append({"id": f["_id"], "nombre": f.get("Recordatorio") or "?", "dia": int(f["Día"]) if f.get("Día") else None,
                     "tipo": f.get("Tipo") or "Otro", "monto": float(f["Monto"]) if f.get("Monto") else None,
-                    "moneda": f.get("Moneda") or "PEN", "categoria": C.vigente(f.get("Categoría")), "deuda": f.get("Deuda") or "",
+                    "moneda": f.get("Moneda") or MONEDA_BASE, "categoria": C.vigente(f.get("Categoría")), "deuda": f.get("Deuda") or "",
                     "ultimo": (f.get("Último") or "")[:10]})
     return sorted(out, key=lambda r: (r["dia"] or 99, r["nombre"]))
 
@@ -751,7 +765,7 @@ def proyeccion(notion, bases: dict, d: Optional[date] = None) -> Optional[dict]:
         diario = lim[0] * tipo_de_cambio(lim[1])
     else:
         diario = sum(x["monto_s"] for x in movs if es_dia_a_dia(x)) / max(d.day, 1)
-    fijos = sum(soles(x["monto"], x["moneda"]) for x in pendientes_del_mes(notion, bases, d)
+    fijos = sum(en_base(x["monto"], x["moneda"]) for x in pendientes_del_mes(notion, bases, d)
                 if x["monto"] and x["tipo"] in ("Pago", "Deuda"))
     resto = round(diario * dias_rest, 2)
     return {"ingresos": r.ingresos, "gastos": r.gastos, "ahorro": r.ahorro, "fijos": round(fijos, 2),
@@ -765,7 +779,7 @@ def plan_deudas(lista: list, extra_s: float = 0.0, maximo: int = 120) -> dict:
     """Simula mes a mes: cada deuda paga su cuota (o lo que le quede) con su interes si se sabe la
     tasa; el extra, y las cuotas que se liberan al terminar una deuda, van a la deuda con mas
     interes (o a la mas chica si no hay tasas). Todo en soles."""
-    ds = [{"deuda": x["deuda"], "saldo": x["saldo_s"], "cuota": soles(x["cuota"], x["moneda"]) if x.get("cuota") else 0.0,
+    ds = [{"deuda": x["deuda"], "saldo": x["saldo_s"], "cuota": en_base(x["cuota"], x["moneda"]) if x.get("cuota") else 0.0,
            "tasa": float(x.get("tasa") or 0)} for x in lista if x["saldo_s"] > 0]
     orden_extra = sorted(ds, key=lambda x: (-x["tasa"], x["saldo"])) if any(x["tasa"] for x in ds) \
         else sorted(ds, key=lambda x: x["saldo"])
@@ -812,11 +826,18 @@ def alerta_cambio(umbral: float = 0.03) -> Optional[str]:
     hoy_ = h[dias[-1]]
     previos = [h[x] for x in dias[-31:-1]]
     out = []
-    for nombre, valor in (("rublos", lambda v: v["USD"] / v["RUB"]), ("soles", lambda v: v["USD"])):
-        actual = valor(hoy_)
-        prom = sum(valor(v) for v in previos) / len(previos)
+    # Contra que monedas se mira el dolar: la base y las otras del perfil.
+    contra = [MONEDA_BASE] + [m for m in C.MONEDAS_RESUMEN if m != "USD"]
+    for moneda in contra:
+        valor = (lambda v: v["USD"]) if moneda == MONEDA_BASE else (lambda v, m=moneda: v["USD"] / v[m])
+        try:
+            actual = valor(hoy_)
+            prom = sum(valor(v) for v in previos) / len(previos)
+        except (KeyError, ZeroDivisionError):
+            continue   # el historial viejo puede no tener esa moneda
+        nombre = MONEDA_NOMBRE.get(moneda, moneda)
         dif = (actual - prom) / prom
-        simbolo = "₽" if nombre == "rublos" else "S/"
+        simbolo = SIMBOLOS.get(moneda, moneda)
         if dif >= umbral:
             out.append("💱 El dólar está alto en %s: %s %.2f (promedio del mes %s %.2f, +%.1f%%). Buen momento para cambiar dólares a %s."
                        % (nombre, simbolo, actual, simbolo, prom, dif * 100, nombre))
@@ -851,9 +872,9 @@ def suscripciones(notion, bases: dict, todas: bool = False) -> list:
         if estado != "Activa" and not todas:
             continue
         cada = int(f.get("Cada (meses)") or 1)
-        monto, moneda = float(f.get("Monto") or 0), f.get("Moneda") or "PEN"
+        monto, moneda = float(f.get("Monto") or 0), f.get("Moneda") or MONEDA_BASE
         out.append({"id": f["_id"], "nombre": f.get("Suscripción") or "?", "monto": monto, "moneda": moneda,
-                    "cada": max(cada, 1), "por_mes_s": round(soles(monto, moneda) / max(cada, 1), 2),
+                    "cada": max(cada, 1), "por_mes_s": round(en_base(monto, moneda) / max(cada, 1), 2),
                     "ultimo": f.get("Último pago"), "proximo": f.get("Próximo pago"), "estado": estado})
     return sorted(out, key=lambda x: (x["proximo"] or "9999", x["nombre"]))
 
@@ -874,7 +895,7 @@ def registrar_pago_suscripcion(notion, bases: dict, nombre: str, monto: float, m
     """Crea la suscripcion (o anota el pago de una que ya existe) y deja el proximo pago calculado."""
     proximo = sumar_meses(fecha, cada)
     props = {"Monto": p_number(monto), "Moneda": p_select(moneda), "Cada (meses)": p_number(cada),
-             columna("Por mes"): p_number(round(soles(monto, moneda) / cada, 2)), "Último pago": p_date(fecha),
+             columna("Por mes"): p_number(round(en_base(monto, moneda) / cada, 2)), "Último pago": p_date(fecha),
              "Próximo pago": p_date(proximo), "Estado": p_select("Activa")}
     if existente:
         notion.editar_pagina(existente["id"], props)
@@ -890,8 +911,8 @@ def recalcular_presupuesto_suscripciones(notion, bases: dict) -> dict:
     El tope anual de Suscripciones se ajusta a la lista; el mensual es el maximo que fijo la persona
     (/presupuesto suscripciones 500) y se compara con el total por mes."""
     lista = suscripciones(notion, bases)
-    mensual = round(sum(soles(x["monto"], x["moneda"]) for x in lista if x["cada"] == 1), 2)
-    anual = round(sum(soles(x["monto"], x["moneda"]) * 12 / x["cada"] for x in lista if x["cada"] > 1), 2)
+    mensual = round(sum(en_base(x["monto"], x["moneda"]) for x in lista if x["cada"] == 1), 2)
+    anual = round(sum(en_base(x["monto"], x["moneda"]) * 12 / x["cada"] for x in lista if x["cada"] > 1), 2)
     if PRESUPUESTO in bases and anual:
         fijar_presupuesto(notion, bases, CATEGORIA_SUSCRIPCIONES, anual, columna("Anual"))
     tope = presupuesto(notion, bases).get(CATEGORIA_SUSCRIPCIONES) if PRESUPUESTO in bases else None
@@ -917,8 +938,8 @@ def deudas(notion, bases: dict, todas: bool = False, con_cuotas: bool = True) ->
         return []
     out = []
     for f in notion.consultar(bases[DEUDAS], limite=200):
-        saldo, moneda = float(f.get("Saldo") or 0), f.get("Moneda") or "PEN"
-        saldo_s = round(soles(saldo, moneda), 2)
+        saldo, moneda = float(f.get("Saldo") or 0), f.get("Moneda") or MONEDA_BASE
+        saldo_s = round(en_base(saldo, moneda), 2)
         estado = f.get("Estado") or "Activa"
         if estado == "Activa" and saldo <= 0 and f.get("Saldo") is not None:
             estado = "Pagada"
@@ -966,10 +987,11 @@ def buscar_deuda(lista: list, texto: str) -> Optional[dict]:
     return None
 
 
-def fijar_deuda(notion, bases: dict, nombre: str, tipo: str, saldo: float, moneda: str = "PEN") -> tuple:
+def fijar_deuda(notion, bases: dict, nombre: str, tipo: str, saldo: float,
+                moneda: str = MONEDA_BASE) -> tuple:
     """Crea la deuda o actualiza su saldo. Devuelve (pagina, saldo anterior en soles o None)."""
     existente = buscar_deuda(deudas(notion, bases, todas=True, con_cuotas=False), nombre)
-    props = {"Saldo": p_number(saldo), "Moneda": p_select(moneda), columna("Saldo"): p_number(soles(saldo, moneda)),
+    props = {"Saldo": p_number(saldo), "Moneda": p_select(moneda), columna("Saldo"): p_number(en_base(saldo, moneda)),
              "Estado": p_select("Activa" if saldo > 0 else "Pagada"), "Actualizado": p_date(hoy())}
     if existente:
         return notion.editar_pagina(existente["id"], props), existente["saldo_s"]
@@ -987,15 +1009,15 @@ def cargar_a_tarjeta(notion, bases: dict, medio: str, monto: float, moneda: str)
     if not existente:
         props = {"Deuda": p_title(nombre), "Tipo": p_select("Tarjeta de crédito"),
                  "Acreedor": p_text(C.BANCO_TARJETA.get(medio, medio)), "Monto original": p_number(monto),
-                 "Saldo": p_number(monto), "Moneda": p_select(moneda), columna("Saldo"): p_number(soles(monto, moneda)),
+                 "Saldo": p_number(monto), "Moneda": p_select(moneda), columna("Saldo"): p_number(en_base(monto, moneda)),
                  "Inicio": p_date(hoy()), "Estado": p_select("Activa"), "Actualizado": p_date(hoy())}
         pag = notion.crear_pagina(bases[DEUDAS], props)
         return {"id": pag["id"], "deuda": nombre, "saldo": round(monto, 2), "moneda": moneda,
                 "cargo": round(monto, 2), "nueva": True}
-    cargo = monto if moneda == existente["moneda"] else soles(monto, moneda) / tipo_de_cambio(existente["moneda"])
+    cargo = monto if moneda == existente["moneda"] else en_base(monto, moneda) / tipo_de_cambio(existente["moneda"])
     nuevo = round(existente["saldo"] + cargo, 2)
     notion.editar_pagina(existente["id"], {
-        "Saldo": p_number(nuevo), columna("Saldo"): p_number(soles(nuevo, existente["moneda"])),
+        "Saldo": p_number(nuevo), columna("Saldo"): p_number(en_base(nuevo, existente["moneda"])),
         "Estado": p_select("Activa"), "Actualizado": p_date(hoy())})
     return {"id": existente["id"], "deuda": existente["deuda"], "saldo": nuevo, "moneda": existente["moneda"],
             "cargo": round(cargo, 2), "nueva": False}
@@ -1068,11 +1090,11 @@ def compras_en_cuotas(notion, bases: dict, d: Optional[date] = None,
         toca = (d.year - primera.year) * 12 + d.month - primera.month + 1   # 1 = la primera cuota
         if not 0 <= toca <= n:
             continue
-        monto, moneda = float(f.get("Monto") or 0), f.get("Moneda") or "PEN"
+        monto, moneda = float(f.get("Monto") or 0), f.get("Moneda") or MONEDA_BASE
         out.append({"deuda": deuda, "tarjeta": f["Medio de pago"],
                     "descripcion": f.get("Descripción") or "", "cuotas": n, "toca": toca,
                     "faltan": min(n, n - toca + 1), "cuota": round(monto / n, 2), "moneda": moneda,
-                    "cuota_s": round(soles(monto, moneda) / n, 2), "fecha": compra, "primera": primera})
+                    "cuota_s": round(en_base(monto, moneda) / n, 2), "fecha": compra, "primera": primera})
     return sorted(out, key=lambda x: -x["cuota_s"])
 
 
@@ -1101,10 +1123,10 @@ def deuda_de_tarjeta(notion, bases: dict, medio: Optional[str]) -> Optional[dict
 def pagar_deuda(notion, deuda: dict, monto: float, moneda: Optional[str] = None) -> float:
     """Baja el saldo con un pago (en la moneda de la deuda si no se dice otra). Devuelve el saldo nuevo."""
     moneda = moneda or deuda["moneda"]
-    pago = monto if moneda == deuda["moneda"] else soles(monto, moneda) / tipo_de_cambio(deuda["moneda"])
+    pago = monto if moneda == deuda["moneda"] else en_base(monto, moneda) / tipo_de_cambio(deuda["moneda"])
     nuevo = round(max(deuda["saldo"] - pago, 0), 2)
     notion.editar_pagina(deuda["id"], {
-        "Saldo": p_number(nuevo), columna("Saldo"): p_number(soles(nuevo, deuda["moneda"])),
+        "Saldo": p_number(nuevo), columna("Saldo"): p_number(en_base(nuevo, deuda["moneda"])),
         "Estado": p_select("Activa" if nuevo > 0 else "Pagada"), "Actualizado": p_date(hoy())})
     return nuevo
 

@@ -320,7 +320,7 @@ def texto_deudas(notion, bases: dict) -> str:
         return ("💳 <b>Deudas</b>\n\nNo tienes deudas activas. 🎉\nSi tienes una, anótala con:\n"
                 "<code>/deuda Tarjeta Falabella 1200</code>\n<code>/deuda Préstamo BCP 15000</code>")
     total = sum(d["saldo_s"] for d in lista)
-    cuotas = sum(F.soles(d["cuota"], d["moneda"]) for d in lista if d["cuota"])
+    cuotas = sum(F.en_base(d["cuota"], d["moneda"]) for d in lista if d["cuota"])
     l = ["💳 <b>Deudas: %s</b>" % F.s3(total), ""]
     for d in lista:
         extra = "" if d["moneda"] in ("PEN", "USD", "RUB") else " (%s %s)" % (d["moneda"], "{:,.2f}".format(d["saldo"]))
@@ -333,7 +333,7 @@ def texto_deudas(notion, bases: dict) -> str:
         if d["tasa"]:
             det.append("tasa %s" % F.pct(d["tasa"]))
         if d["cuota"]:
-            det.append("cuota %s" % F.s(F.soles(d["cuota"], d["moneda"])))
+            det.append("cuota %s" % F.s(F.en_base(d["cuota"], d["moneda"])))
         if d.get("corte"):
             det.append("cierra el día %d" % int(d["corte"]))
         if d["dia"]:
@@ -444,7 +444,7 @@ def texto_pagos(notion, bases: dict, d: Optional[date] = None) -> str:
         l.append("%s %s · %s%s" % (marca, esc(r["nombre"]), fecha_corta(r["dia"], d), monto_rec(r)))
     pend = [r for r in todos if not F.hecho_este_mes(r, d)]
     if pend:
-        total = sum(F.soles(r["monto"], r["moneda"]) for r in pend if r["monto"] and r["tipo"] in ("Pago", "Deuda"))
+        total = sum(F.en_base(r["monto"], r["moneda"]) for r in pend if r["monto"] and r["tipo"] in ("Pago", "Deuda"))
         if total:
             l.append("")
             l.append("Falta pagar este mes: %s" % F.s3(total))
@@ -499,7 +499,7 @@ def texto_plan(notion, bases: dict, extra_s: Optional[float] = None, extra_txt: 
     l.append("Solo con las cuotas (%s al mes): <b>%s</b>" % (F.s(base["por_mes"]), _cuando(base["meses"])))
     if base["sin_pagar"]:
         l.append("<i>Sin cuota: %s. Ponles una en Notion o págalas con el extra.</i>" % esc(", ".join(base["sin_pagar"])))
-    extras = [(extra_s, extra_txt)] if extra_s else [(F.soles(x, "USD"), "$%d" % x) for x in (200, 500)]
+    extras = [(extra_s, extra_txt)] if extra_s else [(F.en_base(x, "USD"), "$%d" % x) for x in (200, 500)]
     for e, txt in extras:
         p = F.plan_deudas(lista, e)
         l.append("Con %s extra al mes: <b>%s</b>" % (txt or F.s(e), _cuando(p["meses"])))

@@ -7,6 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import categorias as C  # noqa: E402
 import finanzas as F  # noqa: E402
 import formularios  # noqa: E402
 import reloj  # noqa: E402
@@ -821,7 +822,9 @@ class LimiteDiaADia(Base):
 
     def test_inicio_muestra_el_limite_arriba(self):
         t = self.di("/start")
-        self.assertIn("/limite 1500 rub", t)
+        # El ejemplo sale del perfil: antes estaba escrito a mano y le proponia "1500 rub"
+        # a alguien que lleva todo en soles.
+        self.assertIn("/limite %s" % C.LIMITE_EJEMPLO, t)
         self.assertNotIn("como hablas", t)
         self.di("/limite 1500 rub")
         self.di("1200 rub supermercado")
