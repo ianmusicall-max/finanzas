@@ -238,7 +238,11 @@ def esquemas() -> dict:
             "Meta": {"title": {}},
             columna("Objetivo"): _num(),
             columna("Ahorrado"): _num(),
-            "Avance": {"formula": {"expression": 'if(prop(columna("Objetivo")) > 0, min(prop(columna("Ahorrado")) / prop(columna("Objetivo")), 1), 0)'}},
+            # Los nombres de las columnas se interpolan: adentro de la formula van como texto, no
+            # como llamada. Si queda 'prop(columna("Objetivo"))' literal, Notion responde
+            # "Type error with formula" y la base de Metas no se crea.
+            "Avance": {"formula": {"expression": 'if(prop("%s") > 0, min(prop("%s") / prop("%s"), 1), 0)'
+                                                 % (columna("Objetivo"), columna("Ahorrado"), columna("Objetivo"))}},
             "Prioridad": _sel(["Muy importante", "Importante", "Puede esperar"]),
             "Fecha límite": {"date": {}},
         },
