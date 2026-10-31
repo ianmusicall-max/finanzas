@@ -82,6 +82,9 @@ def columna(nombre: str) -> str:
     return "%s %s" % (nombre, SUFIJO)
 
 
+# El idioma de los botones y los textos del bot (idiomas/<IDIOMA>.py).
+IDIOMA = (os.environ.get("IDIOMA", "es").strip().lower() or "es")
+
 # Quien es el dueño de este sistema: elige perfiles/<PERFIL>.py, donde viven sus categorias,
 # sus bancos y sus alias. El codigo es el mismo para todos; esto es lo unico que cambia.
 PERFIL = os.environ.get("PERFIL", "jose").strip() or "jose"

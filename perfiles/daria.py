@@ -88,3 +88,12 @@ OTROS = {"Gasto": "Разное", "Ingreso": "Прочие доходы",
          "Ahorro": "Накопления", "Inversión": "Прочие вложения"}
 
 RETIRO_AHORRO = "Снятие с накоплений"
+
+# Menu corto a proposito: no tiene deudas, ni tarjetas de credito, ni patrimonio que sumar, asi
+# que esos botones solo le ocuparian la pantalla. Los comandos siguen existiendo (/deudas,
+# /patrimonio...) por si algun dia le hacen falta; simplemente no estan a la vista.
+MENU_OPCIONES = [["gasto", "ingreso", "ahorro"],
+                 ["hoy", "semana", "mes"],
+                 ["limite", "presupuesto", "comparar"],
+                 ["reloj", "buscar", "excel"],
+                 ["tc", "ajustar"]]
