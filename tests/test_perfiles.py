@@ -8,7 +8,6 @@ cubierto por el solo hecho de existir.
 """
 
 import importlib
-import os
 import pkgutil
 import sys
 import unittest
@@ -120,7 +119,6 @@ class MonedaBase(unittest.TestCase):
         self.assertEqual(config.columna("Monto"), "Monto ₽")
         self.assertEqual(config.columna("Patrimonio neto"), "Patrimonio neto ₽")
 
-    @unittest.skipIf(os.environ.get("MONEDA_BASE"), "el .env fija otra moneda base")
     def test_por_defecto_sigue_siendo_soles(self):
         """La instalación de siempre no puede cambiar de columnas sola."""
         import config
@@ -165,7 +163,6 @@ class ZonaHoraria(unittest.TestCase):
             config._desfase("Marte/Olympus")
         self.assertIn("ZONA_HORARIA", str(e.exception))
 
-    @unittest.skipIf(os.environ.get("ZONA_HORARIA"), "el .env fija otra zona")
     def test_por_defecto_sigue_siendo_lima(self):
         import config
         self.assertEqual(config.ZONA_HORARIA, "America/Lima")
@@ -195,6 +192,26 @@ class FormulaDeMetas(unittest.TestCase):
 
     def test_no_quedo_la_llamada_sin_evaluar(self):
         self.assertNotIn("columna(", self._expresion())
+
+
+class EntornoDeLosTests(unittest.TestCase):
+    """Los tests corren sobre el perfil de referencia, esté donde estén corriendo.
+
+    Los scripts de deploy corren esta misma suite en cada servidor, y
+    `deploy/auto-actualizar.sh` **deshace la actualización si falla**. Sin el pin de
+    `tests/__init__.py`, en la instalación en ruso fallaban 114 de 249 —no porque algo
+    estuviera mal, sino porque los tests afirman cosas del perfil de referencia— y ese
+    sistema no podía actualizarse solo nunca.
+
+    Si alguien quita el pin, este test lo dice en una línea en vez de dejar 114 fallos raros.
+    """
+
+    def test_corre_sobre_el_perfil_de_referencia(self):
+        import config
+        self.assertEqual((config.PERFIL, config.IDIOMA, config.MONEDA_BASE, config.ZONA_HORARIA),
+                         ("jose", "es", "PEN", "America/Lima"),
+                         "los tests tienen que correr sobre el perfil de referencia; "
+                         "lo fija tests/__init__.py")
 
 
 class ScriptsDeDeploy(unittest.TestCase):

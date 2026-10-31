@@ -391,6 +391,20 @@ Ahora todos leen `comun.sh` y usan `$DIR` y `$SERVICIO`. Lo cubre
 comentario) nombra la carpeta, el servicio o el usuario a mano. `poner-timers.sh` y los
 instaladores quedan fuera: son los que hacen el reemplazo y los que dan el valor por defecto.
 
+## Los tests corren sobre el perfil de referencia (31/10/2026)
+
+`deploy/auto-actualizar.sh` corre la suite en cada servidor y **deshace la actualización si
+falla**. Pero la mayoría de los tests afirma cosas del perfil de José ("el resumen dice
+S/ 45.00", "la categoría es Restaurantes y cafés"), que en otro perfil son falsas sin que nada
+esté mal: en la instalación en ruso fallaban **114 de 249**, así que ese sistema **no podía
+actualizarse solo nunca** — cada cambio se bajaba y se revertía a los pocos segundos.
+
+Ahora `tests/__init__.py` fija `PERFIL`, `IDIOMA`, `MONEDA_BASE` y `ZONA_HORARIA` antes de que
+se importe `config` (python-dotenv no pisa lo que ya está en el entorno). Lo que sí tiene que
+valer para todos vive en `tests/test_perfiles.py` y `tests/test_idiomas.py`, que recorren
+*todos* los perfiles e idiomas por su cuenta. `tests.test_perfiles.EntornoDeLosTests` avisa en
+una línea si alguien quita el pin.
+
 ## Pendiente
 
 - ~~Confirmar que el servidor se actualiza solo~~: confirmado el 03/10/2026 (`/retirar` responde en Telegram,
