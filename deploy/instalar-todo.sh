@@ -3,7 +3,8 @@
 #   curl -sL https://raw.githubusercontent.com/ianmusicall-max/finanzas/main/deploy/instalar-todo.sh | bash
 # Pide los dos tokens solo la primera vez. Tu ID de Telegram lo toma de Core Forever.
 set -e
-DIR=/opt/finanzas
+# Se puede instalar otro sistema en otra carpeta:  DIR=/opt/daria bash instalar-todo.sh
+DIR=${DIR:-/opt/finanzas}
 
 if [ -d "$DIR/.git" ]; then
   echo ">> Ya estaba instalado: actualizo."

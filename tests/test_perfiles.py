@@ -8,7 +8,6 @@ cubierto por el solo hecho de existir.
 """
 
 import importlib
-import os
 import pkgutil
 import sys
 import unittest
@@ -120,7 +119,6 @@ class MonedaBase(unittest.TestCase):
         self.assertEqual(config.columna("Monto"), "Monto ₽")
         self.assertEqual(config.columna("Patrimonio neto"), "Patrimonio neto ₽")
 
-    @unittest.skipIf(os.environ.get("MONEDA_BASE"), "el .env fija otra moneda base")
     def test_por_defecto_sigue_siendo_soles(self):
         """La instalación de siempre no puede cambiar de columnas sola."""
         import config
@@ -165,7 +163,6 @@ class ZonaHoraria(unittest.TestCase):
             config._desfase("Marte/Olympus")
         self.assertIn("ZONA_HORARIA", str(e.exception))
 
-    @unittest.skipIf(os.environ.get("ZONA_HORARIA"), "el .env fija otra zona")
     def test_por_defecto_sigue_siendo_lima(self):
         import config
         self.assertEqual(config.ZONA_HORARIA, "America/Lima")
@@ -195,6 +192,68 @@ class FormulaDeMetas(unittest.TestCase):
 
     def test_no_quedo_la_llamada_sin_evaluar(self):
         self.assertNotIn("columna(", self._expresion())
+
+
+class EntornoDeLosTests(unittest.TestCase):
+    """Los tests corren sobre el perfil de referencia, esté donde estén corriendo.
+
+    Los scripts de deploy corren esta misma suite en cada servidor, y
+    `deploy/auto-actualizar.sh` **deshace la actualización si falla**. Sin el pin de
+    `tests/__init__.py`, en la instalación en ruso fallaban 114 de 249 —no porque algo
+    estuviera mal, sino porque los tests afirman cosas del perfil de referencia— y ese
+    sistema no podía actualizarse solo nunca.
+
+    Si alguien quita el pin, este test lo dice en una línea en vez de dejar 114 fallos raros.
+    """
+
+    def test_corre_sobre_el_perfil_de_referencia(self):
+        import config
+        self.assertEqual((config.PERFIL, config.IDIOMA, config.MONEDA_BASE, config.ZONA_HORARIA),
+                         ("jose", "es", "PEN", "America/Lima"),
+                         "los tests tienen que correr sobre el perfil de referencia; "
+                         "lo fija tests/__init__.py")
+
+
+class ScriptsDeDeploy(unittest.TestCase):
+    """Ningún script de deploy puede nombrar a mano la carpeta ni el servicio.
+
+    Los scripts se copian tal cual a las dos instalaciones, así que un `/opt/finanzas` o un
+    `finanzas-bot` escrito a mano hace que el sistema del segundo trabaje sobre el del primero.
+    Pasó con tres: `actualizar.sh` y `auto-actualizar.sh` hacían `cd /opt/finanzas` (la
+    actualización automática de ella entraba a la carpeta de él), y `vigia.sh` ni siquiera leía
+    `comun.sh`: vigilaba `finanzas-bot`, lo encontraba vivo y salía contento **sin mirar el bot
+    que tenía que cuidar**. Un bot sin vigía y nadie enterándose, que es justo lo que el vigía
+    existe para evitar.
+    """
+
+    # Los que pueden nombrarlo: el que hace el reemplazo y los instaladores, que dan el valor
+    # por defecto de la instalación de siempre.
+    PERMITIDOS = {"poner-timers.sh", "instalar-todo.sh", "instalar.sh", "comun.sh"}
+
+    def test_ninguno_nombra_la_carpeta_ni_el_servicio(self):
+        raiz = Path(__file__).resolve().parents[1] / "deploy"
+        for script in sorted(raiz.glob("*.sh")):
+            if script.name in self.PERMITIDOS:
+                continue
+            for n, linea in enumerate(script.read_text().splitlines(), 1):
+                codigo = linea.split("#", 1)[0]
+                self.assertNotIn("/opt/finanzas", codigo,
+                                 "deploy/%s:%d nombra la carpeta a mano; usa $DIR" % (script.name, n))
+                self.assertNotIn("finanzas-", codigo,
+                                 "deploy/%s:%d nombra el servicio a mano; usa $SERVICIO-" % (script.name, n))
+                self.assertNotIn("-u finanzas", codigo,
+                                 "deploy/%s:%d nombra el usuario a mano; usa $SERVICIO" % (script.name, n))
+
+    def test_los_que_trabajan_leen_comun(self):
+        """Quien use $DIR o $SERVICIO tiene que haberlos leído de comun.sh."""
+        raiz = Path(__file__).resolve().parents[1] / "deploy"
+        for script in sorted(raiz.glob("*.sh")):
+            if script.name in ("comun.sh", "instalar-todo.sh"):
+                continue
+            texto = script.read_text()
+            if "$DIR" in texto or "$SERVICIO" in texto:
+                self.assertIn("comun.sh", texto,
+                              "deploy/%s usa $DIR o $SERVICIO sin leer comun.sh" % script.name)
 
 
 class MenuPorPerfil(unittest.TestCase):
