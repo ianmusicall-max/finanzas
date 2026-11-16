@@ -19,6 +19,10 @@ import reloj as R  # noqa: E402
 class Reloj(unittest.TestCase):
 
     def setUp(self):
+        originales = (R.DATA, R.ESTADO, R.ahora)
+        def restaurar():
+            R.DATA, R.ESTADO, R.ahora = originales
+        self.addCleanup(restaurar)
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         R.DATA = Path(tmp.name)
@@ -48,6 +52,29 @@ class Reloj(unittest.TestCase):
         self.assertEqual([chat for chat, _ in R.vencidos()], [1])
 
     # ---- avisar
+
+    def test_recordatorios_cada_media_hora_y_tope(self):
+        R.iniciar(1, "Facebook", 120, recordatorios=True)
+        self.avanzar(29)
+        self.assertEqual(R.vencidos(), [])
+        for restante in ("1 h 30 min", "1 h 00 min", "30 min"):
+            self.avanzar(1 if restante == "1 h 30 min" else 30)
+            avisos = R.vencidos()
+            self.assertEqual(len(avisos), 1)
+            self.assertIn("Te quedan " + restante, avisos[0][1])
+            self.assertEqual(R.vencidos(), [])
+        self.avanzar(30)
+        self.assertIn("tope", R.vencidos()[0][1])
+
+    def test_reinicio_no_repite_avisos_atrasados(self):
+        R.elegir_actividad(1, "Facebook")
+        self.assertEqual(R.actividad_pendiente(1), "Facebook")
+        R.iniciar_actividad(1, 120)
+        self.avanzar(65)
+        self.assertEqual(len(R.vencidos()), 1)
+        self.assertEqual(R.vencidos(), [])
+        self.avanzar(25)
+        self.assertIn("Te quedan 30 min", R.vencidos()[0][1])
 
     def test_avisa_al_llegar_al_tope_y_no_martillea(self):
         R.iniciar(1, "facebook", 45)

@@ -252,7 +252,7 @@ TEXTOS = {
     "/consejos · qué mejorar según tus números\n"
     "/metodos · formas de manejar tu dinero\n"
     "/ultimos · lo último que anotaste, con botones para corregir el monto o borrar\n"
-    "/reloj · elige duración y actividad para tu bloque de trabajo; te aviso al llegar al tope\n"
+    "/reloj · Mis tiempos: elige actividad y duración; aviso cada 30 minutos y al llegar al tope\n"
     "/reloj fin · cierra el bloque y te dice cuánto tomó y tu promedio · /reloj tareas\n"
     "<code>/buscar farmacia</code> · busca en todo tu historial (<code>/buscar uber mes</code>)\n\n"
     "<b>Ajustar</b>\n"
@@ -393,3 +393,12 @@ COMANDOS = {
     "buscar": "search", "ultimos": "last", "deshacer": "undo", "cancelar": "cancel",
     "tc": "rate", "ayuda": "help",
 }
+
+TEXTOS.update({
+    "⏱ Ver cronómetro": "⏱ Посмотреть таймер",
+    "📊 Historial y promedios": "📊 История и среднее время",
+    "Elige tu bloque de trabajo:": "Выбери рабочий блок:",
+    "¿Cuánto tiempo le das?": "Сколько времени выделишь?",
+    "Te diré cuánto queda cada 30 minutos.": "Каждые 30 минут буду сообщать, сколько осталось.",
+    "⏱ <b>%s</b>: llevas %s. Te quedan %s.": "⏱ <b>%s</b>: прошло %s. Осталось %s.",
+})

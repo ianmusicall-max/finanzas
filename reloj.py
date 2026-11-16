@@ -71,7 +71,7 @@ def reloj(minutos: float) -> str:
 
 # ---------------------------------------------------------------- empezar, ver, terminar
 
-def iniciar(chat, tarea: str, tope: Optional[int] = None) -> str:
+def iniciar(chat, tarea: str, tope: Optional[int] = None, recordatorios: bool = False) -> str:
     d = _leer()
     corriendo = d["corriendo"].get(str(chat))
     if corriendo:
@@ -80,7 +80,8 @@ def iniciar(chat, tarea: str, tope: Optional[int] = None) -> str:
     if not tarea:
         return t("¿Qué estás haciendo? Por ejemplo: <code>/reloj facebook 45</code>")
     d["corriendo"][str(chat)] = {"tarea": tarea.strip(), "desde": ahora().isoformat(),
-                                 "tope": int(tope) if tope else None, "avisos": 0}
+                                 "tope": int(tope) if tope else None, "avisos": 0,
+                                 "recordatorios": recordatorios, "ultimo_recordatorio": 0}
     _escribir(d)
     h = _historial(d, tarea)
     extra = ""
@@ -90,7 +91,10 @@ def iniciar(chat, tarea: str, tope: Optional[int] = None) -> str:
         extra = t("\nLa última vez te tomó %s.") % reloj(h["ultimo"])
     if h["veces"]:
         extra += t("\nPromedio de <b>%s</b>: %s (%d veces).") % (tarea.strip(), reloj(h["promedio"]), h["veces"])
-    return t("▶️ <b>%s</b>, arrancando.%s") % (tarea.strip(), extra)
+    mensaje = t("▶️ <b>%s</b>, arrancando.%s") % (tarea.strip(), extra)
+    if recordatorios and tope:
+        mensaje += "\n" + estado(chat) + "\n" + t("Te diré cuánto queda cada 30 minutos.")
+    return mensaje
 
 
 def estado(chat) -> str:
@@ -151,6 +155,26 @@ def corriendo(chat) -> bool:
 TOPE_MAX = 24 * 60     # mas de un dia no es un bloque de trabajo, es un error de tecleo
 
 
+def elegir_actividad(chat, tarea: str) -> None:
+    d = _leer()
+    d["pendiente"][str(chat)] = {"tarea": tarea, "paso": "duracion",
+                                 "dia": ahora().date().isoformat()}
+    _escribir(d)
+
+
+def actividad_pendiente(chat):
+    p = _leer()["pendiente"].get(str(chat), {})
+    return p.get("tarea") if esperando(chat) else None
+
+
+def iniciar_actividad(chat, tope: int) -> str:
+    tarea = actividad_pendiente(chat)
+    if not tarea or corriendo(chat):
+        return estado(chat)
+    olvidar(chat)
+    return iniciar(chat, tarea, tope or None, recordatorios=True)
+
+
 def pedir_nombre(chat, tope: int) -> None:
     """Ya se eligio el tope (o se eligio 'sin tope'): falta saber que va a hacer."""
     d = _leer()
@@ -161,7 +185,10 @@ def pedir_nombre(chat, tope: int) -> None:
 def pedir_tope(chat) -> None:
     """Toco "Otro": primero cuantos minutos, despues el nombre."""
     d = _leer()
+    tarea = actividad_pendiente(chat)
     d["pendiente"][str(chat)] = {"tope": None, "paso": "tope", "dia": ahora().date().isoformat()}
+    if tarea:
+        d["pendiente"][str(chat)]["tarea"] = tarea
     _escribir(d)
 
 
@@ -190,17 +217,19 @@ def con_texto(chat, texto: str) -> str:
     p = d["pendiente"].get(str(chat))
     if p is None:
         return t("Ese botón ya no sirve. Empieza otra vez con /reloj.")
-    if p.get("paso") == "tope":
+    if p.get("paso") in ("tope", "duracion"):
         minutos = _minutos_de(texto)
         if not minutos:
             return t("Escribe solo cuánto tiempo, por ejemplo <code>90</code> minutos, "
                      "<code>2 horas</code> o <code>1h30</code>.")
+        if p.get("tarea"):
+            return iniciar_actividad(chat, minutos)
         p["tope"], p["paso"] = minutos, "nombre"
         _escribir(d)
         return t("⏱ %s. ✏️ ¿Y qué vas a hacer?") % reloj(minutos)
     d["pendiente"].pop(str(chat), None)
     _escribir(d)
-    return iniciar(chat, texto[:60], p.get("tope") or None)
+    return iniciar(chat, texto[:60], p.get("tope") or None, recordatorios=True)
 
 
 def _minutos_de(texto: str):
@@ -260,7 +289,12 @@ def vencidos(hasta: Optional[datetime] = None) -> list:
             continue
         van = _minutos(c["desde"], hasta)
         hechos = int(c.get("avisos") or 0)
-        if hechos == 0 and van >= c["tope"]:
+        if (c.get("recordatorios") and van < c["tope"]
+                and int(van // 30) > c.get("ultimo_recordatorio", 0)):
+            avisos.append((int(chat), t("⏱ <b>%s</b>: llevas %s. Te quedan %s.") % (
+                c["tarea"], reloj(van), reloj(c["tope"] - van))))
+            c["ultimo_recordatorio"], cambio = int(van // 30), True
+        elif hechos == 0 and van >= c["tope"]:
             avisos.append((int(chat), t("⏰ <b>%s</b>: llegaste al tope de %d min.\n/reloj fin para cerrarlo.") % (
                 c["tarea"], c["tope"])))
             c["avisos"], cambio = 1, True

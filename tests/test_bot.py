@@ -1526,6 +1526,26 @@ class RelojPorBotones(Base):
     puede terminar anotado como un gasto.
     """
 
+    def test_mis_tiempos_elige_actividad_y_duracion(self):
+        self.di("/reloj")
+        self.toca("📊 Mis tiempos")
+        self.toca("Facebook")
+        texto = self.toca("⏱ 2 horas")
+        self.assertIn("Facebook", texto)
+        self.assertIn("2 h 00 min", texto)
+        self.assertIn("cada 30 minutos", texto)
+        self.assertIn("Facebook", self.toca("⏱ Ver cronómetro"))
+        self.assertEqual(self.movs, [])
+
+    def test_mis_tiempos_duracion_personalizada(self):
+        self.di("/reloj")
+        self.toca("📊 Mis tiempos")
+        self.toca("Routenote")
+        self.toca("✏️ Otro")
+        self.assertIn("arrancando", self.di("90"))
+        self.assertIn("Routenote", self.toca("⏹ Terminar"))
+        self.assertEqual(self.movs, [])
+
     def test_bloques_por_actividad_no_registran_gastos(self):
         for nombre in ("Facebook", "Freshtunes", "Routenote", "Criptomonedas", "Páginas web", "Otros"):
             self.di("/reloj")

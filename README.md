@@ -279,8 +279,12 @@ Escribes **`/reloj`** y salen los botones:
 
 Tocas una duración y eliges tu bloque: **Facebook, Freshtunes, Routenote, Criptomonedas,
 Páginas web u Otros**. También puedes escribir una tarea libre. Las actividades se configuran
-por perfil; estos seis bloques son los del perfil de José. Cada bloque se inicia manualmente
-y conserva su promedio en `/reloj tareas`. Mientras corre, `/reloj` te
+por perfil; estos seis bloques son los del perfil de José. Desde **📊 Mis tiempos** eliges primero la actividad y después la duración: por ejemplo,
+**Facebook → 2 horas**. Al iniciar aparece el tiempo restante y el botón **⏱ Ver cronómetro**
+permite consultarlo; cada 30 minutos llega un mensaje con el tiempo transcurrido y restante,
+y al llegar al tope se avisa. El estado y los avisos sobreviven a los reinicios, sin repetir
+los recordatorios atrasados. Cada bloque se inicia manualmente y conserva su promedio en
+`/reloj tareas` o **📊 Historial y promedios** dentro de Mis tiempos. Mientras corre, `/reloj` te
 muestra cuánto va con los botones de **Terminar** y **Cortar**.
 
 Con **✏️ Otro** pones cualquier tiempo, escrito como te salga: `90`, `2 horas`, `1h30`, `1.5 h`.

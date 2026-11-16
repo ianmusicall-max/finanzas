@@ -50,7 +50,7 @@ AYUDA = t(
     "/consejos · qué mejorar según tus números\n"
     "/metodos · formas de manejar tu dinero\n"
     "/ultimos · lo último que anotaste, con botones para corregir el monto o borrar\n"
-    "/reloj · elige duración y actividad para tu bloque de trabajo; te aviso al llegar al tope\n"
+    "/reloj · Mis tiempos: elige actividad y duración; aviso cada 30 minutos y al llegar al tope\n"
     "/reloj fin · cierra el bloque y te dice cuánto tomó y tu promedio · /reloj tareas\n"
     "<code>/buscar farmacia</code> · busca en todo tu historial (<code>/buscar uber mes</code>)\n\n"
     "<b>Ajustar</b>\n"
@@ -80,6 +80,7 @@ RELOJ_TOPES = [[(t("⏱ 15 min"), "rj:15"), (t("⏱ 30 min"), "rj:30"), (t("⏱ 
                [(t("✏️ Otro"), "rj:x"), (t("♾ Sin tope"), "rj:0")],
                [(t("📊 Mis tiempos"), "rj:tareas")]]
 RELOJ_CORRE = [[(t("⏹ Terminar"), "rj:fin"), (t("✖️ Cortar"), "rj:corta")]]
+RELOJ_CORRE += [[(t("⏱ Ver cronómetro"), "rj:estado")]]
 
 # Se arma con los mismos nombres del menu, para no escribirlos dos veces (y que no se queden
 # sin traducir la mitad).
@@ -728,6 +729,7 @@ class Bot:
             if R.corriendo(chat):
                 self.decir(chat, R.estado(chat), RELOJ_CORRE)
             else:
+                R.olvidar(chat)
                 self.decir(chat, t("⏱ <b>Reloj de trabajo</b>\n¿Cuánto tiempo le das?"), RELOJ_TOPES)
         elif clave in ("fin", "termine", "listo", "ya", "stop", "para", "end", "done", "finish"):
             self.decir(chat, R.terminar(chat), MENU)
@@ -743,7 +745,19 @@ class Bot:
             self.decir(chat, R.iniciar(chat, " ".join(partes[:-1]) if tope else a, tope), MENU)
 
     def _boton_reloj(self, chat, valor: str) -> None:
-        if valor.startswith("b") and valor[1:].isdigit():
+        if valor == "estado":
+            self.decir(chat, R.estado(chat), RELOJ_CORRE)
+        elif valor.startswith("n") and valor[1:].isdigit():
+            actividades = getattr(C, "BLOQUES_TRABAJO", [])
+            indice = int(valor[1:])
+            if R.corriendo(chat):
+                self.decir(chat, R.estado(chat), RELOJ_CORRE)
+            elif indice < len(actividades):
+                R.elegir_actividad(chat, actividades[indice])
+                self.decir(chat, actividades[indice] + "\n" + t("¿Cuánto tiempo le das?"), RELOJ_TOPES)
+            else:
+                self._reloj(chat, "")
+        elif valor.startswith("b") and valor[1:].isdigit():
             actividades = getattr(C, "BLOQUES_TRABAJO", [])
             indice = int(valor[1:])
             if R.corriendo(chat):
@@ -753,6 +767,13 @@ class Bot:
             else:
                 self._reloj(chat, "")
         elif valor == "tareas":
+            R.olvidar(chat)
+            actividades = getattr(C, "BLOQUES_TRABAJO", [])
+            opciones = [(nombre, "rj:n%d" % i) for i, nombre in enumerate(actividades)]
+            botones = [opciones[i:i + 2] for i in range(0, len(opciones), 2)]
+            botones += [[(t("📊 Historial y promedios"), "rj:historial")]]
+            self.decir(chat, t("Elige tu bloque de trabajo:"), botones)
+        elif valor == "historial":
             self.decir(chat, R.tareas(), MENU)
         elif valor == "fin":
             self.decir(chat, R.terminar(chat), MENU)
@@ -772,6 +793,12 @@ class Bot:
                 self.decir(chat, R.estado(chat), RELOJ_CORRE)
                 return
             tope = int(valor)
+            if not 0 <= tope <= R.TOPE_MAX:
+                self._reloj(chat, "")
+                return
+            if R.actividad_pendiente(chat):
+                self.decir(chat, R.iniciar_actividad(chat, tope), RELOJ_CORRE)
+                return
             R.pedir_nombre(chat, tope)
             self.decir(chat, "✏️ ¿Qué vas a hacer? Escríbelo y arranco%s." % (
                 (", y te aviso a los %s" % R.reloj(tope)) if tope else " (sin aviso)"),
