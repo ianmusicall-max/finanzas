@@ -277,7 +277,10 @@ Escribes **`/reloj`** y salen los botones:
 📊 Mis tiempos
 ```
 
-Tocas uno, el bot pregunta *¿qué vas a hacer?*, lo escribes y arranca. Mientras corre, `/reloj` te
+Tocas una duración y eliges tu bloque: **Facebook, Freshtunes, Routenote, Criptomonedas,
+Páginas web u Otros**. También puedes escribir una tarea libre. Las actividades se configuran
+por perfil; estos seis bloques son los del perfil de José. Cada bloque se inicia manualmente
+y conserva su promedio en `/reloj tareas`. Mientras corre, `/reloj` te
 muestra cuánto va con los botones de **Terminar** y **Cortar**.
 
 Con **✏️ Otro** pones cualquier tiempo, escrito como te salga: `90`, `2 horas`, `1h30`, `1.5 h`.

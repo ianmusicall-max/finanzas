@@ -50,7 +50,7 @@ AYUDA = t(
     "/consejos · qué mejorar según tus números\n"
     "/metodos · formas de manejar tu dinero\n"
     "/ultimos · lo último que anotaste, con botones para corregir el monto o borrar\n"
-    "/reloj · botones de 30 min, 1 hora o 3 horas; eliges uno, escribes qué haces y te aviso\n"
+    "/reloj · elige duración y actividad para tu bloque de trabajo; te aviso al llegar al tope\n"
     "/reloj fin · cierra el bloque y te dice cuánto tomó y tu promedio · /reloj tareas\n"
     "<code>/buscar farmacia</code> · busca en todo tu historial (<code>/buscar uber mes</code>)\n\n"
     "<b>Ajustar</b>\n"
@@ -306,7 +306,7 @@ class Bot:
                 respuesta = R.con_texto(chat, texto)
                 # si todavia esta preguntando (puso el tope, falta el nombre), no van Terminar/Cortar
                 self.decir(chat, respuesta,
-                           [[("✖️ Cancelar", "rj:no")]] if R.esperando(chat) else RELOJ_CORRE)
+                           self._opciones_bloque(chat) if R.esperando(chat) else RELOJ_CORRE)
             elif chat in self._corrigiendo:
                 self._cambiar_monto(chat, texto)
             elif self.form.activo(chat):
@@ -714,6 +714,11 @@ class Bot:
         self.decir(chat, "\n".join(["🗑 Borrado. (Queda en la papelera de Notion por 30 días.)"] + l))
 
     # ---- comandos
+    def _opciones_bloque(self, chat):
+        actividades = getattr(C, "BLOQUES_TRABAJO", []) if R.esperando_nombre(chat) else []
+        botones = [(nombre, "rj:b%d" % i) for i, nombre in enumerate(actividades)]
+        return [botones[i:i + 2] for i in range(0, len(botones), 2)] + [[("✖️ Cancelar", "rj:no")]]
+
     def _reloj(self, chat, arg: str) -> None:
         """<code>/reloj facebook 45</code> arranca · <code>/reloj fin</code> cierra y guarda ·
         <code>/reloj corta</code> cancela · <code>/reloj tareas</code> los promedios."""
@@ -738,7 +743,16 @@ class Bot:
             self.decir(chat, R.iniciar(chat, " ".join(partes[:-1]) if tope else a, tope), MENU)
 
     def _boton_reloj(self, chat, valor: str) -> None:
-        if valor == "tareas":
+        if valor.startswith("b") and valor[1:].isdigit():
+            actividades = getattr(C, "BLOQUES_TRABAJO", [])
+            indice = int(valor[1:])
+            if R.corriendo(chat):
+                self.decir(chat, R.estado(chat), RELOJ_CORRE)
+            elif R.esperando_nombre(chat) and indice < len(actividades):
+                self.decir(chat, R.con_texto(chat, actividades[indice]), RELOJ_CORRE)
+            else:
+                self._reloj(chat, "")
+        elif valor == "tareas":
             self.decir(chat, R.tareas(), MENU)
         elif valor == "fin":
             self.decir(chat, R.terminar(chat), MENU)
@@ -761,7 +775,7 @@ class Bot:
             R.pedir_nombre(chat, tope)
             self.decir(chat, "✏️ ¿Qué vas a hacer? Escríbelo y arranco%s." % (
                 (", y te aviso a los %s" % R.reloj(tope)) if tope else " (sin aviso)"),
-                [[("✖️ Cancelar", "rj:no")]])
+                self._opciones_bloque(chat))
 
     def _avisar_reloj(self) -> None:
         """Los topes de /reloj que ya vencieron.

@@ -165,6 +165,11 @@ def pedir_tope(chat) -> None:
     _escribir(d)
 
 
+def esperando_nombre(chat) -> bool:
+    p = _leer()["pendiente"].get(str(chat), {})
+    return esperando(chat) and p.get("paso") == "nombre"
+
+
 def esperando(chat) -> bool:
     """Si quedo preguntando el nombre. Lo de otro dia se descarta: no revive al dia siguiente."""
     p = _leer()["pendiente"].get(str(chat))

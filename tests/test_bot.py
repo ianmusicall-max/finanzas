@@ -2,6 +2,7 @@ import json
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -1235,6 +1236,15 @@ class CorregirMovimientos(Base):
 class ComprasEnCuotas(Base):
     """Una compra a credito en N cuotas: la cuota mensual de la tarjeta sale de las compras."""
 
+    def setUp(self):
+        super().setUp()
+        # Las expectativas de noviembre corresponden a compras hechas en octubre.
+        # Fijar ambas fechas evita que el calendario real bloquee las actualizaciones.
+        for modulo in ("lector", "finanzas", "formularios"):
+            reloj_fijo = patch(modulo + ".hoy", return_value=date(2026, 10, 21))
+            reloj_fijo.start()
+            self.addCleanup(reloj_fijo.stop)
+
     def deuda(self, nombre):
         return next(f for f in self.n.dbs["db-deu"] if f["Deuda"] == nombre)
 
@@ -1515,6 +1525,22 @@ class RelojPorBotones(Base):
     Lo más importante de acá: mientras el bot espera el nombre de la tarea, lo que escribas NO
     puede terminar anotado como un gasto.
     """
+
+    def test_bloques_por_actividad_no_registran_gastos(self):
+        for nombre in ("Facebook", "Freshtunes", "Routenote", "Criptomonedas", "Páginas web", "Otros"):
+            self.di("/reloj")
+            self.toca("⏱ 30 min")
+            self.assertIn("arrancando", self.toca(nombre))
+            self.toca("⏹ Terminar")
+            self.assertEqual(reloj.historial(nombre)["veces"], 1)
+        self.assertEqual(self.movs, [])
+
+    def test_bloques_con_duracion_personalizada(self):
+        self.di("/reloj")
+        self.toca("✏️ Otro")
+        self.di("90")
+        self.assertIn("arrancando", self.toca("Facebook"))
+        self.assertEqual(self.movs, [])
 
     def test_ofrece_los_topes(self):
         self.di("/reloj")

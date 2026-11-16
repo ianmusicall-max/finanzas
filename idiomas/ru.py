@@ -252,7 +252,7 @@ TEXTOS = {
     "/consejos · qué mejorar según tus números\n"
     "/metodos · formas de manejar tu dinero\n"
     "/ultimos · lo último que anotaste, con botones para corregir el monto o borrar\n"
-    "/reloj · botones de 30 min, 1 hora o 3 horas; eliges uno, escribes qué haces y te aviso\n"
+    "/reloj · elige duración y actividad para tu bloque de trabajo; te aviso al llegar al tope\n"
     "/reloj fin · cierra el bloque y te dice cuánto tomó y tu promedio · /reloj tareas\n"
     "<code>/buscar farmacia</code> · busca en todo tu historial (<code>/buscar uber mes</code>)\n\n"
     "<b>Ajustar</b>\n"

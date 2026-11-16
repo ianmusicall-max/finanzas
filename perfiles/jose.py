@@ -126,6 +126,8 @@ RETIRO_AHORRO = "Retiro de ahorro"
 
 # Que botones ve en /start, por filas. Los nombres son los del comando (m:<nombre> en bot.py) y
 # el texto de cada uno sale del idioma, no de aca: asi el mismo menu sirve en cualquier idioma.
+BLOQUES_TRABAJO = ["Facebook", "Freshtunes", "Routenote", "Criptomonedas", "Páginas web", "Otros"]
+
 MENU_OPCIONES = [["gasto", "ingreso", "ahorro"],
                  ["retirar", "reloj"],
                  ["hoy", "semana", "mes"],
