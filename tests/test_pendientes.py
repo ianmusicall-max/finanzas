@@ -109,6 +109,7 @@ class Pendientes(unittest.TestCase):
         evento = editar.call_args.kwargs['json']
         self.assertEqual(evento['start']['date'], '2026-11-16')
         self.assertEqual(evento['end']['date'], '2026-11-17')
+        self.assertEqual(evento['status'], 'confirmed')
         self.assertTrue(P.lista(7)[0]['sincronizada'])
 
     def test_quitar_fecha_elimina_solo_evento_propio(self):

@@ -157,7 +157,7 @@ def _evento(x):
             'description': 'Fecha límite de una tarea de Pendientes en Telegram. Gestiona la tarea desde el bot.',
             'start': {'date': inicio.isoformat()},
             'end': {'date': (inicio + timedelta(days=1)).isoformat()},
-            'transparency': 'transparent'}
+            'transparency': 'transparent', 'status': 'confirmed'}
 
 
 def sincronizar(chat):
