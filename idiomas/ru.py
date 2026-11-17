@@ -1,6 +1,7 @@
 """Русский. Los mismos botones que en español, con el nombre en ruso."""
 
 BOTONES = {
+    "pendientes": "📋 Задачи",
     "gasto": "➖ Расход", "ingreso": "➕ Доход", "ahorro": "🐷 Накопления", "inversion": "📈 Вложения",
     "retirar": "🏧 Снять наличные", "reloj": "⏱ Таймер",
     "hoy": "📅 Сегодня", "semana": "🗓 Неделя", "mes": "📆 Месяц",
@@ -243,6 +244,7 @@ TEXTOS = {
     "/limite · cuánto llevas gastado hoy, en la semana y en el mes\n"
     "/suscripciones · tus suscripciones y cuándo se renuevan\n"
     "/pagos · pagos y recordatorios del mes (servicios, bancos, retiros)\n"
+    "/pendientes · tareas con fecha límite y conexión a Google Calendar\n"
     "/retirar · sacaste efectivo de un banco: baja la cuenta y sube tu efectivo (no es gasto)\n"
     "/comparar · este mes contra el pasado, categoría por categoría\n"
     "/proyeccion · cómo cierras el mes si no entra más dinero\n"
@@ -270,6 +272,7 @@ TEXTOS = {
         "/expense · /income · /savings\n\n"
         "<b>Посмотреть</b>\n"
         "/today · /yesterday · /week · /month · сводки\n"
+        "/tasks · задачи со сроками и подключением Google Calendar\n"
         "/limit · сколько потрачено сегодня, за неделю и за месяц\n"
         "/budget · сколько ушло по каждой категории\n"
         "/compare · этот месяц против прошлого, по категориям\n"
@@ -382,6 +385,7 @@ NOTION_VALOR = {
 # SIGUEN funcionando (el bot despacha sobre ellos), asi que un mensaje viejo o un enlace de
 # antes no se rompe.
 COMANDOS = {
+    "pendientes": "tasks",
     "gasto": "expense", "ingreso": "income", "ahorro": "savings", "inversion": "investment",
     "retirar": "cash", "reloj": "timer", "pomodoro": "pomodoro",
     "hoy": "today", "ayer": "yesterday", "semana": "week", "mes": "month",

@@ -1,6 +1,7 @@
 """Español."""
 
 BOTONES = {
+    "pendientes": "📋 Pendientes",
     "gasto": "➖ Gasto", "ingreso": "➕ Ingreso", "ahorro": "🐷 Ahorro", "inversion": "📈 Inversión",
     "retirar": "🏧 Retirar efectivo", "reloj": "⏱ Reloj",
     "hoy": "📅 Hoy", "semana": "🗓 Semana", "mes": "📆 Mes",

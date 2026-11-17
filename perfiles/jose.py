@@ -129,7 +129,7 @@ RETIRO_AHORRO = "Retiro de ahorro"
 BLOQUES_TRABAJO = ["Facebook", "Freshtunes", "Routenote", "Criptomonedas", "Páginas web", "Otros"]
 
 MENU_OPCIONES = [["gasto", "ingreso", "ahorro"],
-                 ["retirar", "reloj"],
+                 ["retirar", "reloj", "pendientes"],
                  ["hoy", "semana", "mes"],
                  ["limite", "presupuesto", "deudas"],
                  ["patrimonio", "metas", "suscripciones"],

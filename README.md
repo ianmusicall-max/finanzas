@@ -493,3 +493,35 @@ El aviso diario de las 9:00 (zona horaria configurada) recuerda los pagos
 activos de tipo Pago o Deuda que ya estaban en Notion. Si el mes no tiene el
 día indicado, vence el último día de ese mes. Requiere el timer de avisos
 instalado; guardar la fecha no registra un gasto ni realiza un pago.
+
+### 📋 Pendientes y Google Calendar
+
+Entra al botón **📋 Pendientes** del menú o escribe `/pendientes`.
+Pulsa **Agregar tareas** y escribe una o varias tareas, una por línea.
+Después elige **Hoy**, **Mañana**, **En una semana**, **Otra fecha**
+(DD/MM/AAAA) o **Sin fecha** para ir acumulando cosas por hacer.
+Cada tarea tiene botones para cambiar su fecha límite o marcarla hecha.
+La lista y los formularios se guardan por chat y sobreviven a reinicios.
+Puedes salir de un formulario con **Cancelar** o cualquier comando.
+
+**Google Calendar requiere autorización inicial.** Hasta conectarlo, las tareas
+funcionan en Telegram y muestran «por sincronizar». Después, cada tarea con
+fecha se guarda como evento de día completo en el calendario autorizado.
+Los cambios hechos desde el bot se envían a Google; marcar una tarea hecha
+pone ✅ en su evento. Quitar la fecha elimina ese evento del calendario.
+Las tareas sin fecha se quedan en la lista. Los cambios hechos directamente
+en Google Calendar no se importan al bot. Si Google falla, la tarea se conserva;
+el botón **Sincronizar** vuelve a intentarlo sin duplicar eventos.
+
+Configuración inicial (una vez, desde la Mac):
+
+1. En [Google Cloud](https://console.cloud.google.com/), habilita **Google Calendar API**, configura el consentimiento OAuth y crea un cliente de tipo **Aplicación de escritorio**. Descarga el JSON y guárdalo fuera del repositorio.
+2. Si la aplicación está en pruebas, agrega tu cuenta como usuario de prueba. Google puede hacer expirar la autorización a los siete días en modo de pruebas; para uso permanente revisa el estado de publicación de tu aplicación.
+3. Obtén tu ID con `/id` en el bot y ejecuta `.venv/bin/python setup_google_calendar.py --cliente ~/Downloads/cliente.json --chat TU_ID`.
+4. Abre el enlace que aparece en la Terminal en el navegador de esa Mac y autoriza Google Calendar.
+5. Copia el archivo privado `data/google_calendar.json` a `/opt/finanzas/data/google_calendar.json` del servidor y dale propietario `finanzas:finanzas` y permisos `600` (usa la carpeta y usuario correspondientes si es otra instalación).
+6. En Telegram, entra a **Pendientes → Sincronizar**. No hace falta reiniciar.
+
+La autorización queda asociada al chat indicado; otro usuario del bot no
+puede usar esa cuenta de Google. Los archivos privados de `data/` no se suben
+a GitHub. No pegues el JSON, tokens ni contraseñas en el chat.

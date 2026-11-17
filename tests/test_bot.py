@@ -12,6 +12,7 @@ import categorias as C  # noqa: E402
 import finanzas as F  # noqa: E402
 import formularios  # noqa: E402
 import reloj  # noqa: E402
+import pendientes  # noqa: E402
 from bot import Bot, codigo_salida, leer_patrimonio  # noqa: E402
 from lector import Movimiento  # noqa: E402
 from telegram import TelegramError  # noqa: E402
@@ -36,10 +37,12 @@ class Base(unittest.TestCase):
         # cada test con sus propios archivos: ni el tipo de cambio, ni lo ultimo elegido en los
         # formularios, ni el formulario a medio llenar se pasan de un test al siguiente
         self._guardados = (F.AJUSTES, formularios.AJUSTES, formularios.DATA, formularios.ESTADOS,
-                           reloj.DATA, reloj.ESTADO)
+                           reloj.DATA, reloj.ESTADO, pendientes.ESTADO, pendientes.GOOGLE)
         F.AJUSTES = formularios.AJUSTES = tmp / "ajustes.json"
         formularios.DATA = tmp
         formularios.ESTADOS = tmp / "formularios.json"
+        pendientes.ESTADO = tmp / "pendientes.json"
+        pendientes.GOOGLE = tmp / "google_calendar.json"
         reloj.DATA = tmp                      # el bot le pregunta por cada mensaje de texto
         reloj.ESTADO = tmp / "reloj.json"
         self.tg, self.n = FakeTelegram(), FakeNotion()
@@ -47,7 +50,7 @@ class Base(unittest.TestCase):
 
     def tearDown(self):
         (F.AJUSTES, formularios.AJUSTES, formularios.DATA, formularios.ESTADOS,
-         reloj.DATA, reloj.ESTADO) = self._guardados
+         reloj.DATA, reloj.ESTADO, pendientes.ESTADO, pendientes.GOOGLE) = self._guardados
         self._tmp.cleanup()
 
     def di(self, texto):
@@ -1654,3 +1657,19 @@ class VencimientoPorTelegram(Base):
     def test_rechaza_dia_invalido(self):
         self.di('/vencimiento Luz 32')
         self.assertEqual(self.n.dbs['db-rec'], [])
+
+
+class PendientesPorTelegram(Base):
+    def test_botones_guardan_tarea_sin_registrarla_como_gasto(self):
+        self.di('/pendientes')
+        self.toca('Agregar tareas')
+        self.di('Comprar 20 cuadernos')
+        self.toca('Mañana')
+        self.assertEqual(len(pendientes.lista(YO)), 1)
+        self.assertEqual(self.movs, [])
+
+    def test_otro_comando_cancela_captura_de_tareas(self):
+        self.di('/pendientes')
+        self.toca('Agregar tareas')
+        self.di('/cancelar')
+        self.assertFalse(pendientes.esperando(YO))

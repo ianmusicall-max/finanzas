@@ -19,6 +19,7 @@ import excel as X
 import finanzas as F
 import informes as I
 import reloj as R
+import pendientes as P
 from idiomas import BOTONES, COMANDOS, DIAS, MESES, t
 from config import DATA, MONEDA_BASE, TELEGRAM_USUARIOS, columna
 from notion import DEUDAS, METAS, MOVIMIENTOS, PATRIMONIO, PRESUPUESTO, SUSCRIPCIONES, Notion, NotionError, cargar_bases, p_select
@@ -41,6 +42,7 @@ AYUDA = t(
     "/limite · cuánto llevas gastado hoy, en la semana y en el mes\n"
     "/suscripciones · tus suscripciones y cuándo se renuevan\n"
     "/pagos · pagos y recordatorios del mes (servicios, bancos, retiros)\n"
+    "/pendientes · tareas con fecha límite y conexión a Google Calendar\n"
     "/retirar · sacaste efectivo de un banco: baja la cuenta y sube tu efectivo (no es gasto)\n"
     "/comparar · este mes contra el pasado, categoría por categoría\n"
     "/proyeccion · cómo cierras el mes si no entra más dinero\n"
@@ -294,6 +296,8 @@ class Bot:
             if texto.startswith("/"):
                 self._ajustando.pop(chat, None)
                 self._comando(chat, texto)
+            elif P.esperando(chat):
+                self.decir(chat, *P.con_texto(chat, texto))
             elif chat in self._ajustando:
                 self._comando(chat, self._ajustando.pop(chat) + " " + texto)
             elif (self._por_ahorrar.get(chat) or {}).get("esperando"):
@@ -610,7 +614,12 @@ class Bot:
     def _boton(self, chat, message_id, data: str) -> None:
         partes = data.split(":")
         try:
-            if partes[0] == "f":
+            if partes[0] == "pd":
+                if len(partes) > 1 and partes[1] == "nueva":
+                    self.form.cancelar(chat)
+                self.decir(chat, *P.boton(chat, partes[1] if len(partes) > 1 else "",
+                                        partes[2] if len(partes) > 2 else ""))
+            elif partes[0] == "f":
                 if data == "f:ok":
                     if not self.form.listo(chat):
                         self.decir(chat, "Ese formulario ya terminó.")
@@ -818,6 +827,7 @@ class Bot:
             print("  [bot] no pude avisar del reloj: %s: %s" % (type(exc).__name__, exc))
 
     def _comando(self, chat, texto: str) -> None:
+        P.cancelar(chat)
         partes = texto.split(maxsplit=1)
         cmd = C.normal(partes[0].split("@")[0])
         # Cada idioma escribe los comandos a su manera (/expense), pero el bot despacha sobre
@@ -830,6 +840,8 @@ class Bot:
             self.decir(chat, self._inicio(), MENU)
         elif cmd in ("/ayuda", "/help", "/comandos"):
             self.decir(chat, AYUDA, MENU)
+        elif cmd == "/pendientes":
+            self.decir(chat, *P.pantalla(chat))
         elif cmd == "/id":
             self.decir(chat, "Tu chat es <code>%s</code>." % esc(chat))
         elif cmd in ("/reloj", "/cronometro", "/cronómetro"):
