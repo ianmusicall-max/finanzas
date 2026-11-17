@@ -479,3 +479,17 @@ ssh root@TU-SERVIDOR 'cd /opt/finanzas && git pull -q origin main && bash deploy
 | `notion.py` · `telegram.py` | clientes mínimos de las dos APIs |
 | `setup_notion.py` | crea las bases (y les agrega columnas nuevas cuando las haya) |
 | `importar_hoja.py` | sube la hoja de 2025 |
+
+### Fechas de pago y avisos tres días antes
+
+En Telegram escribe `/vencimiento Falabella 30` para una deuda existente o
+`/vencimiento Luz 15` para un servicio. El último número es el día mensual
+(de 1 a 31). Repite el comando para cambiarlo. Para bancos usa el nombre de
+la deuda que aparece en `/deudas`; para servicios puedes elegir el nombre.
+Consulta la lista y marca los pagos realizados en `/pagos`.
+
+El aviso diario de las 9:00 (zona horaria configurada) recuerda los pagos
+**tres días antes** y el día del vencimiento. También cubre los recordatorios
+activos de tipo Pago o Deuda que ya estaban en Notion. Si el mes no tiene el
+día indicado, vence el último día de ese mes. Requiere el timer de avisos
+instalado; guardar la fecha no registra un gasto ni realiza un pago.

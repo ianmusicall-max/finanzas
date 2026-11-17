@@ -1643,3 +1643,14 @@ class RelojPorBotones(Base):
         self.assertIn("Escribe solo cuánto tiempo", self.di("cualquier cosa"))
         self.assertEqual(self.movs, [])
         self.assertIn("2 h 00 min", self.di("120"))   # sigue esperando, no se perdió el paso
+
+
+class VencimientoPorTelegram(Base):
+    def test_guarda_servicio_y_confirma(self):
+        texto = self.di('/vencimiento Internet 15')
+        self.assertIn('tres días antes', texto)
+        self.assertEqual(self.n.dbs['db-rec'][0]['Día'], 15)
+
+    def test_rechaza_dia_invalido(self):
+        self.di('/vencimiento Luz 32')
+        self.assertEqual(self.n.dbs['db-rec'], [])

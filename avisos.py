@@ -11,6 +11,7 @@
 """
 import argparse
 import sys
+from html import escape
 
 import finanzas as F
 import informes as I
@@ -34,6 +35,9 @@ def botones_aviso(r: dict) -> list:
 def mensajes(notion, bases: dict) -> list:
     """[(texto, botones)] de lo que hay que avisar hoy."""
     out = [(I.texto_aviso(r), botones_aviso(r)) for r in F.avisos_de_hoy(notion, bases)]
+    for r in F.avisos_anticipados(notion, bases):
+        out.append(("🔔 En 3 días (%s) vence <b>%s</b>%s. Revisa /pagos." % (
+            r["vencimiento"].strftime("%d/%m/%Y"), escape(r["nombre"]), I.monto_rec(r)), None))
     cambio = F.alerta_cambio()
     if cambio:
         out.append((cambio, None))

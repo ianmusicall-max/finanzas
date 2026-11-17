@@ -708,6 +708,41 @@ def recordatorios(notion, bases: dict) -> list:
     return sorted(out, key=lambda r: (r["dia"] or 99, r["nombre"]))
 
 
+def fijar_vencimiento(notion, bases: dict, nombre: str, dia: int) -> dict:
+    """Crea o actualiza un pago mensual sin duplicar su recordatorio."""
+    if not nombre.strip() or not 1 <= dia <= 31:
+        raise ValueError("Indica un nombre y un día entre 1 y 31.")
+    if RECORDATORIOS not in bases:
+        raise ValueError("Falta la base Recordatorios; ejecuta setup_notion.py.")
+    deuda = buscar_deuda(deudas(notion, bases, con_cuotas=False), nombre)
+    lista = recordatorios(notion, bases)
+    existente = next((r for r in lista if
+                      (deuda and r["deuda"] == deuda["deuda"]) or
+                      C.normal(r["nombre"]) == C.normal(nombre)), None)
+    nombre = deuda["deuda"] if deuda else nombre.strip()
+    props = {"Recordatorio": p_title(nombre), "Día": p_number(dia),
+             "Tipo": p_select("Deuda" if deuda else "Pago"), "Estado": p_select("Activo"),
+             "Deuda": p_text(nombre if deuda else ""),
+             "Próxima fecha": p_date(proxima_fecha(dia, existente["ultimo"] if existente else ""))}
+    if existente:
+        notion.editar_pagina(existente["id"], props)
+    else:
+        notion.crear_pagina(bases[RECORDATORIOS], props)
+    if deuda:
+        notion.editar_pagina(deuda["id"], {"Día de pago": p_number(dia)})
+    return {"nombre": nombre, "dia": dia}
+
+
+def avisos_anticipados(notion, bases: dict, d: Optional[date] = None) -> list:
+    """Pagos que vencen exactamente dentro de tres días, incluso en otro mes."""
+    d = d or hoy()
+    vence = d + timedelta(days=3)
+    return [dict(r, vencimiento=vence) for r in recordatorios(notion, bases)
+            if r["tipo"] in ("Pago", "Deuda") and r["dia"]
+            and dia_del_mes(r["dia"], vence) == vence.day
+            and not hecho_este_mes(r, vence)]
+
+
 def hecho_este_mes(r: dict, d: Optional[date] = None) -> bool:
     d = d or hoy()
     return bool(r["ultimo"]) and r["ultimo"][:7] == d.isoformat()[:7]

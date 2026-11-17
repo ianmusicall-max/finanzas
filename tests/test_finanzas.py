@@ -351,3 +351,36 @@ class CategoriasRenombradas(unittest.TestCase):
         F.fijar_presupuesto(n, BASES, "Restaurantes y cafés", 900)
         self.assertEqual(len(n.dbs[BASES[F.PRESUPUESTO]]), 1)   # sigue siendo una sola fila
         self.assertEqual(F.presupuesto(n, BASES), {"Restaurantes y cafés": 900})
+
+
+class Vencimientos(ConTC):
+    def test_actualiza_servicio_sin_duplicar(self):
+        n = FakeNotion()
+        F.fijar_vencimiento(n, BASES, 'Luz', 15)
+        F.fijar_vencimiento(n, BASES, 'luz', 20)
+        self.assertEqual(len(n.dbs['db-rec']), 1)
+        self.assertEqual(n.dbs['db-rec'][0]['Día'], 20)
+
+    def test_avisa_cruce_de_mes_y_ultimo_dia_de_febrero(self):
+        n = FakeNotion()
+        F.fijar_vencimiento(n, BASES, 'Luz', 1)
+        self.assertEqual(len(F.avisos_anticipados(n, BASES, date(2026, 12, 29))), 1)
+        self.assertEqual(F.avisos_anticipados(n, BASES, date(2026, 12, 28)), [])
+        F.fijar_vencimiento(n, BASES, 'Luz', 31)
+        self.assertEqual(len(F.avisos_anticipados(n, BASES, date(2027, 2, 25))), 1)
+
+    def test_pago_del_mes_anterior_no_silencia_el_siguiente(self):
+        n = FakeNotion()
+        F.fijar_vencimiento(n, BASES, 'Luz', 1)
+        n.dbs['db-rec'][0]['Último'] = '2026-12-01'
+        self.assertEqual(len(F.avisos_anticipados(n, BASES, date(2026, 12, 29))), 1)
+        n.dbs['db-rec'][0]['Último'] = '2027-01-01'
+        self.assertEqual(F.avisos_anticipados(n, BASES, date(2026, 12, 29)), [])
+
+    def test_vencimiento_deuda_actualiza_dia_y_recordatorio(self):
+        n = FakeNotion()
+        n.dbs['db-deu'].append({'_id': 'abc', 'Deuda': 'Banco Falabella',
+                              'Saldo': 100, 'Moneda': 'PEN', 'Estado': 'Activa'})
+        F.fijar_vencimiento(n, BASES, 'Falabella', 30)
+        self.assertEqual(n.dbs['db-deu'][0]['Día de pago'], 30)
+        self.assertEqual(n.dbs['db-rec'][0]['Deuda'], 'Banco Falabella')

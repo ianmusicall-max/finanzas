@@ -57,6 +57,7 @@ AYUDA = t(
     "<code>/presupuesto comida 800</code>\n"
     "<code>/activo Interbank 5200</code> · <code>/deuda Tarjeta Falabella 1200</code>\n"
     "<code>/pago Falabella 300</code> · baja el saldo de una deuda\n"
+    "<code>/vencimiento Luz 15</code> · fecha mensual de banco o servicio; aviso 3 días antes\n"
     "<code>/corte Falabella 10</code> · el día que cierra el estado de cuenta de una tarjeta\n"
     "<code>/meta Auto 100000</code>\n"
     "<code>/tc 3.72</code> · <code>/tc rub 0.046</code> · tipo de cambio\n"
@@ -887,6 +888,8 @@ class Bot:
             self.decir(chat, METODOS)
         elif cmd == "/tc":
             self._tc(chat, arg)
+        elif cmd == "/vencimiento":
+            self._vencimiento(chat, arg)
         elif cmd == "/corte":
             self._corte(chat, arg)
         elif cmd in ("/comparar", "/compara"):
@@ -1051,6 +1054,21 @@ class Bot:
             n = _numero(m.group(0))
             extra, txt = F.en_base(n, moneda), F.en_moneda(n, moneda)
         self.decir(chat, I.texto_plan(self.notion, self.bases, extra, txt))
+
+    def _vencimiento(self, chat, arg: str) -> None:
+        m = re.fullmatch(r"(.+?)\s+(\d{1,2})", arg.strip())
+        if not m or not 1 <= int(m.group(2)) <= 31:
+            self.decir(chat, "Escribe el nombre y el día de pago (1 a 31): "
+                       "<code>/vencimiento Falabella 30</code> o "
+                       "<code>/vencimiento Luz 15</code>.")
+            return
+        try:
+            r = F.fijar_vencimiento(self.notion, self.bases, m.group(1), int(m.group(2)))
+        except ValueError as exc:
+            self.decir(chat, esc(str(exc)))
+            return
+        self.decir(chat, "📅 %s: pago el día %d de cada mes. Te avisaré tres días antes "
+                   "y el día del vencimiento, a las 9:00. Consulta /pagos." % (esc(r["nombre"]), r["dia"]))
 
     def _corte(self, chat, arg: str) -> None:
         """/corte Falabella 10 · el día que cierra el estado de cuenta de esa tarjeta."""
